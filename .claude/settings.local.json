@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(python3 *)",
+      "Bash(npm search *)",
+      "Bash(node -e \" const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); d.slice\\(0,15\\).forEach\\(p => console.log\\(p.name, '|', p.version, '|', \\(p.description||''\\).slice\\(0,80\\)\\)\\); \")",
+      "Bash(node -e \" const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); d.slice\\(0,10\\).forEach\\(p => console.log\\(p.name, '|', p.version, '|', \\(p.description||''\\).slice\\(0,80\\)\\)\\); \" npm search \"chinese calendar\" --json)",
+      "Bash(node -e \" const d = JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); d.slice\\(0,10\\).forEach\\(p => console.log\\(p.name, '|', p.version, '|', \\(p.description||''\\).slice\\(0,80\\)\\)\\); \")",
+      "Read(//private/tmp/bazi-test/**)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
