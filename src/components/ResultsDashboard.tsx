@@ -250,55 +250,60 @@ const READINESS_LABELS: Record<string, { label: string; cls: string }> = {
 // ─── Step 1: 결론 — copy data ─────────────────────────────────────────────────
 
 const EMPATHY_HOOK: Partial<Record<DirectionType, string>> = {
-  '독립 창업형':   '변화는 하고 싶은데\n지금 움직여도 될지 확신이 없다면',
-  '전문가 성장형': '지금 하는 일이 틀린 건 아닌데\n더 깊이 가야 하는지 확신이 없다면',
-  '조직 성장형':   '지금 회사가 완전히 틀린 건 아닌데\n이대로 계속 가도 되는지 고민된다면',
-  '학습 전환형':   '방향을 바꾸고 싶은데\n무엇부터 준비해야 할지 모르겠다면',
-  '회복 재정비형': '뭔가를 더 하기보다\n먼저 에너지를 되찾아야 할 것 같다면',
-  '안정 설계형':   '큰 변화보다\n지금의 기반을 지키는 것이 더 중요하게 느껴진다면',
+  '독립 창업형':   '회사 다니면서도\n자꾸 내 걸 만들고 싶다는 생각이 든다면',
+  '전문가 성장형': '일이 싫은 건 아닌데\n5년 뒤에도 지금이랑 똑같을까봐 무섭다면',
+  '조직 성장형':   '회사가 싫은 건 아닌데\n자꾸 다른 회사 채용 공고를 보고 있다면',
+  '학습 전환형':   '이 길이 내 길은 아닌 것 같은데\n어디로 가야 할지 안 보인다면',
+  '회복 재정비형': '뭐든 다 귀찮고\n그냥 멈추고 싶다는 생각이 든다면',
+  '안정 설계형':   '변화가 좋다는 건 알지만\n지금 흔드는 게 정답은 아닌 것 같다면',
 };
-const EMPATHY_FALLBACK = '지금의 선택이 맞는지\n확신이 필요하다면';
+const EMPATHY_FALLBACK = '지금이 맞는 길인지\n자꾸 의심이 든다면';
 
 const TENSION_COPY: Partial<Record<DirectionType, [string, string]>> = {
   '독립 창업형':   [
-    '지금 퇴사하면 실패할 확률이 높습니다.',
-    '하지만 아무것도 하지 않으면 기회도 사라집니다.',
+    '지금 충동적으로 퇴사하면 6개월 뒤 통장이 알려줘요.',
+    '그렇다고 계속 미루면 1년 뒤에도 똑같이 "내년엔..." 하고 있어요.',
   ],
   '전문가 성장형': [
-    '지금 환경에서 계속 쌓으면 방향이 좁아질 수 있습니다.',
-    '하지만 준비 없이 옮기면 전문성이 분산될 수 있습니다.',
+    '지금 환경에서 더 쌓아도 같은 자리만 더 두꺼워질 수 있어요.',
+    '그렇다고 무작정 옮기면 쌓아온 게 흩어져요.',
   ],
   '조직 성장형':   [
-    '무작정 버티면 기회가 줄어듭니다.',
-    '하지만 준비 없이 옮기면 같은 문제가 반복될 수 있습니다.',
+    '지금 자리에 머무는 동안, 시장에서 내 값은 조용히 떨어져요.',
+    '그렇다고 화나서 던지듯 옮기면 새 회사에서도 똑같은 답답함을 마주해요.',
   ],
   '학습 전환형':   [
-    '지금 바로 전환하면 위험합니다.',
-    '하지만 준비를 미루면 전환 가능성도 늦어집니다.',
+    '지금 바로 학원 등록하면 비용만 새요.',
+    '그렇다고 계속 미루면 1년 뒤에도 "준비 중"이에요.',
   ],
   '회복 재정비형': [
-    '지금 무리하면 더 오래 쉬어야 할 수 있습니다.',
-    '하지만 회복 없이 결정하면 판단이 흐려질 수 있습니다.',
+    '지금 무리해서 결정하면 6개월 뒤 더 큰 비용으로 돌아와요.',
+    '그렇다고 결정 자체를 피하면 답답함도 같이 길어져요.',
   ],
   '안정 설계형':   [
-    '지금은 큰 변화보다 기반을 지키는 것이 먼저입니다.',
-    '하지만 아무 점검 없이 버티는 것은 전략이 아닙니다.',
+    '그냥 계속 다니면 어느 순간 선택지가 사라져요.',
+    '그렇다고 무작정 옮기면 지금 가진 것까지 잃어요.',
   ],
 };
 
 const PUNCHLINE: Partial<Record<DirectionType, string>> = {
-  '독립 창업형':   '지금 필요한 건\n재직 중 유료 고객 1명입니다.',
-  '전문가 성장형': '지금 필요한 건\n현재 전문성을 시장에서 검증하는 것입니다.',
-  '조직 성장형':   '지금 필요한 건\n재직 중 더 나은 환경을 검증하는 것입니다.',
-  '학습 전환형':   '지금 필요한 건\n전환 전에 실전 역량 증거를 만드는 것입니다.',
-  '회복 재정비형': '지금 필요한 건\n결정보다 회복 루틴을 먼저 만드는 것입니다.',
-  '안정 설계형':   '지금 필요한 건\n현 상태를 지키며 개선 가능한 조건을 확인하는 것입니다.',
+  '독립 창업형':   '지금 필요한 건\n돈 내고 사주는 사람 한 명을 찾는 거예요.',
+  '전문가 성장형': '지금 필요한 건\n내 전문성이 다른 곳에서도 통하는지 확인해보는 거예요.',
+  '조직 성장형':   '지금 필요한 건\n갈 수 있는 곳이 진짜 있는지부터 확인해보는 거예요.',
+  '학습 전환형':   '지금 필요한 건\n그 일을 하는 사람을 한 명 만나보는 거예요.',
+  '회복 재정비형': '지금 필요한 건\n다음 단계가 아니라, 오늘 잘 자는 거예요.',
+  '안정 설계형':   '지금 필요한 건\n옮기지 않고 바꿀 수 있는 게 뭐가 있는지 확인하는 거예요.',
 };
 
 const SAFETY_LOCK: Partial<Record<DirectionType, string>> = {
-  '독립 창업형': '이걸 확인하기 전까지는 퇴사하지 마세요.',
+  '독립 창업형':   '그 한 명을 만나기 전엔 퇴사하지 마세요. 그게 가장 비싼 보험이에요.',
+  '전문가 성장형': '답을 받아본 뒤에 결정해도 늦지 않아요. 지금은 답을 받을 준비만 하면 돼요.',
+  '조직 성장형':   '퇴사 결심은 지금 안 해도 돼요. 답을 찾을 준비를 하는 단계니까요.',
+  '학습 전환형':   '만나본 뒤에 갈지 결정해도 돼요. 지금은 길이 보이는지부터 확인하는 단계예요.',
+  '회복 재정비형': '회복 다 된 다음에 결정해도 돼요. 지금 내리는 결정은, 회복한 내가 다시 내릴 거예요.',
+  '안정 설계형':   '안에서 안 되는 게 확인되고 나서 밖을 봐도 늦지 않아요.',
 };
-const SAFETY_LOCK_SOFT = '결정은 지금이 아니라, 신호를 확인한 뒤에 내려도 늦지 않습니다.';
+const SAFETY_LOCK_SOFT = '결정은 지금 안 해도 돼요. 신호를 확인한 뒤에 내려도 늦지 않아요.';
 
 // ─── Step 1: 결론 ─────────────────────────────────────────────────────────────
 
@@ -333,7 +338,7 @@ function Step1Conclusion({ results }: { results: Results }) {
 
   const punchline = (() => {
     if (isRecoveryGate)
-      return normalizePunchline(['지금 필요한 건', '결정이 아니라 회복입니다.']);
+      return normalizePunchline(['지금 필요한 건', '결정이 아니라, 오늘 잘 자는 거예요.']);
     if (isPrepareGate) {
       const prepareMap: Partial<Record<typeof cd.directionType, string>> = {
         '독립 창업형':   '지금 필요한 건\n창업 전 시장 검증 준비입니다.',
@@ -347,7 +352,7 @@ function Step1Conclusion({ results }: { results: Results }) {
   })();
 
   const safetyLock = isRecoveryGate
-    ? '에너지가 회복되기 전까지는 퇴사나 창업을 결정하지 마세요.'
+    ? '회복하기 전엔 어떤 큰 결정도 내리지 마세요. 지금 내린 결정은 회복한 내가 다시 내릴 거예요.'
     : (SAFETY_LOCK[cd.directionType] ?? SAFETY_LOCK_SOFT);
 
   return (
@@ -361,19 +366,19 @@ function Step1Conclusion({ results }: { results: Results }) {
           {/* Hook — pre-identity emotional framing */}
           {(() => {
             const PREPARE_HOOK: Partial<Record<typeof cd.directionType, [string, string]>> = {
-              '독립 창업형':   ['창업하고 싶은데', '지금 당장 시작하기엔 준비가 부족하다면'],
-              '조직 성장형':   ['이직하고 싶은데', '아직 경쟁력이 충분하지 않다고 느낀다면'],
-              '전문가 성장형': ['전문성을 키우고 싶은데', '어디서부터 시작해야 할지 막막하다면'],
-              '학습 전환형':   ['전환하고 싶은데', '아직 실전 경험이 부족하다고 느낀다면'],
+              '독립 창업형':   ['창업하고 싶은데', '지금 뛰어들기엔 아직 안 잡힌 게 많다면'],
+              '조직 성장형':   ['이직하고 싶은데', '지금 시장에서 내가 잘 통할지 자신이 없다면'],
+              '전문가 성장형': ['더 깊게 가고 싶은데', '어디서부터 손대야 할지 안 보인다면'],
+              '학습 전환형':   ['바꾸고 싶은데', '실제로 그 일을 해본 적이 없어서 두렵다면'],
             };
             const prepareHook = isPrepareGate ? (PREPARE_HOOK[cd.directionType] ?? [hook[0], hook[1] ?? hook[0]]) : null;
             return (
               <div className="mb-5">
                 <p className="text-sm text-slate-500 leading-relaxed">
-                  {isRecoveryGate ? '변화는 하고 싶은데' : prepareHook ? prepareHook[0] : hook[0]}
+                  {isRecoveryGate ? '뭔가 해야 할 것 같은데' : prepareHook ? prepareHook[0] : hook[0]}
                 </p>
                 <p className="text-sm font-semibold text-slate-700 leading-relaxed">
-                  {isRecoveryGate ? '지금은 움직일 힘이 남아있지 않다면' : prepareHook ? prepareHook[1] : (hook[1] ?? hook[0])}
+                  {isRecoveryGate ? '지금은 그 뭔가를 할 힘이 안 남아있다면' : prepareHook ? prepareHook[1] : (hook[1] ?? hook[0])}
                 </p>
               </div>
             );
@@ -418,10 +423,10 @@ function Step1Conclusion({ results }: { results: Results }) {
           {(tension || isRecoveryGate) && (
             <div className="mb-5 space-y-1">
               <p className="text-sm text-slate-600 leading-relaxed">
-                {isRecoveryGate ? '지금 무리하게 결정하면 후회할 가능성이 높습니다.' : tension?.[0]}
+                {isRecoveryGate ? '지금 상태에서 내린 결정은, 6개월 뒤 다시 내려야 해요.' : tension?.[0]}
               </p>
               <p className="text-sm font-semibold text-slate-800 leading-relaxed">
-                {isRecoveryGate ? '하지만 회복 없이 버티는 것도 답이 아닙니다.' : tension?.[1]}
+                {isRecoveryGate ? '그렇다고 계속 버티면 회복 비용만 더 커져요.' : tension?.[1]}
               </p>
             </div>
           )}
