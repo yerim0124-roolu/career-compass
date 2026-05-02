@@ -70,7 +70,7 @@ function actionSentence(
     return '회복이 완료된 후 이 타이밍을 다시 확인하세요. 지금은 컨디션이 먼저입니다.';
   if (stateTimingLevel === '저강도 탐색')
     return '지금은 결정보다 탐색입니다. 작은 행동 하나로 신호를 먼저 확인하세요.';
-  if (directionType === '독립 창업형' || primaryStrategy.includes('사이드'))
+  if (directionType === '자기 길 만드는 사람' || primaryStrategy.includes('사이드'))
     return '흐름이 받쳐주는 지금, 첫 번째 행동은 유료 고객 반응을 확인하는 것입니다.';
   if (primaryStrategy.includes('이직') || primaryStrategy.includes('탐색'))
     return '지금이 이직 탐색을 시작하기에 현실적인 시점입니다. 이력서부터 시작하세요.';
@@ -217,12 +217,12 @@ function SL({ children }: { children: React.ReactNode }) {
 // ─── Direction / Execution color tokens ──────────────────────────────────────
 
 const DIRECTION_COLOR: Record<DirectionType, { pill: string; bar: string }> = {
-  '독립 창업형':   { pill: 'bg-violet-100 text-violet-800 border-violet-200', bar: 'from-violet-500 via-indigo-400 to-purple-400' },
-  '전문가 성장형': { pill: 'bg-indigo-100 text-indigo-800 border-indigo-200', bar: 'from-indigo-500 via-sky-400 to-blue-400' },
-  '조직 성장형':   { pill: 'bg-sky-100 text-sky-800 border-sky-200',          bar: 'from-sky-500 via-indigo-400 to-slate-400' },
-  '학습 전환형':   { pill: 'bg-emerald-100 text-emerald-800 border-emerald-200', bar: 'from-emerald-500 via-teal-400 to-indigo-400' },
-  '회복 재정비형': { pill: 'bg-amber-100 text-amber-800 border-amber-200',    bar: 'from-amber-400 via-orange-300 to-red-300' },
-  '안정 설계형':   { pill: 'bg-slate-100 text-slate-700 border-slate-200',    bar: 'from-slate-500 via-stone-400 to-slate-400' },
+  '자기 길 만드는 사람':   { pill: 'bg-violet-100 text-violet-800 border-violet-200', bar: 'from-violet-500 via-indigo-400 to-purple-400' },
+  '한 우물 파는 사람': { pill: 'bg-indigo-100 text-indigo-800 border-indigo-200', bar: 'from-indigo-500 via-sky-400 to-blue-400' },
+  '같이 만들 때 잘하는 사람':   { pill: 'bg-sky-100 text-sky-800 border-sky-200',          bar: 'from-sky-500 via-indigo-400 to-slate-400' },
+  '방향 바꾸고 싶은 사람':   { pill: 'bg-emerald-100 text-emerald-800 border-emerald-200', bar: 'from-emerald-500 via-teal-400 to-indigo-400' },
+  '잠시 충전이 필요한 사람': { pill: 'bg-amber-100 text-amber-800 border-amber-200',    bar: 'from-amber-400 via-orange-300 to-red-300' },
+  '차근차근 다지는 사람':   { pill: 'bg-slate-100 text-slate-700 border-slate-200',    bar: 'from-slate-500 via-stone-400 to-slate-400' },
 };
 
 const EXECUTION_PILL: Record<ExecutionMode, string> = {
@@ -250,58 +250,58 @@ const READINESS_LABELS: Record<string, { label: string; cls: string }> = {
 // ─── Step 1: 결론 — copy data ─────────────────────────────────────────────────
 
 const EMPATHY_HOOK: Partial<Record<DirectionType, string>> = {
-  '독립 창업형':   '회사 다니면서도\n자꾸 내 걸 만들고 싶다는 생각이 든다면',
-  '전문가 성장형': '일이 싫은 건 아닌데\n5년 뒤에도 지금이랑 똑같을까봐 무섭다면',
-  '조직 성장형':   '회사가 싫은 건 아닌데\n자꾸 다른 회사 채용 공고를 보고 있다면',
-  '학습 전환형':   '이 길이 내 길은 아닌 것 같은데\n어디로 가야 할지 안 보인다면',
-  '회복 재정비형': '뭐든 다 귀찮고\n그냥 멈추고 싶다는 생각이 든다면',
-  '안정 설계형':   '변화가 좋다는 건 알지만\n지금 흔드는 게 정답은 아닌 것 같다면',
+  '자기 길 만드는 사람':   '회사 다니면서도\n자꾸 내 걸 만들고 싶다는 생각이 든다면',
+  '한 우물 파는 사람': '일이 싫은 건 아닌데\n5년 뒤에도 지금이랑 똑같을까봐 무섭다면',
+  '같이 만들 때 잘하는 사람':   '회사가 싫은 건 아닌데\n자꾸 다른 회사 채용 공고를 보고 있다면',
+  '방향 바꾸고 싶은 사람':   '이 길이 내 길은 아닌 것 같은데\n어디로 가야 할지 안 보인다면',
+  '잠시 충전이 필요한 사람': '뭐든 다 귀찮고\n그냥 멈추고 싶다는 생각이 든다면',
+  '차근차근 다지는 사람':   '변화가 좋다는 건 알지만\n지금 흔드는 게 정답은 아닌 것 같다면',
 };
 const EMPATHY_FALLBACK = '지금이 맞는 길인지\n자꾸 의심이 든다면';
 
 const TENSION_COPY: Partial<Record<DirectionType, [string, string]>> = {
-  '독립 창업형':   [
+  '자기 길 만드는 사람':   [
     '지금 충동적으로 퇴사하면 6개월 뒤 통장이 알려줘요.',
     '그렇다고 계속 미루면 1년 뒤에도 똑같이 "내년엔..." 하고 있어요.',
   ],
-  '전문가 성장형': [
+  '한 우물 파는 사람': [
     '지금 환경에서 더 쌓아도 같은 자리만 더 두꺼워질 수 있어요.',
     '그렇다고 무작정 옮기면 쌓아온 게 흩어져요.',
   ],
-  '조직 성장형':   [
+  '같이 만들 때 잘하는 사람':   [
     '지금 자리에 머무는 동안, 시장에서 내 값은 조용히 떨어져요.',
     '그렇다고 화나서 던지듯 옮기면 새 회사에서도 똑같은 답답함을 마주해요.',
   ],
-  '학습 전환형':   [
+  '방향 바꾸고 싶은 사람':   [
     '지금 바로 학원 등록하면 비용만 새요.',
     '그렇다고 계속 미루면 1년 뒤에도 "준비 중"이에요.',
   ],
-  '회복 재정비형': [
+  '잠시 충전이 필요한 사람': [
     '지금 무리해서 결정하면 6개월 뒤 더 큰 비용으로 돌아와요.',
     '그렇다고 결정 자체를 피하면 답답함도 같이 길어져요.',
   ],
-  '안정 설계형':   [
+  '차근차근 다지는 사람':   [
     '그냥 계속 다니면 어느 순간 선택지가 사라져요.',
     '그렇다고 무작정 옮기면 지금 가진 것까지 잃어요.',
   ],
 };
 
 const PUNCHLINE: Partial<Record<DirectionType, string>> = {
-  '독립 창업형':   '지금 필요한 건\n돈 내고 사주는 사람 한 명을 찾는 거예요.',
-  '전문가 성장형': '지금 필요한 건\n내 전문성이 다른 곳에서도 통하는지 확인해보는 거예요.',
-  '조직 성장형':   '지금 필요한 건\n갈 수 있는 곳이 진짜 있는지부터 확인해보는 거예요.',
-  '학습 전환형':   '지금 필요한 건\n그 일을 하는 사람을 한 명 만나보는 거예요.',
-  '회복 재정비형': '지금 필요한 건\n다음 단계가 아니라, 오늘 잘 자는 거예요.',
-  '안정 설계형':   '지금 필요한 건\n옮기지 않고 바꿀 수 있는 게 뭐가 있는지 확인하는 거예요.',
+  '자기 길 만드는 사람':   '지금 필요한 건\n돈 내고 사주는 사람 한 명을 찾는 거예요.',
+  '한 우물 파는 사람': '지금 필요한 건\n내 전문성이 다른 곳에서도 통하는지 확인해보는 거예요.',
+  '같이 만들 때 잘하는 사람':   '지금 필요한 건\n갈 수 있는 곳이 진짜 있는지부터 확인해보는 거예요.',
+  '방향 바꾸고 싶은 사람':   '지금 필요한 건\n그 일을 하는 사람을 한 명 만나보는 거예요.',
+  '잠시 충전이 필요한 사람': '지금 필요한 건\n다음 단계가 아니라, 오늘 잘 자는 거예요.',
+  '차근차근 다지는 사람':   '지금 필요한 건\n옮기지 않고 바꿀 수 있는 게 뭐가 있는지 확인하는 거예요.',
 };
 
 const SAFETY_LOCK: Partial<Record<DirectionType, string>> = {
-  '독립 창업형':   '그 한 명을 만나기 전엔 퇴사하지 마세요. 그게 가장 비싼 보험이에요.',
-  '전문가 성장형': '답을 받아본 뒤에 결정해도 늦지 않아요. 지금은 답을 받을 준비만 하면 돼요.',
-  '조직 성장형':   '퇴사 결심은 지금 안 해도 돼요. 답을 찾을 준비를 하는 단계니까요.',
-  '학습 전환형':   '만나본 뒤에 갈지 결정해도 돼요. 지금은 길이 보이는지부터 확인하는 단계예요.',
-  '회복 재정비형': '회복 다 된 다음에 결정해도 돼요. 지금 내리는 결정은, 회복한 내가 다시 내릴 거예요.',
-  '안정 설계형':   '안에서 안 되는 게 확인되고 나서 밖을 봐도 늦지 않아요.',
+  '자기 길 만드는 사람':   '그 한 명을 만나기 전엔 퇴사하지 마세요. 그게 가장 비싼 보험이에요.',
+  '한 우물 파는 사람': '답을 받아본 뒤에 결정해도 늦지 않아요. 지금은 답을 받을 준비만 하면 돼요.',
+  '같이 만들 때 잘하는 사람':   '퇴사 결심은 지금 안 해도 돼요. 답을 찾을 준비를 하는 단계니까요.',
+  '방향 바꾸고 싶은 사람':   '만나본 뒤에 갈지 결정해도 돼요. 지금은 길이 보이는지부터 확인하는 단계예요.',
+  '잠시 충전이 필요한 사람': '회복 다 된 다음에 결정해도 돼요. 지금 내리는 결정은, 회복한 내가 다시 내릴 거예요.',
+  '차근차근 다지는 사람':   '안에서 안 되는 게 확인되고 나서 밖을 봐도 늦지 않아요.',
 };
 const SAFETY_LOCK_SOFT = '결정은 지금 안 해도 돼요. 신호를 확인한 뒤에 내려도 늦지 않아요.';
 
@@ -341,10 +341,10 @@ function Step1Conclusion({ results }: { results: Results }) {
       return normalizePunchline(['지금 필요한 건', '결정이 아니라, 오늘 잘 자는 거예요.']);
     if (isPrepareGate) {
       const prepareMap: Partial<Record<typeof cd.directionType, string>> = {
-        '독립 창업형':   '지금 필요한 건\n창업 전 시장 검증 준비입니다.',
-        '조직 성장형':   '지금 필요한 건\n이직 경쟁력을 먼저 키우는 것입니다.',
-        '전문가 성장형': '지금 필요한 건\n전문성을 증명할 포트폴리오입니다.',
-        '학습 전환형':   '지금 필요한 건\n전환 전 실전 경험 한 가지입니다.',
+        '자기 길 만드는 사람':   '지금 필요한 건\n창업 전 시장 검증 준비입니다.',
+        '같이 만들 때 잘하는 사람':   '지금 필요한 건\n이직 경쟁력을 먼저 키우는 것입니다.',
+        '한 우물 파는 사람': '지금 필요한 건\n전문성을 증명할 포트폴리오입니다.',
+        '방향 바꾸고 싶은 사람':   '지금 필요한 건\n전환 전 실전 경험 한 가지입니다.',
       };
       return normalizePunchline((prepareMap[cd.directionType] ?? PUNCHLINE[cd.directionType] ?? '').split('\n'));
     }
@@ -366,10 +366,10 @@ function Step1Conclusion({ results }: { results: Results }) {
           {/* Hook — pre-identity emotional framing */}
           {(() => {
             const PREPARE_HOOK: Partial<Record<typeof cd.directionType, [string, string]>> = {
-              '독립 창업형':   ['창업하고 싶은데', '지금 뛰어들기엔 아직 안 잡힌 게 많다면'],
-              '조직 성장형':   ['이직하고 싶은데', '지금 시장에서 내가 잘 통할지 자신이 없다면'],
-              '전문가 성장형': ['더 깊게 가고 싶은데', '어디서부터 손대야 할지 안 보인다면'],
-              '학습 전환형':   ['바꾸고 싶은데', '실제로 그 일을 해본 적이 없어서 두렵다면'],
+              '자기 길 만드는 사람':   ['창업하고 싶은데', '지금 뛰어들기엔 아직 안 잡힌 게 많다면'],
+              '같이 만들 때 잘하는 사람':   ['이직하고 싶은데', '지금 시장에서 내가 잘 통할지 자신이 없다면'],
+              '한 우물 파는 사람': ['더 깊게 가고 싶은데', '어디서부터 손대야 할지 안 보인다면'],
+              '방향 바꾸고 싶은 사람':   ['바꾸고 싶은데', '실제로 그 일을 해본 적이 없어서 두렵다면'],
             };
             const prepareHook = isPrepareGate ? (PREPARE_HOOK[cd.directionType] ?? [hook[0], hook[1] ?? hook[0]]) : null;
             return (
@@ -470,7 +470,7 @@ function Step1Conclusion({ results }: { results: Results }) {
         </div>
         {/* Key metrics gauge bars */}
         {(() => {
-          const isStartup = cd.directionType === '독립 창업형';
+          const isStartup = cd.directionType === '자기 길 만드는 사람';
           const mr = Math.round((results.derived.marketReadiness - 1) / 4 * 100);
           const metrics = isStartup
             ? [
@@ -704,7 +704,7 @@ function Step3State({ results }: { results: Results }) {
   const { derived, globalWarnings } = results;
   const marketPct = Math.round((derived.marketReadiness - 1) / 4 * 100);
   const bp = Math.round(derived.burnoutPressure);
-  const isStartupDir = results.careerDiagnosis.directionType === '독립 창업형';
+  const isStartupDir = results.careerDiagnosis.directionType === '자기 길 만드는 사람';
 
   const metrics = isStartupDir
     ? [

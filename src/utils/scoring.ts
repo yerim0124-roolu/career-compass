@@ -91,7 +91,7 @@ export const FLOW_TYPE_LABELS: Record<FlowType, string> = {
   expansionExternal: '확장 탐색형 (이직/창업)',      // 변화 욕구 강함 + 안정/회복 욕구 낮음
   expansionInternal: '내부 전환형 (공부/직무전환)',   // 변화 욕구 강함 + 안정 또는 회복 욕구 동반
   stabilityExternal: '안정 유지형 (현직 유지)',       // 변화 욕구 낮음 + 회복 욕구도 낮음
-  stabilityInternal: '회복 재정비형 (휴식/재정비)',   // 변화 욕구 낮음 + 회복 욕구 강함
+  stabilityInternal: '잠시 충전이 필요한 사람 (휴식/재정비)',   // 변화 욕구 낮음 + 회복 욕구 강함
 };
 
 // 한 줄 미리보기용. InputForm 미리보기와 실제 분석이 동일 모델을 쓰도록 단일 source.
@@ -101,7 +101,7 @@ export function getFlowTypePreview(flow: FormData['flow']): string {
     expansionExternal: '확장 탐색형 — 이직 또는 창업/프리랜서 방향과 잘 맞습니다.',
     expansionInternal: '내부 전환형 — 기반을 유지하면서 공부·직무전환 방향이 잘 맞습니다.',
     stabilityExternal: '안정 유지형 — 현직 유지·내부 개선 방향과 잘 맞습니다.',
-    stabilityInternal: '회복 재정비형 — 지금은 충전이 먼저, 방향은 그 다음입니다.',
+    stabilityInternal: '잠시 충전이 필요한 사람 — 지금은 충전이 먼저, 방향은 그 다음입니다.',
   };
   return detail[flowType];
 }
@@ -1502,7 +1502,7 @@ interface BasePersona {
 
 const STRATEGY_PERSONA: Record<CareerDecisionClass, BasePersona> = {
   'recovery-first': {
-    archetypeLabel:    '회복 재정비형',
+    archetypeLabel:    '잠시 충전이 필요한 사람',
     oneLinePersonality: '지금 에너지가 소진된 상태입니다. 회복이 전략이고, 방향은 그 다음입니다.',
     baseBullets: [
       '현재 피로도가 높아 어떤 결정을 내려도 실행력이 떨어질 수 있는 상태입니다.',
@@ -2295,7 +2295,7 @@ export function runDecisionStrategyAudit(): void {
         traits: { ...bt, riskTolerance: 5, selfEfficacy: 5, changeOrientation: 5, curiosity: 5, networking: 4 },
         careerStatus: { ...bc, burnout: 1, jobSatisfaction: 2 },
       }),
-      expectDirection: '독립 창업형',
+      expectDirection: '자기 길 만드는 사람',
       expectExecution: '즉시 실행',
     },
     {
@@ -2305,7 +2305,7 @@ export function runDecisionStrategyAudit(): void {
         traits: { ...bt, riskTolerance: 5, selfEfficacy: 4, changeOrientation: 4, curiosity: 4, networking: 3 },
         careerStatus: { ...bc, burnout: 3, organizationStress: 3 },
       }),
-      expectDirection: '독립 창업형',
+      expectDirection: '자기 길 만드는 사람',
       expectExecution: '재직 중 검증',
     },
     {
@@ -2315,7 +2315,7 @@ export function runDecisionStrategyAudit(): void {
         traits: { ...bt, selfEfficacy: 4, networking: 4, changeOrientation: 4, curiosity: 3, riskTolerance: 2 },
         careerStatus: { ...bc, jobSatisfaction: 2, growthPotential: 2, burnout: 2 },
       }),
-      expectDirection: '성장형',  // 조직 성장형 or 전문가 성장형
+      expectDirection: '성장형',  // 같이 만들 때 잘하는 사람 or 한 우물 파는 사람
       expectExecution: '재직 중 검증',
     },
     {
@@ -2325,7 +2325,7 @@ export function runDecisionStrategyAudit(): void {
         traits: { ...bt, riskTolerance: 5, selfEfficacy: 4, changeOrientation: 4, curiosity: 4, recoveryNeed: 5 },
         careerStatus: { ...bc, burnout: 5, organizationStress: 5, workLifeBalance: 1 },
       }),
-      expectDirection: '독립 창업형',   // direction persists despite fatigue
+      expectDirection: '자기 길 만드는 사람',   // direction persists despite fatigue
       expectExecution: '회복 후 실행',
     },
     {
@@ -2334,7 +2334,7 @@ export function runDecisionStrategyAudit(): void {
         traits: { ...bt, curiosity: 5, changeOrientation: 4, riskTolerance: 2, selfEfficacy: 2, networking: 2, meaningOrientation: 4 },
         careerStatus: { ...bc, jobSatisfaction: 2, burnout: 2 },
       }),
-      expectDirection: '학습 전환형',
+      expectDirection: '방향 바꾸고 싶은 사람',
       expectExecution: '준비 후 전환',
     },
   ];
@@ -2512,12 +2512,12 @@ export function runDecisionStrategyAudit(): void {
 // They are computed independently so execution mode cannot erase direction identity.
 
 const DIRECTION_DESCRIPTIONS: Record<DirectionType, string> = {
-  '독립 창업형':   '자율적 환경에서 자신의 방식으로 일하려는 성향이 강합니다. 장기적으로 독립적인 커리어 경로가 더 맞습니다.',
-  '전문가 성장형': '특정 분야에서 깊이 있는 전문성을 쌓는 방향이 맞습니다. 의미와 역량 성장이 동기의 핵심입니다.',
-  '조직 성장형':   '조직 내 네트워크와 영향력을 통해 성장하는 방향이 맞습니다. 협업과 기획 능력이 강점입니다.',
-  '학습 전환형':   '새로운 분야로 역량을 전환하며 성장하는 방향이 맞습니다. 학습을 통한 방향 전환이 자연스럽습니다.',
-  '회복 재정비형': '지금은 방향 설정보다 에너지 회복과 커리어 재정비가 먼저 필요한 상태입니다.',
-  '안정 설계형':   '안정적인 기반 위에서 장기적으로 커리어를 설계하는 방향이 맞습니다. 급격한 변화보다 최적화를 선호합니다.',
+  '자기 길 만드는 사람':   '자율적 환경에서 자신의 방식으로 일하려는 성향이 강합니다. 장기적으로 독립적인 커리어 경로가 더 맞습니다.',
+  '한 우물 파는 사람': '특정 분야에서 깊이 있는 전문성을 쌓는 방향이 맞습니다. 의미와 역량 성장이 동기의 핵심입니다.',
+  '같이 만들 때 잘하는 사람':   '조직 내 네트워크와 영향력을 통해 성장하는 방향이 맞습니다. 협업과 기획 능력이 강점입니다.',
+  '방향 바꾸고 싶은 사람':   '새로운 분야로 역량을 전환하며 성장하는 방향이 맞습니다. 학습을 통한 방향 전환이 자연스럽습니다.',
+  '잠시 충전이 필요한 사람': '지금은 방향 설정보다 에너지 회복과 커리어 재정비가 먼저 필요한 상태입니다.',
+  '차근차근 다지는 사람':   '안정적인 기반 위에서 장기적으로 커리어를 설계하는 방향이 맞습니다. 급격한 변화보다 최적화를 선호합니다.',
 };
 
 const EXECUTION_DESCRIPTIONS: Record<ExecutionMode, string> = {
@@ -2532,42 +2532,42 @@ const EXECUTION_DESCRIPTIONS: Record<ExecutionMode, string> = {
 // One-liner shown just below the direction label in the hero card.
 // More personal than integratedStrategy — reads as the "context sentence" for direction×execution.
 const ONE_LINE_SUMMARY: Record<DirectionType, Record<ExecutionMode, string>> = {
-  '독립 창업형': {
+  '자기 길 만드는 사람': {
     '즉시 실행':    '독립적으로 일할 때 에너지가 살아나는 타입이고, 지금 조건도 시작하기에 충분합니다.',
     '재직 중 검증': '독립적으로 일할 때 에너지가 살아나는 타입이지만, 지금은 퇴사보다 작은 유료 실험으로 방향을 검증하는 단계입니다.',
     '준비 후 전환': '독립 창업 방향이지만, 먼저 시장 경쟁력을 높인 후 단계적으로 준비하는 것이 더 현실적입니다.',
     '회복 후 실행': '독립 창업 방향이지만, 지금 당장 실행하면 번아웃이 겹칩니다. 회복 후 차근차근 시작하세요.',
     '보류·점검':    '독립 창업 방향이지만, 지금은 기반 조건을 안정화하는 것이 먼저입니다.',
   },
-  '전문가 성장형': {
+  '한 우물 파는 사람': {
     '즉시 실행':    '전문성을 깊이 쌓는 것이 맞는 방향이고, 지금 조건도 적극적으로 움직이기에 충분합니다.',
     '재직 중 검증': '전문성을 심화할 수 있는 더 나은 환경을 재직 중 탐색하는 것이 지금 가장 합리적입니다.',
     '준비 후 전환': '전문가 성장 방향이지만, 먼저 역량 투자를 통해 더 유리한 조건으로 이동하는 것이 맞습니다.',
     '회복 후 실행': '전문가 성장 방향이지만, 지금 상태에서 움직이면 에너지가 반감됩니다. 먼저 회복하세요.',
     '보류·점검':    '전문가 성장 방향이지만, 지금은 기반 조건이 먼저입니다.',
   },
-  '조직 성장형': {
+  '같이 만들 때 잘하는 사람': {
     '즉시 실행':    '조직 내 영향력을 키우는 방향이 맞고, 지금 바로 환경 전환을 실행할 수 있습니다.',
     '재직 중 검증': '조직 성장 방향에서 더 나은 환경을 재직 중 탐색하는 것이 가장 안전합니다.',
     '준비 후 전환': '조직 성장 방향이지만, 네트워크와 이직 준비를 먼저 탄탄히 하는 것이 더 유리합니다.',
     '회복 후 실행': '조직 성장 방향이지만, 지금은 회복이 우선입니다.',
     '보류·점검':    '조직 성장 방향이지만, 지금은 기반 조건을 점검하는 것이 먼저입니다.',
   },
-  '학습 전환형': {
+  '방향 바꾸고 싶은 사람': {
     '즉시 실행':    '학습을 통한 방향 전환이 맞고, 지금 바로 시작할 수 있는 조건입니다.',
     '재직 중 검증': '학습 전환 방향에서 재직 중 역량 강화와 방향 탐색을 동시에 진행하는 것이 가장 효율적입니다.',
     '준비 후 전환': '학습을 통해 방향을 전환하는 것이 맞는 접근입니다. 목표 직무를 먼저 검증하고 역량을 쌓으세요.',
     '회복 후 실행': '학습 전환 방향이지만, 지금 시작하면 지속이 어렵습니다. 회복 후에 시작하세요.',
     '보류·점검':    '학습 전환 방향이지만, 지금은 재무·피로 조건을 먼저 안정화하세요.',
   },
-  '회복 재정비형': {
+  '잠시 충전이 필요한 사람': {
     '즉시 실행':    '지금 가장 먼저 필요한 것은 에너지 회복입니다. 회복 후 방향을 다시 설정하세요.',
     '재직 중 검증': '회복하면서 방향을 탐색하는 단계입니다. 낮은 강도로 시작하세요.',
     '준비 후 전환': '회복과 재정비 후 방향을 잡아가는 단계입니다. 지금 무리하지 마세요.',
     '회복 후 실행': '지금은 회복이 전략입니다. 회복 완료 후에 방향을 다시 정하세요.',
     '보류·점검':    '지금은 모든 결정을 보류하고 기반 조건을 안정화하는 것이 최선입니다.',
   },
-  '안정 설계형': {
+  '차근차근 다지는 사람': {
     '즉시 실행':    '안정적인 기반에서 지금 바로 움직일 수 있는 조건입니다.',
     '재직 중 검증': '현재 환경을 최적화하면서 필요하면 안정적인 이직을 탐색하는 방식이 맞습니다.',
     '준비 후 전환': '안정 방향에서 충분히 준비된 후 안전하게 이동하는 전략이 맞습니다.',
@@ -2577,42 +2577,42 @@ const ONE_LINE_SUMMARY: Record<DirectionType, Record<ExecutionMode, string>> = {
 };
 
 const INTEGRATED_MATRIX: Record<DirectionType, Record<ExecutionMode, string>> = {
-  '독립 창업형': {
+  '자기 길 만드는 사람': {
     '즉시 실행':    '창업/프리랜서 실행 조건이 갖춰졌습니다. 퇴사 전 유료 고객 1명 확보를 첫 번째 기준으로 삼으세요.',
     '재직 중 검증': '소득을 유지하면서 유료 고객 반응을 먼저 확인하세요.',
     '준비 후 전환': '창업 방향이지만, 이직 경쟁력과 재무 여건을 먼저 높인 후 단계적으로 전환하는 것이 현실적입니다.',
     '회복 후 실행': '창업 방향이지만, 지금 당장 실행하면 번아웃이 겹쳐 실패 가능성이 높습니다. 회복 후 차근차근 준비하세요.',
     '보류·점검':    '창업 방향이지만, 재무 여건이나 피로도가 즉각적인 행동을 어렵게 만들고 있습니다. 기반 조건을 먼저 안정화하세요.',
   },
-  '전문가 성장형': {
+  '한 우물 파는 사람': {
     '즉시 실행':    '전문성 심화 방향에서 지금 움직일 조건이 됩니다. 더 나은 성장 환경으로 적극적으로 이동하세요.',
     '재직 중 검증': '전문가로 성장할 수 있는 더 나은 환경을 재직 중 탐색하면서, 이직 가능성을 데이터로 확인하세요.',
     '준비 후 전환': '전문성 심화 방향이지만, 이직 경쟁력 강화가 먼저입니다. 재직 중 역량 투자 후 탐색하세요.',
     '회복 후 실행': '전문가 성장 방향이지만, 지금 상태에서 움직이면 탐색의 질이 낮아집니다. 먼저 회복하세요.',
     '보류·점검':    '전문가 성장 방향이지만, 지금은 기반 조건을 안정화하는 것이 먼저입니다.',
   },
-  '조직 성장형': {
+  '같이 만들 때 잘하는 사람': {
     '즉시 실행':    '조직 내 성장 또는 이직을 통한 환경 전환을 바로 실행할 수 있는 조건입니다.',
     '재직 중 검증': '조직 성장 방향에서 더 나은 환경을 재직 중 탐색하세요. 퇴사보다 탐색이 먼저입니다.',
     '준비 후 전환': '조직 성장 방향이지만, 네트워킹과 이직 경쟁력을 먼저 높이는 것이 더 유리한 이동을 만듭니다.',
     '회복 후 실행': '조직 내 성장 방향이지만, 지금은 회복이 우선입니다. 피로도 회복 후 탐색하세요.',
     '보류·점검':    '조직 성장 방향이지만, 지금은 기반 조건을 점검하는 것이 먼저입니다.',
   },
-  '학습 전환형': {
+  '방향 바꾸고 싶은 사람': {
     '즉시 실행':    '학습 전환 방향에서 지금 바로 실행할 수 있는 조건입니다. 목표 역량 학습과 방향 탐색을 병행하세요.',
     '재직 중 검증': '학습 전환 방향에서, 재직 중 역량 강화와 방향 탐색을 병행하세요. 전환 목표 직무 현업자 인터뷰가 먼저입니다.',
     '준비 후 전환': '학습을 통한 전환 방향이 맞습니다. 목표 직무를 검증하고 필요 역량을 쌓아 유리한 조건으로 이동하세요.',
     '회복 후 실행': '학습 전환 방향이지만, 지금 상태에서 학습을 시작해도 지속 가능성이 낮습니다. 회복 후 시작하세요.',
     '보류·점검':    '학습 전환 방향이지만, 지금은 재무·피로 조건을 먼저 안정화하는 것이 현실적입니다.',
   },
-  '회복 재정비형': {
+  '잠시 충전이 필요한 사람': {
     '즉시 실행':    '재정비가 필요한 시점입니다. 지금 즉각 실행보다 회복과 방향 재설계를 먼저 실행하세요.',
     '재직 중 검증': '회복하면서 방향을 재정비하는 단계입니다. 낮은 강도로 탐색하면서 다음 방향을 찾으세요.',
     '준비 후 전환': '회복과 재정비 후 전환을 준비하는 단계입니다. 에너지가 회복되면 방향이 더 명확해집니다.',
     '회복 후 실행': '지금 가장 중요한 것은 회복입니다. 회복 후에 방향을 다시 설정하세요.',
     '보류·점검':    '지금은 모든 결정을 보류하고, 기반 조건(재무·피로)을 안정화하는 것이 최선입니다.',
   },
-  '안정 설계형': {
+  '차근차근 다지는 사람': {
     '즉시 실행':    '안정적인 기반에서 지금 바로 움직일 수 있습니다. 현재 환경 최적화 또는 안정적 이동을 바로 시작하세요.',
     '재직 중 검증': '안정 설계 방향에서 현재 환경 개선을 먼저 시도하세요. 개선이 없으면 안정적 이직을 탐색하세요.',
     '준비 후 전환': '안정 방향에서, 충분히 준비된 후 안전하게 이동하는 전략이 맞습니다.',
@@ -2637,29 +2637,29 @@ export function determineDirectionType(
 
   // Composite startup drive — checked first; burnout cannot erase this identity.
   const startupDrive = rt * 0.35 + se * 0.25 + explorationDrive * 0.25 + nw * 0.15;
-  if (startupDrive >= 58) return '독립 창업형';
+  if (startupDrive >= 58) return '자기 길 만드는 사람';
   // Saju can amplify a borderline startup signal
   if (saju?.confidence === 'estimated' && saju.entrepreneurialDrive >= 65 && startupDrive >= 45) {
-    return '독립 창업형';
+    return '자기 길 만드는 사람';
   }
 
-  // Stability + low change = 안정 설계형
-  if (stabilityPreference >= 65 && co < 45 && mo < 55) return '안정 설계형';
+  // Stability + low change = 차근차근 다지는 사람
+  if (stabilityPreference >= 65 && co < 45 && mo < 55) return '차근차근 다지는 사람';
 
-  // Learning drive + change desire + low risk = 학습 전환형
-  if (cu >= 60 && co >= 50 && rt < 55) return '학습 전환형';
+  // Learning drive + change desire + low risk = 방향 바꾸고 싶은 사람
+  if (cu >= 60 && co >= 50 && rt < 55) return '방향 바꾸고 싶은 사람';
 
-  // Deep expertise + meaning = 전문가 성장형
-  if (mo >= 60 && cu >= 50) return '전문가 성장형';
+  // Deep expertise + meaning = 한 우물 파는 사람
+  if (mo >= 60 && cu >= 50) return '한 우물 파는 사람';
 
-  // Org networker + planner = 조직 성장형
-  if (nw >= 55 && pl >= 55) return '조직 성장형';
+  // Org networker + planner = 같이 만들 때 잘하는 사람
+  if (nw >= 55 && pl >= 55) return '같이 만들 때 잘하는 사람';
 
-  // No clear direction + high burnout = 회복 재정비형 (temporary state)
-  if (burnoutPressure >= 65) return '회복 재정비형';
+  // No clear direction + high burnout = 잠시 충전이 필요한 사람 (temporary state)
+  if (burnoutPressure >= 65) return '잠시 충전이 필요한 사람';
 
   // Default: high market readiness → org path; otherwise expertise path
-  return (marketReadiness - 1) / 4 * 100 >= 50 ? '조직 성장형' : '전문가 성장형';
+  return (marketReadiness - 1) / 4 * 100 >= 50 ? '같이 만들 때 잘하는 사람' : '한 우물 파는 사람';
 }
 
 export function determineExecutionMode(derived: DerivedVariables): ExecutionMode {
@@ -2692,17 +2692,17 @@ function buildBridgeNote(
 
   // No bridge needed when direction and execution naturally align
   const naturalAlignments: Partial<Record<DirectionType, ExecutionMode[]>> = {
-    '독립 창업형':   ['즉시 실행'],
-    '전문가 성장형': ['즉시 실행', '재직 중 검증'],
-    '조직 성장형':   ['즉시 실행', '재직 중 검증'],
-    '학습 전환형':   ['준비 후 전환', '재직 중 검증'],
-    '회복 재정비형': ['회복 후 실행', '보류·점검', '재직 중 검증'],
-    '안정 설계형':   ['재직 중 검증', '준비 후 전환', '즉시 실행'],
+    '자기 길 만드는 사람':   ['즉시 실행'],
+    '한 우물 파는 사람': ['즉시 실행', '재직 중 검증'],
+    '같이 만들 때 잘하는 사람':   ['즉시 실행', '재직 중 검증'],
+    '방향 바꾸고 싶은 사람':   ['준비 후 전환', '재직 중 검증'],
+    '잠시 충전이 필요한 사람': ['회복 후 실행', '보류·점검', '재직 중 검증'],
+    '차근차근 다지는 사람':   ['재직 중 검증', '준비 후 전환', '즉시 실행'],
   };
   if (naturalAlignments[direction]?.includes(execution)) return null;
 
   // Direction = startup but execution is more conservative
-  if (direction === '독립 창업형') {
+  if (direction === '자기 길 만드는 사람') {
     if (execution === '재직 중 검증')
       return `이직보다 창업이 장기 방향이지만, 지금은 재직 중 유료 고객 반응을 확인하는 것이 먼저입니다. 고객 검증이 성공하면 그것이 창업 실행 신호입니다.`;
     if (execution === '준비 후 전환')

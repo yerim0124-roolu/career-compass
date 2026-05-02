@@ -345,12 +345,12 @@ export interface DecisionStrategy {
 
 // "이 사람은 장기적으로 어떤 방향이 맞는 사람인가?" — determined mainly by traits.
 export type DirectionType =
-  | '독립 창업형'    // autonomous + entrepreneurial + risk-tolerant
-  | '전문가 성장형'  // expertise-oriented + meaning-driven + deep learner
-  | '조직 성장형'   // network-builder + planner + org-fit
-  | '학습 전환형'   // high curiosity + change drive + low risk tolerance
-  | '회복 재정비형'  // no clear direction; needs recovery before direction matters
-  | '안정 설계형';  // stability-first + low change orientation
+  | '자기 길 만드는 사람'    // autonomous + entrepreneurial + risk-tolerant
+  | '한 우물 파는 사람'  // expertise-oriented + meaning-driven + deep learner
+  | '같이 만들 때 잘하는 사람'   // network-builder + planner + org-fit
+  | '방향 바꾸고 싶은 사람'   // high curiosity + change drive + low risk tolerance
+  | '잠시 충전이 필요한 사람'  // no clear direction; needs recovery before direction matters
+  | '차근차근 다지는 사람';  // stability-first + low change orientation
 
 // "현재 상태에서는 그 방향을 어떻게 실행해야 하는가?" — determined by current state.
 export type ExecutionMode =
