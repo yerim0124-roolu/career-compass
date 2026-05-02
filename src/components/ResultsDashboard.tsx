@@ -420,9 +420,6 @@ function Step1Conclusion({ results }: { results: Results }) {
                   ? 'bg-indigo-50 border border-indigo-200'
                   : 'bg-slate-900'
             }`}>
-              {!isRecoveryGate && !isPrepareGate && (
-                <p className="text-xs text-white/40 font-bold uppercase tracking-widest mb-1.5">지금 필요한 것</p>
-              )}
               <p className={`text-xs font-bold mb-1 ${
                 isRecoveryGate ? 'text-amber-600' : isPrepareGate ? 'text-indigo-500' : 'text-white/60'
               }`}>{punchline[0]}</p>
