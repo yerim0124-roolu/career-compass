@@ -227,6 +227,56 @@ export function calculateFlowFitScore(key: OptionKey, flowType: FlowType): numbe
   return table[flowType][key] ?? 0;
 }
 
+// ─── Age-based opportunity cost weights ───────────────────────────────────────
+// Career mobility narrows with age. Age weights nudge scores to reflect this:
+// - Younger (20s-early 30s): exploration is cheap, learning has high upside
+// - Mid (mid 30s-early 40s): pivots get expensive, opportunity cost rises sharply
+// - Older (mid 40s+): stability premium, career switch much harder
+//
+// Returns a per-option score adjustment (-15 to +10).
+
+function calcAgeAdjustment(key: OptionKey, age: number): number {
+	// Bands
+	const isYoung = age <= 32;
+	const isMid   = age >= 33 && age <= 42;
+// const isOlder = age >= 43;  // reserved
+
+	switch (key) {
+		case 'studyReskill':
+			// Learning easier when young, opportunity cost higher when older
+			if (isYoung) return +8;
+			if (isMid)   return 0;
+			return -10;
+		case 'careerSwitch':
+			// Switch costs rise sharply with age
+			if (isYoung) return +6;
+			if (isMid)   return -3;
+			return -12;
+		case 'startupFreelance':
+			// Best in mid-30s (skills + still flexible); risky after 45
+			if (age <= 28) return -3;       // too early, skills not ripe
+			if (age <= 38) return +5;       // sweet spot
+			if (age <= 45) return 0;
+			return -8;
+		case 'jobChange':
+			// Job market narrows after 40
+			if (isYoung) return +3;
+			if (isMid)   return 0;
+			return -6;
+		case 'restAfterQuit':
+			// Rest is cheap when young (more time to recover trajectory),
+			// expensive when older (opportunity cost is high)
+			if (isYoung) return +2;
+			if (isMid)   return -2;
+			return -8;
+		case 'stay':
+			// Stability becomes more valuable with age
+			if (isYoung) return -2;
+			if (isMid)   return +2;
+			return +6;
+	}
+}
+
 // ─── Option base score components ────────────────────────────────────────────
 
 function calcOptionComponents(
@@ -436,17 +486,27 @@ function generateOptionReadinessFields(
   const rt = normTo100(traits.riskTolerance);
 
   switch (key) {
-    case 'stay':
+    case 'stay': {
+      const isHighBurnout = bp >= 60;
       return {
-        mainFitReason: marketReadiness < 3
-          ? `이직 경쟁력(${mr}/100)이 아직 충분하지 않아 내부 개선이 더 현실적입니다`
-          : jobDissatisfaction < 3
-            ? `현재 만족도가 낮지 않아 내부 재설계로 충분히 개선 가능한 상태입니다`
-            : `재직 중 조건 협상이 이직보다 빠른 변화를 만들 수 있습니다`,
-        mainRiskReason: `개선 기한 없이 유지하면 동일한 고민이 반복됩니다. 4~8주 기한 설정이 필수입니다`,
-        requiredConditions: ['역할 협상 또는 프로젝트 변경 가능성 확인', '4~8주 내 개선 신호 존재'],
-        recommendedAction: '역할 재설계 또는 연봉 협상 — 4주 내 결과 확인',
+        mainFitReason: isHighBurnout
+          ? `런웨이(${runwayMonths.toFixed(1)}개월)와 번아웃 수준이 즉각적인 이탈을 불필요하게 만들고 있습니다`
+          : marketReadiness < 3
+            ? `이직 경쟁력(${mr}/100)이 아직 충분하지 않아 내부 개선이 더 현실적입니다`
+            : jobDissatisfaction < 3
+              ? `현재 만족도가 낮지 않아 내부 재설계로 충분히 개선 가능한 상태입니다`
+              : `재직 중 조건 협상이 이직보다 빠른 변화를 만들 수 있습니다`,
+        mainRiskReason: isHighBurnout
+          ? `번아웃 상태에서 협상이나 재설계를 시도하면 오히려 에너지가 더 소진됩니다. 회복이 먼저입니다`
+          : `개선 기한 없이 유지하면 동일한 고민이 반복됩니다. 4~8주 기한 설정이 필수입니다`,
+        requiredConditions: isHighBurnout
+          ? ['업무 강도 조절 가능 여부 확인', '회복 후 4~8주 내 협상 시도']
+          : ['역할 협상 또는 프로젝트 변경 가능성 확인', '4~8주 내 개선 신호 존재'],
+        recommendedAction: isHighBurnout
+          ? '업무 강도 조절 + 회복 루틴 먼저 — 협상은 회복 후'
+          : '역할 재설계 또는 연봉 협상 — 4주 내 결과 확인',
       };
+    }
     case 'jobChange':
       return {
         mainFitReason: `불만족도(${jobDissatisfaction.toFixed(1)}/5)와 이직 경쟁력(${mr}/100)이 이직 탐색의 근거를 만들고 있습니다`,
@@ -562,7 +622,7 @@ export function calculateOptionScores(form: FormData): OptionScore[] {
       baseScore:           clamp(baseScore),
       traitFitScore,
       flowFitScore,
-      totalScore:          clamp(baseScore + traitFitScore + flowFitScore - penalty),
+      totalScore:          clamp(baseScore + traitFitScore + flowFitScore - penalty + calcAgeAdjustment(key, form.basicProfile.age)),
       warnings,
       notes,
       ...comparison,
@@ -1588,9 +1648,11 @@ function generateCombinedRecommendation(
   if (decisionClass === 'stable-maintain')
     return '현 직장 재설계 + 역할 협상 우선';
   if (decisionClass === 'recovery-first' && financialSafetyBase < 40)
-    return '단기 회복 + 비용 구조 점검';
+    return '재직 중 회복 + 비용 구조 점검';
+  if (decisionClass === 'recovery-first' && top.key === 'restAfterQuit')
+    return '구조화된 회복 후 재탐색 (번아웃 심각 + 런웨이 충분)';
   if (decisionClass === 'recovery-first')
-    return '구조화된 회복 후 재탐색';
+    return '재직 중 회복 — 업무 강도 조절 우선';
 
   // Score-based combinations (when gate class is move-while-working / prepare-then-switch / hold-and-review)
   if (top.key === 'jobChange' && second?.key === 'startupFreelance' && second.readinessStatus !== 'notRecommended')
@@ -1689,8 +1751,10 @@ const GATE_BONUS: Record<CareerDecisionClass, Partial<Record<OptionKey, number>>
   'stable-maintain':         { stay: 15 },
   'move-while-working':      { jobChange: 12 },
   'accelerate-challenge':    { startupFreelance: 25, jobChange: 5 },
-  // recovery-first: boost rest, hard-penalise aggressive options so they CANNOT rank #1
-  'recovery-first':          { restAfterQuit: 18, startupFreelance: -35, careerSwitch: -12, jobChange: -8 },
+  // recovery-first: boost stay (recover while working = default), also boost restAfterQuit
+  // for severe burnout, hard-penalise aggressive options so they CANNOT rank #1.
+  // resolveRecoveryPrimary() below decides which of stay/restAfterQuit becomes primary.
+  'recovery-first':          { stay: 15, restAfterQuit: 10, startupFreelance: -35, careerSwitch: -12, jobChange: -8 },
   'prepare-then-switch':     { studyReskill: 15, careerSwitch: 8 },
   'side-project-validation': { startupFreelance: 20 },
   // hold-and-review (financial crisis): also penalise high-effort options
@@ -1840,17 +1904,35 @@ const GATE_PRIMARY: Record<string, OptionKey | null> = {
   'stable-maintain':         'stay',
   'move-while-working':      'jobChange',
   'accelerate-challenge':    null,          // score determines
-  'recovery-first':          'restAfterQuit',
+  'recovery-first':          null,          // resolved dynamically by resolveRecoveryPrimary()
   'prepare-then-switch':     null,          // study or careerSwitch by score
   'side-project-validation': 'startupFreelance',
   'hold-and-review':         null,
 };
 
+/**
+ * Burnout does NOT automatically mean quitting. Default is "recover while employed".
+ * Only recommend restAfterQuit when burnout is severe (75+) AND runway is sufficient (6+ months).
+ */
+function resolveRecoveryPrimary(burnoutPressure: number, runwayMonths: number): OptionKey {
+  return (burnoutPressure >= 75 && runwayMonths >= 6) ? 'restAfterQuit' : 'stay';
+}
+
+/** Returns the gate-assigned primary option key, including dynamic resolution for recovery-first. */
+function resolveGatePrimaryKey(
+  cls: CareerDecisionClass | string,
+  burnoutPressure = 0,
+  runwayMonths = 12,
+): OptionKey | null {
+  if (cls === 'recovery-first') return resolveRecoveryPrimary(burnoutPressure, runwayMonths);
+  return GATE_PRIMARY[cls] ?? null;
+}
+
 const GATE_SECONDARY: Record<string, OptionKey | null> = {
   'stable-maintain':         'jobChange',
   'move-while-working':      null,
   'accelerate-challenge':    null,
-  'recovery-first':          null,
+  'recovery-first':          'restAfterQuit',  // secondary: quitting is an option when burnout is high
   'prepare-then-switch':     'jobChange',
   'side-project-validation': 'jobChange',
   'hold-and-review':         null,
@@ -1863,21 +1945,45 @@ const GATE_SECONDARY_STRATEGY: Record<string, string> = {
 };
 
 function assignOptionRoles(
-  sorted: OptionScore[], decisionClass: string,
+	sorted: OptionScore[], decisionClass: string,
+	selectedOptions: OptionKey[] = [],
+	primaryKeyOverride?: OptionKey | null,  // injected by calculateResults for dynamic gates
 ): RankedOption[] {
-  const primaryKey  = GATE_PRIMARY[decisionClass]  ?? sorted[0]?.key ?? null;
-  const secondaryKey = GATE_SECONDARY[decisionClass] ?? sorted[1]?.key ?? null;
+	const hasSelection = selectedOptions.length > 0;
+	const selectedSorted = hasSelection
+		? sorted.filter(s => selectedOptions.includes(s.key))
+		: sorted;
 
-  return sorted.map((s) => ({
-    key: s.key,
-    label: s.label,
-    role: (s.key === primaryKey  ? 'primary'
-         : s.key === secondaryKey ? 'secondary'
-         : s.readinessStatus === 'notRecommended' ? 'notRecommended'
-         : 'conditional') as RankedOption['role'],
-    readinessStatus: s.readinessStatus,
-    totalScore: Math.round(s.totalScore),
-  }));
+	const isRecoveryOrHold = decisionClass === 'recovery-first' || decisionClass === 'hold-and-review';
+	// Use override when provided (e.g. dynamic recovery-first resolution), else static table.
+	const gatePrimary = primaryKeyOverride !== undefined
+		? primaryKeyOverride
+		: GATE_PRIMARY[decisionClass];
+	const primaryKey = isRecoveryOrHold
+		? (gatePrimary ?? sorted[0]?.key ?? null)
+		: hasSelection
+			? (selectedSorted[0]?.key ?? null)
+			: (gatePrimary ?? sorted[0]?.key ?? null);
+	const secondaryKey = isRecoveryOrHold
+		? (GATE_SECONDARY[decisionClass] ?? sorted[1]?.key ?? null)
+		: hasSelection
+			? (selectedSorted[1]?.key ?? null)
+			: (GATE_SECONDARY[decisionClass] ?? sorted[1]?.key ?? null);
+
+	return sorted.map((s) => {
+		const isUnselected = hasSelection && !selectedOptions.includes(s.key);
+		return {
+			key: s.key,
+			label: s.label,
+			role: (s.key === primaryKey   ? 'primary'
+				 : s.key === secondaryKey  ? 'secondary'
+				 : isUnselected            ? 'conditional'
+				 : s.readinessStatus === 'notRecommended' ? 'notRecommended'
+				 : 'conditional') as RankedOption['role'],
+			readinessStatus: s.readinessStatus,
+			totalScore: Math.round(s.totalScore),
+		};
+	});
 }
 
 // ─── State-based timing engine ────────────────────────────────────────────────
@@ -1971,6 +2077,8 @@ function buildDecisionStrategy(
   confidenceExplanation: string,
   burnoutPressure = 0,
   derived?: DerivedVariables,
+  selectedOptions: OptionKey[] = [],
+  primaryKeyOverride?: OptionKey | null,   // dynamic resolution (e.g. recovery-first)
 ): DecisionStrategy {
   const primaryOptionKey = sorted[0]?.key ?? 'stay';
   const primaryStrategy = getArchetypePrimaryStrategy(decisionClass, primaryOptionKey, burnoutPressure);
@@ -1988,7 +2096,7 @@ function buildDecisionStrategy(
     primaryOptionKey,
     secondaryStrategy:    GATE_SECONDARY_STRATEGY[decisionClass] ?? '',
     bridgeMessage,
-    rankedOptions:        assignOptionRoles(sorted, decisionClass),
+    rankedOptions:        assignOptionRoles(sorted, decisionClass, selectedOptions, primaryKeyOverride),
     timingAdvice:         buildTimingAdvice(timingAnalysis, sajuTimingLayer, sajuTraitEstimate, decisionClass, safeDerived),
     confidence,
     confidenceExplanation,
@@ -2800,10 +2908,33 @@ export function generateNarrativeCoreStrategy(
 // ─── Master calculate ─────────────────────────────────────────────────────────
 
 export function calculateResults(form: FormData): Results {
-  const derived      = calculateDerivedVariables(form);
-  const flowType     = calculateFlowType(form);
-  const rawScores    = calculateOptionScores(form);
+  const derived = calculateDerivedVariables(form);
+
+  // Classify gate FIRST — needed to (a) resolve dynamic primary key and
+  // (b) inject gate-mandatory options into scoring before calculateOptionScores runs.
   const decisionGate = classifyCareerDecision(derived, form);
+  const flowType     = calculateFlowType(form);
+
+  // Resolve the dynamic primary option for this gate + current state.
+  // recovery-first: "recover while working" (stay) is default; restAfterQuit only
+  // when burnout is severe (≥75) AND runway allows it (≥6 months).
+  const resolvedPrimaryKey = resolveGatePrimaryKey(
+    decisionGate.decisionClass,
+    derived.burnoutPressure,
+    derived.runwayMonths,
+  );
+
+  // Ensure gate-mandatory primary option is always scored even if user didn't select it.
+  // Without this, assignOptionRoles can't assign 'primary' role and Step4 shows wrong option.
+  const needsGateInjection =
+    resolvedPrimaryKey != null &&
+    form.selectedOptions.length > 0 &&
+    !form.selectedOptions.includes(resolvedPrimaryKey);
+  const rawScores = calculateOptionScores(
+    needsGateInjection
+      ? { ...form, selectedOptions: [...form.selectedOptions, resolvedPrimaryKey] as OptionKey[] }
+      : form,
+  );
 
   // Step 1 — apply gate bonuses (positive and negative).
   // Negative bonuses for recovery/hold gates hard-block aggressive options from ranking #1.
@@ -2861,7 +2992,8 @@ export function calculateResults(form: FormData): Results {
     sorted, decisionGate.decisionClass, decisionGate.archetypeLabel,
     bridgeMessage, timingAnalysis, sajuTimingLayer, sajuTraitEstimate,
     confidence, confidenceExplanation,
-    derived.burnoutPressure, derived,
+    derived.burnoutPressure, derived, form.selectedOptions,
+    resolvedPrimaryKey,   // dynamic primary key (e.g. stay vs restAfterQuit for recovery-first)
   );
 
   // Compute careerDiagnosis before personality story so executionMode is available.

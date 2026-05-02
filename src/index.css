@@ -24,6 +24,16 @@
   h1, h2, h3 {
     word-break: keep-all;
     overflow-wrap: break-word;
+    text-wrap: balance;
+  }
+  p, li {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+  /* Short UI labels should stay on one line */
+  button, label {
+    word-break: keep-all;
   }
 }
 

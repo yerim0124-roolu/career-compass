@@ -306,6 +306,9 @@ export default function InputForm({ onSubmit }: Props) {
                 onChange={(e) => setBasic('annualSalary', parseNumber(e.target.value))}
                 className={INPUT_CLS} placeholder="50,000,000" />
               <p className="text-xs text-slate-400 mt-1">{formatKRW(form.basicProfile.annualSalary)}</p>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                소득이 없는 기간을 버틸 자금 여력을 판단하기 위한 참고값이며, 입력 데이터는 저장되지 않습니다.
+              </p>
             </div>
 
             <div>

@@ -85,7 +85,9 @@ export default function LandingPage({ onStart }: Props) {
           <p className="text-base sm:text-lg text-slate-500 max-w-xl mx-auto leading-relaxed mb-10">
             감정이 아니라{' '}
             <strong className="text-slate-700 font-semibold">커리어 상태, 재정 여력, 번아웃, 성향, 타이밍</strong>을
-            함께 비교해 더 나은 선택지를 찾아드립니다.
+            함께 비교해
+            <br />
+            더 나은 선택지를 찾아드립니다.
           </p>
 
           {/* Hero illustration */}
@@ -97,7 +99,8 @@ export default function LandingPage({ onStart }: Props) {
                 className="w-full max-w-[240px] sm:max-w-[300px]"
               />
               <p className="mt-3 text-xs text-slate-500 text-center leading-relaxed max-w-[280px]">
-                분석 고양이와 전략 고양이가 지금의 커리어 선택지를 함께 정리해드립니다.
+                <span className="block">분석 고양이와 전략 고양이가 지금의 커리어 선택지를</span>
+                <span className="block">함께 정리해드립니다.</span>
               </p>
             </div>
           </div>

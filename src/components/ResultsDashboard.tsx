@@ -6,14 +6,14 @@ import type {
 } from '../types';
 import ShareCard from './ShareCard';
 import { calculateManseChartSync } from '../utils/manseEngine';
-import { interpretManseForCareer } from '../utils/sajuFromManse';
+import { interpretManseForCareer, buildDeepPersonaNarrative } from '../utils/sajuFromManse';
 
 import type { SajuBehaviorProfile } from '../utils/sajuInterpretation';
 import type { ManseChart } from '../utils/manseEngine';
 
 function isManseCalculated(chart: ManseChart): boolean {
   return (chart?.status === 'calculated' || chart?.status === 'partial')
-    && !!chart.fourPillars && !!chart.dayMaster;
+    && !!chart.dayMaster;
 }
 
 // ─── Step5 timing view builder ────────────────────────────────────────────────
@@ -234,16 +234,16 @@ const EXECUTION_PILL: Record<ExecutionMode, string> = {
 };
 
 const ROLE_GROUP: Record<OptionRole, { label: string; badge: string; container: string }> = {
-  primary:        { label: '지금 추천',    badge: 'bg-slate-900 text-white',                         container: 'border-slate-800 bg-white shadow-sm' },
-  secondary:      { label: '보조 추천',    badge: 'bg-slate-500 text-white',                         container: 'border-stone-200 bg-white' },
-  conditional:    { label: '조건부 가능',  badge: 'bg-amber-100 text-amber-700 border border-amber-200', container: 'border-stone-200 bg-stone-50/50' },
-  notRecommended: { label: '지금 피해야 함', badge: 'bg-red-100 text-red-700 border border-red-200', container: 'border-stone-200 bg-stone-50/50 opacity-70' },
+  primary:        { label: '가장 맞는 경로',    badge: 'bg-slate-900 text-white',                         container: 'border-slate-800 bg-white shadow-sm' },
+  secondary:      { label: '함께 고려',    badge: 'bg-slate-500 text-white',                         container: 'border-stone-200 bg-white' },
+  conditional:    { label: '준비 후 가능',  badge: 'bg-amber-100 text-amber-700 border border-amber-200', container: 'border-stone-200 bg-stone-50/50' },
+  notRecommended: { label: '지금은 권하지 않음', badge: 'bg-red-100 text-red-700 border border-red-200', container: 'border-stone-200 bg-stone-50/50 opacity-70' },
 };
 
 const READINESS_LABELS: Record<string, { label: string; cls: string }> = {
   now:            { label: '지금 가능',    cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   prepareFirst:   { label: '준비 후 가능', cls: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-  conditional:    { label: '조건부 가능',  cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  conditional:    { label: '준비 후 가능',  cls: 'bg-amber-100 text-amber-700 border-amber-200' },
   notRecommended: { label: '현재 비추천',  cls: 'bg-red-100 text-red-700 border-red-200' },
 };
 
@@ -310,10 +310,30 @@ function Step1Conclusion({ results }: { results: Results }) {
   const dirColor = DIRECTION_COLOR[cd.directionType];
   const execPill = EXECUTION_PILL[cd.executionMode];
 
+  const isRecoveryGate = cd.executionMode === '회복 후 실행' || cd.executionMode === '보류·점검';
+  const isPrepareGate  = cd.executionMode === '준비 후 전환';
+
   const hook      = (EMPATHY_HOOK[cd.directionType] ?? EMPATHY_FALLBACK).split('\n');
   const tension   = TENSION_COPY[cd.directionType];
-  const punchline = (PUNCHLINE[cd.directionType] ?? '').split('\n');
-  const safetyLock = SAFETY_LOCK[cd.directionType] ?? SAFETY_LOCK_SOFT;
+
+  const punchline = (() => {
+    if (isRecoveryGate)
+      return ['지금 필요한 건', '결정이 아니라 회복입니다.'];
+    if (isPrepareGate) {
+      const prepareMap: Partial<Record<typeof cd.directionType, string>> = {
+        '독립 창업형':   '지금 필요한 건\n창업 전 시장 검증 준비입니다.',
+        '조직 성장형':   '지금 필요한 건\n이직 경쟁력을 먼저 키우는 것입니다.',
+        '전문가 성장형': '지금 필요한 건\n전문성을 증명할 포트폴리오입니다.',
+        '학습 전환형':   '지금 필요한 건\n전환 전 실전 경험 한 가지입니다.',
+      };
+      return (prepareMap[cd.directionType] ?? PUNCHLINE[cd.directionType] ?? '').split('\n');
+    }
+    return (PUNCHLINE[cd.directionType] ?? '').split('\n');
+  })();
+
+  const safetyLock = isRecoveryGate
+    ? '에너지가 회복되기 전까지는 퇴사나 창업을 결정하지 마세요.'
+    : (SAFETY_LOCK[cd.directionType] ?? SAFETY_LOCK_SOFT);
 
   return (
     <div className="space-y-3">
@@ -324,40 +344,91 @@ function Step1Conclusion({ results }: { results: Results }) {
         <div className="px-5 pt-6 pb-5 sm:px-6">
 
           {/* Hook — pre-identity emotional framing */}
-          <div className="mb-5">
-            <p className="text-sm text-slate-500 leading-relaxed">
-              {hook[0]}
-            </p>
-            {hook[1] && (
-              <p className="text-sm font-semibold text-slate-700 leading-relaxed">
-                {hook[1]}
-              </p>
+          {(() => {
+            const PREPARE_HOOK: Partial<Record<typeof cd.directionType, [string, string]>> = {
+              '독립 창업형':   ['창업하고 싶은데', '지금 당장 시작하기엔 준비가 부족하다면'],
+              '조직 성장형':   ['이직하고 싶은데', '아직 경쟁력이 충분하지 않다고 느낀다면'],
+              '전문가 성장형': ['전문성을 키우고 싶은데', '어디서부터 시작해야 할지 막막하다면'],
+              '학습 전환형':   ['전환하고 싶은데', '아직 실전 경험이 부족하다고 느낀다면'],
+            };
+            const prepareHook = isPrepareGate ? (PREPARE_HOOK[cd.directionType] ?? [hook[0], hook[1] ?? hook[0]]) : null;
+            return (
+              <div className="mb-5">
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  {isRecoveryGate ? '변화는 하고 싶은데' : prepareHook ? prepareHook[0] : hook[0]}
+                </p>
+                <p className="text-sm font-semibold text-slate-700 leading-relaxed">
+                  {isRecoveryGate ? '지금은 움직일 힘이 남아있지 않다면' : prepareHook ? prepareHook[1] : (hook[1] ?? hook[0])}
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Identity reveal — recovery/prepare gate: execution first, direction secondary */}
+          <div className="mb-5 pb-5 border-b border-stone-100">
+            {isRecoveryGate ? (
+              <>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">지금 상태</p>
+                <h2 className="text-3xl sm:text-4xl font-black text-amber-600 leading-none tracking-tight mb-2">
+                  회복이 먼저
+                </h2>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">장기 방향</span>
+                  <span className="text-sm font-bold text-slate-600">{cd.directionLabel}</span>
+                </div>
+              </>
+            ) : isPrepareGate ? (
+              <>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">당신은</p>
+                <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-none tracking-tight mb-1">
+                  {cd.directionLabel}
+                </h2>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">지금 단계</span>
+                  <span className="text-xs font-bold text-indigo-600">준비 후 전환</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">당신은</p>
+                <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-none tracking-tight mb-1">
+                  {cd.directionLabel}
+                </h2>
+                <p className="text-xs text-slate-400 font-semibold">입니다</p>
+              </>
             )}
           </div>
 
-          {/* Identity reveal — emotional peak */}
-          <div className="mb-5 pb-5 border-b border-stone-100">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">당신은</p>
-            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-none tracking-tight mb-1">
-              {cd.directionLabel}
-            </h2>
-            <p className="text-xs text-slate-400 font-semibold">입니다</p>
-          </div>
-
           {/* ② Tension — the stakes */}
-          {tension && (
+          {(tension || isRecoveryGate) && (
             <div className="mb-5 space-y-1">
-              <p className="text-sm text-slate-600 leading-relaxed">{tension[0]}</p>
-              <p className="text-sm font-semibold text-slate-800 leading-relaxed">{tension[1]}</p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {isRecoveryGate ? '지금 무리하게 결정하면 후회할 가능성이 높습니다.' : tension?.[0]}
+              </p>
+              <p className="text-sm font-semibold text-slate-800 leading-relaxed">
+                {isRecoveryGate ? '하지만 회복 없이 버티는 것도 답이 아닙니다.' : tension?.[1]}
+              </p>
             </div>
           )}
 
           {/* ③ Punchline — the one thing to do */}
           {punchline.length >= 2 && (
-            <div className="bg-slate-900 rounded-xl px-4 py-4 mb-4">
-              <p className="text-xs text-white/40 font-bold uppercase tracking-widest mb-1.5">지금 필요한 것</p>
-              <p className="text-sm text-white/60 leading-none mb-0.5">{punchline[0]}</p>
-              <p className="text-xl sm:text-2xl font-black text-white leading-tight">{punchline[1]}</p>
+            <div className={`rounded-xl px-4 py-4 mb-4 ${
+              isRecoveryGate
+                ? 'bg-amber-50 border border-amber-200'
+                : isPrepareGate
+                  ? 'bg-indigo-50 border border-indigo-200'
+                  : 'bg-slate-900'
+            }`}>
+              {!isRecoveryGate && !isPrepareGate && (
+                <p className="text-xs text-white/40 font-bold uppercase tracking-widest mb-1.5">지금 필요한 것</p>
+              )}
+              <p className={`text-xs font-bold mb-1 ${
+                isRecoveryGate ? 'text-amber-600' : isPrepareGate ? 'text-indigo-500' : 'text-white/60'
+              }`}>{punchline[0]}</p>
+              <p className={`text-xl sm:text-2xl font-black leading-tight ${
+                isRecoveryGate ? 'text-amber-900' : isPrepareGate ? 'text-indigo-800' : 'text-white'
+              }`}>{punchline[1]}</p>
             </div>
           )}
 
@@ -534,9 +605,16 @@ function Step2Persona({ results, form }: { results: Results; form: FormData }) {
   const manseChart = calculateManseChartSync(form.timing);
   const manseReady = isManseCalculated(manseChart);
   const hasPartialDate = !!(form.timing.birthYear && form.timing.birthMonth && form.timing.birthDay);
+
+  // DEBUG: uncomment the line below and check browser console to diagnose deepNarrative issues
+  // if (hasPartialDate) console.log('[Step2] manseChart:', manseChart);
+
   const sajuBehavior = manseReady
     ? interpretManseForCareer(manseChart, primaryStrategy)
     : { status: 'unavailable' as const, temperament: '', decisionPattern: '', strengthPattern: '', vulnerabilityPattern: '', careerDirectionHint: '', timingHint: '', caution: '' };
+  // deepNarrative requires dayMaster. Falls back to p1 if manse calculation failed
+  // (e.g. hasPartialDate=true but manseChart.status='failed' → check manseChart.warnings in console).
+  const deepNarrative = manseReady ? buildDeepPersonaNarrative(manseChart) : '';
   const [p1, bridge, p2] = buildPersonaStory(np, sajuBehavior, primaryStrategy);
 
   return (
@@ -554,7 +632,7 @@ function Step2Persona({ results, form }: { results: Results; form: FormData }) {
 
       {/* Paragraph 1: temperament + decision pattern */}
       <p className="text-sm text-slate-700 leading-loose mb-4">
-        {p1}
+        {deepNarrative || p1}
       </p>
 
       {/* Bridge: connects saju temperament to current strategy */}
@@ -585,6 +663,7 @@ function Step2Persona({ results, form }: { results: Results; form: FormData }) {
       {!manseReady && hasPartialDate && (
         <p className="text-[10px] text-slate-400 mt-3 pt-3 border-t border-stone-100">
           생년월일 계산 중 오류가 발생했습니다. 날짜를 다시 확인해 주세요.
+          {manseChart.warnings?.length > 0 && ` (${manseChart.warnings[0]})`}
         </p>
       )}
       {!manseReady && !hasPartialDate && (
@@ -614,13 +693,13 @@ function Step3State({ results }: { results: Results }) {
     ? [
         { label: '독립 실행 에너지', value: Math.round(derived.explorationDrive),    invert: false },
         { label: '재무 버팀력',       value: Math.round(derived.financialSafetyBase),  invert: false },
-        { label: '현재 피로도',       value: bp,                                       invert: true  },
+        { label: '에너지 잔량',       value: 100 - bp,                                  invert: false },
         { label: '시장 검증 가능성',  value: marketPct,                                invert: false },
       ]
     : [
         { label: '이직 경쟁력',  value: marketPct,                                invert: false },
         { label: '재무 버팀력',  value: Math.round(derived.financialSafetyBase),  invert: false },
-        { label: '현재 피로도',  value: bp,                                       invert: true  },
+        { label: '에너지 잔량',  value: 100 - bp,                                  invert: false },
         { label: '변화 의지',    value: Math.round(derived.explorationDrive),    invert: false },
       ];
 
@@ -730,7 +809,7 @@ function Step3State({ results }: { results: Results }) {
 
 const ROLE_ORDER: OptionRole[] = ['primary', 'secondary', 'conditional', 'notRecommended'];
 
-function Step4OptionsMap({ results }: { results: Results }) {
+function Step4OptionsMap({ results, form }: { results: Results; form: FormData }) {
   const [expandedKey, setExpandedKey] = useState<OptionKey | null>(null);
 
   const roleMap = Object.fromEntries(
@@ -873,6 +952,67 @@ function Step4OptionsMap({ results }: { results: Results }) {
           })}
         </div>
       </div>
+
+      {/* 💡 비선택 옵션 중 더 높은 점수가 있을 때 참고 표시 */}
+      {(() => {
+        // primary role에 들어간 옵션이 있는지 확인 (유저가 선택한 것 중 1순위)
+        const hasPrimary = results.strategy.rankedOptions.some(r => r.role === 'primary');
+        const primaryScore = results.scores.find(s =>
+          results.strategy.rankedOptions.find(r => r.key === s.key && r.role === 'primary')
+        )?.totalScore ?? 0;
+
+        // 시스템이 추천하는 1위 (전체 옵션 중 점수 최고)
+        const systemTop = [...results.scores]
+          .sort((a, b) => b.totalScore - a.totalScore)[0];
+
+        // 유저가 선택한 옵션 키
+        const selectedKeys = new Set(
+          results.strategy.rankedOptions
+            .filter(r => r.role === 'primary' || r.role === 'secondary')
+            .map(r => r.key)
+        );
+
+        // 케이스 1: primary가 없음 (회복 게이트 등) → 시스템 추천을 강조
+        // 단, 유저가 이미 선택한 항목은 제외하고 그 외 옵션 중 최고 점수를 추천.
+        if (!hasPrimary) {
+          const userSelectedKeys = new Set(form.selectedOptions ?? []);
+          const systemRecommend = [...results.scores]
+            .sort((a, b) => b.totalScore - a.totalScore)
+            .find(s => !userSelectedKeys.has(s.key));
+          if (systemRecommend) {
+            return (
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4">
+                <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-2">💡 시스템 추천</p>
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  선택하신 항목 외에, 현재 상황에서는{' '}
+                  <span className="font-bold text-indigo-700">{systemRecommend.label}</span>이
+                  가장 적합한 경로({Math.round(systemRecommend.totalScore)}점)로 분석됐어요.
+                  참고해서 결정해보세요.
+                </p>
+              </div>
+            );
+          }
+          return null;
+        }
+
+        // 케이스 2: primary는 있지만, 비선택 옵션 중 10점 이상 높은 게 있을 때
+        const betterUnselected = results.scores
+          .filter(s => !selectedKeys.has(s.key) && s.totalScore > primaryScore + 10)
+          .sort((a, b) => b.totalScore - a.totalScore)[0];
+
+        if (!betterUnselected) return null;
+        return (
+          <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4">
+            <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-2">💡 참고</p>
+            <p className="text-xs text-slate-700 leading-relaxed">
+              선택하지 않으셨지만, 현재 상황에서는{' '}
+              <span className="font-bold text-indigo-700">{betterUnselected.label}</span>이
+              더 높은 점수({Math.round(betterUnselected.totalScore)}점)를 받았어요.
+              필요하다면 선택지에 추가해서 확인해보세요.
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Strategy flip conditions */}
       {results.analysisReport.changeConditions.length > 0 && (
@@ -1091,7 +1231,7 @@ function FullScrollView({ results, form, onReset }: Props) {
       </div>
       <div>
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">4 · 선택지 지도</p>
-        <Step4OptionsMap results={results} />
+        <Step4OptionsMap results={results} form={form} />
       </div>
       <div>
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">5 · 실행과 타이밍</p>
@@ -1129,7 +1269,7 @@ function StepContent({
       {step === 0 && <Step1Conclusion results={results} />}
       {step === 1 && <Step2Persona results={results} form={form} />}
       {step === 2 && <Step3State results={results} />}
-      {step === 3 && <Step4OptionsMap results={results} />}
+      {step === 3 && <Step4OptionsMap results={results} form={form} />}
       {step === 4 && <Step5ActionTiming results={results} form={form} />}
     </div>
   );
