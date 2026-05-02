@@ -111,7 +111,7 @@ export function getFlowTypePreview(flow: FormData['flow']): string {
 export function inferTargetEvents(selectedOptions: OptionKey[]): string[] {
   const MAP: Record<OptionKey, string> = {
     stay: '현직 유지',
-    jobChange: '이직',
+    jobChange: '이직 준비',
     careerSwitch: '직무 전환',
     restAfterQuit: '퇴사',
     startupFreelance: '창업',
@@ -331,7 +331,7 @@ function calcBaseScore(c: ReturnType<typeof calcOptionComponents>) {
 }
 
 const OPTION_LABELS: Record<OptionKey, string> = {
-  stay: '현 직장 재설계', jobChange: '이직', careerSwitch: '직무 전환',
+  stay: '현 직장 재설계', jobChange: '이직 준비', careerSwitch: '직무 전환',
   restAfterQuit: '퇴사 후 휴식', startupFreelance: '창업/프리랜서', studyReskill: '공부/역량 강화',
 };
 

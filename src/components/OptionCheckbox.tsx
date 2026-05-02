@@ -9,7 +9,7 @@ interface OptionItem {
 
 const OPTIONS: OptionItem[] = [
   { key: 'stay',             label: '현 직장 유지',          description: '지금 회사에서 계속 일하기',          icon: '🏢' },
-  { key: 'jobChange',        label: '이직',                 description: '다른 회사로 옮기기',                  icon: '🚀' },
+  { key: 'jobChange',        label: '이직 준비',                 description: '이직 가능성 알아보기',                  icon: '🚀' },
   { key: 'careerSwitch',     label: '직무 전환',             description: '다른 직종/직무로 바꾸기',             icon: '🔄' },
   { key: 'restAfterQuit',    label: '퇴사 후 휴식',          description: '잠시 쉬며 재정비하기',               icon: '🌿' },
   { key: 'startupFreelance', label: '창업/프리랜서',         description: '독립적으로 일 시작하기',              icon: '💡' },
