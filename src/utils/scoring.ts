@@ -207,7 +207,7 @@ export function getArchetypeInsight(label: string): string {
 
 export function getTraitProfile(derived: DerivedVariables): string {
   const { readinessBehavior, explorationDrive, stabilityPreference, burnoutPressure } = derived;
-  if (burnoutPressure >= 65)                                return '회복 필요형';
+  if (burnoutPressure >= 70)                                return '회복 필요형';
   if (explorationDrive >= 65 && readinessBehavior >= 65)   return '탐구 실행형';
   if (explorationDrive >= 65)                              return '탐구 주도형';
   if (stabilityPreference >= 65)                           return '안정 추구형';
@@ -455,9 +455,9 @@ function calculateOptionReadiness(
       if (runwayMonths < 3) return 'conditional';
       return 'prepareFirst';
     case 'restAfterQuit':
-      if (burnoutPressure >= 65 && runwayMonths >= 6) return 'now';
+      if (burnoutPressure >= 70 && runwayMonths >= 6) return 'now';
       if (burnoutPressure >= 50 && runwayMonths >= 3) return 'conditional';
-      if (runwayMonths < 3 && burnoutPressure >= 65) return 'conditional'; // Short recovery still valid
+      if (runwayMonths < 3 && burnoutPressure >= 70) return 'conditional'; // Short recovery still valid
       if (runwayMonths < 3) return 'notRecommended';
       return 'conditional';
     case 'startupFreelance': {
@@ -1767,7 +1767,7 @@ const GATE_BONUS: Record<CareerDecisionClass, Partial<Record<OptionKey, number>>
 // Tier 3 (bp > 50): caution zone — soft warning only.
 function applyRecoveryModeOverrides(scores: OptionScore[], burnoutPressure: number): OptionScore[] {
   const isHardBlock  = burnoutPressure >= 80;   // tier 1: hard block
-  const isModerate   = burnoutPressure >= 65 && burnoutPressure < 80; // tier 2: downgrade
+  const isModerate   = burnoutPressure >= 70 && burnoutPressure < 80; // tier 2: downgrade
   const isCaution    = burnoutPressure > 50  && burnoutPressure < 65; // tier 3: warn
 
   return scores.map(s => {
@@ -1890,7 +1890,7 @@ function getArchetypePrimaryStrategy(
       return '이직 준비도 강화 후 재직 중 탐색';
     case 'recovery-first':
       if (burnoutPressure >= 80) return '회복 + 상태 안정화 우선 (고강도 실행 차단)';
-      if (burnoutPressure >= 65) return '회복 병행 저강도 탐색';
+      if (burnoutPressure >= 70) return '회복 병행 저강도 탐색';
       return '회복 + 업무 강도 조절';
     case 'stable-maintain':
       return '현 직장 유지 + 직무 재설계';
@@ -2656,7 +2656,7 @@ export function determineDirectionType(
   if (nw >= 55 && pl >= 55) return '같이 만들 때 잘하는 사람';
 
   // No clear direction + high burnout = 잠시 충전이 필요한 사람 (temporary state)
-  if (burnoutPressure >= 65) return '잠시 충전이 필요한 사람';
+  if (burnoutPressure >= 70) return '잠시 충전이 필요한 사람';
 
   // Default: high market readiness → org path; otherwise expertise path
   return (marketReadiness - 1) / 4 * 100 >= 50 ? '같이 만들 때 잘하는 사람' : '한 우물 파는 사람';

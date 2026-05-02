@@ -132,7 +132,7 @@ export function classifyByGate(derived: DerivedVariables, form: FormData): Caree
   if (burnoutPressure >= 75) {
     return runwayMonths >= 3 ? 'recovery-first' : 'hold-and-review';
   }
-  if (burnoutPressure >= 65) {
+  if (burnoutPressure >= 70) {
     // Moderate-high fatigue: recovery is needed, but check runway
     return runwayMonths >= 3 ? 'recovery-first' : 'hold-and-review';
   }

@@ -392,10 +392,9 @@ function Step1Conclusion({ results }: { results: Results }) {
                 <h2 className="text-3xl sm:text-4xl font-black text-amber-600 leading-none tracking-tight mb-2">
                   회복이 먼저
                 </h2>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">장기 방향</span>
-                  <span className="text-sm font-bold text-slate-600">{cd.directionLabel}</span>
-                </div>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  기본적으로는 <span className="font-bold text-slate-700">{cd.directionLabel}</span>이지만, 지금은 회복이 먼저예요.
+                </p>
               </>
             ) : isPrepareGate ? (
               <>
