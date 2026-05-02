@@ -61,7 +61,7 @@ export function calculateDerivedVariables(form: FormData): DerivedVariables {
   const stabilityPreference = (100 - co) * 0.4 + pl * 0.4 + (100 - rt) * 0.2;
   // burnoutPressure: 현재 상태(burnout/스트레스/워라밸) 70%, 회복 성향 30%.
   // recoveryNeed는 정적 성향이므로 게이트 분류는 현재 상태가 주도해야 함.
-  const burnoutPressure    = normTo100(burnoutRisk) * 0.7 + rn * 0.3;
+  const burnoutPressure    = normTo100(burnoutRisk) * 0.85 + rn * 0.15;
 
   return {
     runwayMonths, burnoutRisk, jobDissatisfaction,
