@@ -959,7 +959,6 @@ function Step4OptionsMap({ results, form }: { results: Results; form: FormData }
         )?.totalScore ?? 0;
 
         // 시스템이 추천하는 1위 (전체 옵션 중 점수 최고)
-        const systemTop = [...results.scores]
           .sort((a, b) => b.totalScore - a.totalScore)[0];
 
         // 유저가 선택한 옵션 키
