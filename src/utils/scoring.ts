@@ -169,7 +169,7 @@ export function calculateTraitFitScore(
 
 export function getArchetypeLabel(derived: DerivedVariables, bestKey: OptionKey): string {
   const { burnoutPressure, readinessBehavior, explorationDrive, stabilityPreference } = derived;
-  if (burnoutPressure >= 60)                                         return '회복 우선형';
+  if (burnoutPressure >= 70)                                         return '회복 우선형';
   if (bestKey === 'jobChange' && readinessBehavior >= 55)            return '재직 중 이동형';
   if (bestKey === 'jobChange')                                       return '이직 탐색형';
   if (bestKey === 'careerSwitch')                                    return '탐색 전환형';
@@ -1768,7 +1768,7 @@ const GATE_BONUS: Record<CareerDecisionClass, Partial<Record<OptionKey, number>>
 function applyRecoveryModeOverrides(scores: OptionScore[], burnoutPressure: number): OptionScore[] {
   const isHardBlock  = burnoutPressure >= 80;   // tier 1: hard block
   const isModerate   = burnoutPressure >= 70 && burnoutPressure < 80; // tier 2: downgrade
-  const isCaution    = burnoutPressure > 50  && burnoutPressure < 65; // tier 3: warn
+  const isCaution    = burnoutPressure > 50  && burnoutPressure < 70; // tier 3: warn
 
   return scores.map(s => {
     if (isHardBlock) {
@@ -1999,7 +1999,7 @@ export function getStateTiming(
   explorationDrive: number,
 ): StateTimingLevel {
   // Hard blocks: severe fatigue or financial crisis
-  if (burnoutPressure >= 75 || runwayMonths < 3) return '회복 우선';
+  if (burnoutPressure >= 70 || runwayMonths < 3) return '회복 우선';
   // Caution zone: moderate fatigue or low exploration energy
   if (burnoutPressure >= 55 || explorationDrive < 40) return '저강도 탐색';
   return '실행 가능';
@@ -2668,7 +2668,7 @@ export function determineExecutionMode(derived: DerivedVariables): ExecutionMode
 
   // Hard blocks — same hierarchy as gate system
   if (runwayMonths < 2 || (burnoutPressure >= 75 && runwayMonths < 3)) return '보류·점검';
-  if (burnoutPressure >= 60) return '회복 후 실행';
+  if (burnoutPressure >= 70) return '회복 후 실행';
   if (burnoutPressure >= 55 && runwayMonths < 4) return '회복 후 실행';
 
   // Immediate execution: all conditions align
@@ -2849,7 +2849,7 @@ export function generateNarrativeState(
   const { growthPotential, organizationStress } = form.careerStatus;
 
   let headline: string;
-  if (burnoutPressure >= 60)
+  if (burnoutPressure >= 70)
     headline = `피로도(${bp}/100)가 높아 어떤 결정을 내려도 실행력이 떨어질 수 있는 상태입니다`;
   else if (jobDissatisfaction >= 3.5 && growthPotential <= 2)
     headline = `직무 불만족과 성장 경로 부재가 동시에 작용하고 있습니다`;
@@ -2881,7 +2881,7 @@ export function generateNarrativeState(
     : `현재 환경과의 맞지 않음이 서서히 쌓이고 있습니다. 긴급한 위기 신호는 없지만 방향을 점검하는 것이 중요한 시점입니다.`;
 
   // Implication describes what the current state MEANS — not what to DO (that is the Strategy section's role).
-  const implication = burnoutPressure >= 60
+  const implication = burnoutPressure >= 70
     ? `에너지 소모 속도가 회복 속도를 추월한 상태입니다. 이 조건에서는 어떤 실행도 효과가 반감됩니다`
     : mr >= 50 && jobDissatisfaction >= 3
       ? `이직 경쟁력(${mr}/100)은 갖춰져 있는데 불만족이 지속되고 있습니다. 역량이 환경에 맞지 않는 상태일 가능성이 높습니다`
