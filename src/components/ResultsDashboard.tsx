@@ -312,13 +312,28 @@ function Step1Conclusion({ results }: { results: Results }) {
 
   const isRecoveryGate = cd.executionMode === '회복 후 실행' || cd.executionMode === '보류·점검';
   const isPrepareGate  = cd.executionMode === '준비 후 전환';
+  const normalizePunchline = (lines: string[]): [string, string] => {
+    const title = (lines[0] ?? '').trim();
+    let body = (lines[1] ?? '').trim();
+    if (!title || !body) return [title, body];
+
+    const genericTitles = ['지금 필요한 건', '지금 필요한 것'];
+    if (genericTitles.includes(title)) {
+      for (const t of genericTitles) {
+        if (body.startsWith(t)) {
+          body = body.replace(t, '').replace(/^[:\s\-–—]+/, '').trim();
+        }
+      }
+    }
+    return [title, body];
+  };
 
   const hook      = (EMPATHY_HOOK[cd.directionType] ?? EMPATHY_FALLBACK).split('\n');
   const tension   = TENSION_COPY[cd.directionType];
 
   const punchline = (() => {
     if (isRecoveryGate)
-      return ['지금 필요한 건', '결정이 아니라 회복입니다.'];
+      return normalizePunchline(['지금 필요한 건', '결정이 아니라 회복입니다.']);
     if (isPrepareGate) {
       const prepareMap: Partial<Record<typeof cd.directionType, string>> = {
         '독립 창업형':   '지금 필요한 건\n창업 전 시장 검증 준비입니다.',
@@ -326,9 +341,9 @@ function Step1Conclusion({ results }: { results: Results }) {
         '전문가 성장형': '지금 필요한 건\n전문성을 증명할 포트폴리오입니다.',
         '학습 전환형':   '지금 필요한 건\n전환 전 실전 경험 한 가지입니다.',
       };
-      return (prepareMap[cd.directionType] ?? PUNCHLINE[cd.directionType] ?? '').split('\n');
+      return normalizePunchline((prepareMap[cd.directionType] ?? PUNCHLINE[cd.directionType] ?? '').split('\n'));
     }
-    return (PUNCHLINE[cd.directionType] ?? '').split('\n');
+    return normalizePunchline((PUNCHLINE[cd.directionType] ?? '').split('\n'));
   })();
 
   const safetyLock = isRecoveryGate
@@ -957,9 +972,6 @@ function Step4OptionsMap({ results, form }: { results: Results; form: FormData }
         const primaryScore = results.scores.find(s =>
           results.strategy.rankedOptions.find(r => r.key === s.key && r.role === 'primary')
         )?.totalScore ?? 0;
-
-        // 시스템이 추천하는 1위 (전체 옵션 중 점수 최고)
-          .sort((a, b) => b.totalScore - a.totalScore)[0];
 
         // 유저가 선택한 옵션 키
         const selectedKeys = new Set(
