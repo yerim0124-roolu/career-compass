@@ -28,6 +28,23 @@ export function formatKRW(amount: number): string {
 const clamp = (v: number, min = 0, max = 100) => Math.max(min, Math.min(max, v));
 const normTo100 = (v: number) => (v - 1) / 4 * 100;  // maps 1-5 → 0-100
 
+// 생년월일에서 만 나이를 계산. 입력이 비어있거나 잘못된 경우 0 반환.
+// (calcAgeAdjustment 등 age 기반 보정에서 사용)
+export function getAgeFromTiming(timing: FormData['timing']): number {
+  const y = parseInt(timing.birthYear, 10);
+  const m = parseInt(timing.birthMonth, 10);
+  const d = parseInt(timing.birthDay, 10);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return 0;
+  if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return 0;
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const beforeBirthday =
+    today.getMonth() + 1 < m ||
+    (today.getMonth() + 1 === m && today.getDate() < d);
+  if (beforeBirthday) age -= 1;
+  return Math.max(0, age);
+}
+
 // ─── Derived variables ───────────────────────────────────────────────────────
 
 export function calculateDerivedVariables(form: FormData): DerivedVariables {
@@ -622,7 +639,7 @@ export function calculateOptionScores(form: FormData): OptionScore[] {
       baseScore:           clamp(baseScore),
       traitFitScore,
       flowFitScore,
-      totalScore:          clamp(baseScore + traitFitScore + flowFitScore - penalty + calcAgeAdjustment(key, form.basicProfile.age)),
+      totalScore:          clamp(baseScore + traitFitScore + flowFitScore - penalty + calcAgeAdjustment(key, getAgeFromTiming(form.timing))),
       warnings,
       notes,
       ...comparison,
@@ -2107,7 +2124,7 @@ function buildDecisionStrategy(
 // Tests scenarios A–G to verify archetype ↔ primaryStrategy consistency.
 export function runDecisionStrategyAudit(): void {
   const bp: FormData['basicProfile'] = {
-    age: 30, yearsOfExperience: 5, currentRole: '개발자', industry: 'IT',
+    currentRole: '개발자', industry: 'IT',
     annualSalary: 60_000_000, monthlyExpense: 3_000_000, savings: 9_000_000,
   };
   const bc: FormData['careerStatus'] = {
@@ -2120,7 +2137,8 @@ export function runDecisionStrategyAudit(): void {
     outcomeExpectation: 3, portfolioEvidence: 3,
   };
   const bf: FormData['flow'] = { desireForChange: 3, desireForStability: 3, needForRest: 3 };
-  const bm: FormData['timing'] = { birthYear: '', birthMonth: '', birthDay: '', birthTime: '', calendarType: 'solar' };
+  // audit 기본값: 약 30세에 해당. age 기반 보정(calcAgeAdjustment)이 isYoung 분기를 타도록.
+  const bm: FormData['timing'] = { birthYear: '1996', birthMonth: '01', birthDay: '01', birthTime: '', calendarType: 'solar' };
   const make = (o: Partial<FormData>): FormData => ({
     basicProfile: bp, careerStatus: bc, selectedOptions: [],
     traits: bt, flow: bf, timing: bm, ...o,

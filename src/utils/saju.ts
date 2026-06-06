@@ -272,7 +272,7 @@ export function generateCareerYearSummary(form: FormData): CareerYearSignal {
 export function convertLuckToCareerSignal(_luckCycle: LuckCycle): string {
   // TODO: Map luckCycle.element and relation to bestKey career signal
   // This requires the 일간(day stem) which needs full manse calendar.
-  return '대운 계산 모듈 연결 후 활성화됩니다.';
+  return '대운 계산 기능 연결 후 활성화됩니다.';
 }
 
 /**

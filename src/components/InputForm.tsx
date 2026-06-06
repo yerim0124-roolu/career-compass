@@ -23,8 +23,6 @@ interface Props {
 
 const defaultForm: FormData = {
   basicProfile: {
-    age: 30,
-    yearsOfExperience: 5,
     currentRole: '',
     industry: '',
     annualSalary: 50000000,
@@ -115,21 +113,14 @@ export default function InputForm({ onSubmit }: Props) {
     if (step === 0) {
       if (!form.basicProfile.currentRole.trim()) errs.push('현재 직무를 입력해 주세요.');
       if (!form.basicProfile.industry.trim())    errs.push('산업/업종을 입력해 주세요.');
-      if (form.basicProfile.age <= 0) errs.push('나이를 올바르게 입력해 주세요.');
-      if (form.basicProfile.yearsOfExperience < 0) errs.push('경력 연수를 올바르게 입력해 주세요.');
       if (form.basicProfile.annualSalary < 0) errs.push('연봉을 올바르게 입력해 주세요.');
       if (form.basicProfile.monthlyExpense <= 0) errs.push('월 지출액을 올바르게 입력해 주세요.');
       if (form.basicProfile.savings < 0) errs.push('저축/비상금을 올바르게 입력해 주세요.');
-    }
-    if (step === 4) {
       const { birthYear, birthMonth, birthDay } = form.timing;
-      const hasAnyBirthInput = !!(birthYear || birthMonth || birthDay);
-      if (hasAnyBirthInput) {
-        if (!(birthYear && birthMonth && birthDay)) {
-          errs.push('생년월일을 입력하려면 연/월/일을 모두 입력해 주세요.');
-        } else if (!isValidDateParts(birthYear, birthMonth, birthDay)) {
-          errs.push('생년월일 형식이 올바르지 않습니다.');
-        }
+      if (!birthYear || !birthMonth || !birthDay) {
+        errs.push('생년월일을 입력해 주세요.');
+      } else if (!isValidDateParts(birthYear, birthMonth, birthDay)) {
+        errs.push('생년월일 형식이 올바르지 않습니다.');
       }
     }
     setErrors(errs);
@@ -271,19 +262,77 @@ export default function InputForm({ onSubmit }: Props) {
         {/* ── 1. Basic Profile ── */}
         {step === 0 && (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">나이</label>
-                <input type="number" value={form.basicProfile.age}
-                  onChange={(e) => setBasic('age', parseNumber(e.target.value))}
-                  className={INPUT_CLS} placeholder="30" />
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">생년월일</label>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={yearRef}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="YYYY"
+                  value={form.timing.birthYear}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '');
+                    setTiming('birthYear', v);
+                    if (v.length === 4) monthRef.current?.focus();
+                  }}
+                  className="w-20 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <span className="text-slate-300 font-bold text-lg">/</span>
+                <input
+                  ref={monthRef}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={2}
+                  placeholder="MM"
+                  value={form.timing.birthMonth}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '');
+                    if (v !== '' && parseInt(v) > 12) return;
+                    setTiming('birthMonth', v);
+                    if (v.length === 2) dayRef.current?.focus();
+                  }}
+                  className="w-14 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <span className="text-slate-300 font-bold text-lg">/</span>
+                <input
+                  ref={dayRef}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={2}
+                  placeholder="DD"
+                  value={form.timing.birthDay}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '');
+                    if (v !== '' && parseInt(v) > 31) return;
+                    setTiming('birthDay', v);
+                  }}
+                  className="w-14 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">경력 연수</label>
-                <input type="number" value={form.basicProfile.yearsOfExperience}
-                  onChange={(e) => setBasic('yearsOfExperience', parseNumber(e.target.value))}
-                  className={INPUT_CLS} placeholder="5" />
+              <div className="mt-2 flex gap-2">
+                {(['solar', 'lunar'] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setTiming('calendarType', type)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition-all ${
+                      form.timing.calendarType === type
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                    }`}
+                  >
+                    {type === 'solar' ? '양력' : '음력'}
+                  </button>
+                ))}
               </div>
+              {form.timing.birthYear.length === 4 && form.timing.birthMonth && form.timing.birthDay && (
+                <p className="text-xs text-emerald-600 mt-1.5 font-medium">
+                  {form.timing.birthYear}년 {form.timing.birthMonth}월 {form.timing.birthDay}일
+                  {form.timing.calendarType === 'lunar' ? ' (음력)' : ' (양력)'}
+                </p>
+              )}
             </div>
 
             <div>
@@ -447,98 +496,17 @@ export default function InputForm({ onSubmit }: Props) {
               <p className="text-xs text-indigo-400">3단계에서 선택지를 수정하면 자동 업데이트됩니다.</p>
             </div>
 
-            {/* Birth date */}
-            <div className="bg-white rounded-2xl p-5 border border-stone-200 shadow-sm space-y-4">
+            {/* Birth time only (date is collected in step 0) */}
+            <div className="bg-white rounded-2xl p-5 border border-stone-200 shadow-sm space-y-3">
               <p className="text-sm font-semibold text-slate-700">
-                생년월일 <span className="font-normal text-slate-400 text-xs">(선택)</span>
+                태어난 시간 <span className="font-normal text-slate-400 text-xs">(선택 — 사주 시주 분석 정확도용)</span>
               </p>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-2">생년월일</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={yearRef}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="YYYY"
-                    value={form.timing.birthYear}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, '');
-                      setTiming('birthYear', v);
-                      if (v.length === 4) monthRef.current?.focus();
-                    }}
-                    className="w-20 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                  <span className="text-slate-300 font-bold text-lg">/</span>
-                  <input
-                    ref={monthRef}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={2}
-                    placeholder="MM"
-                    value={form.timing.birthMonth}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, '');
-                      if (v !== '' && parseInt(v) > 12) return;
-                      setTiming('birthMonth', v);
-                      if (v.length === 2) dayRef.current?.focus();
-                    }}
-                    className="w-14 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                  <span className="text-slate-300 font-bold text-lg">/</span>
-                  <input
-                    ref={dayRef}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={2}
-                    placeholder="DD"
-                    value={form.timing.birthDay}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, '');
-                      if (v !== '' && parseInt(v) > 31) return;
-                      setTiming('birthDay', v);
-                    }}
-                    className="w-14 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                </div>
-                {form.timing.birthYear.length === 4 && form.timing.birthMonth && form.timing.birthDay && (
-                  <p className="text-xs text-emerald-600 mt-1.5 font-medium">
-                    {form.timing.birthYear}년 {form.timing.birthMonth}월 {form.timing.birthDay}일
-                    {form.timing.calendarType === 'lunar' ? ' (음력)' : ' (양력)'}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-2">태어난 시간 <span className="text-slate-400">(선택)</span></label>
-                <input
-                  type="time"
-                  value={form.timing.birthTime}
-                  onChange={(e) => setTiming('birthTime', e.target.value)}
-                  className="w-36 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-2">달력 기준</label>
-                <div className="flex gap-2">
-                  {(['solar', 'lunar'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setTiming('calendarType', type)}
-                      className={`px-5 py-2 rounded-xl text-sm font-medium border-2 transition-all ${
-                        form.timing.calendarType === type
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      {type === 'solar' ? '양력' : '음력'}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <input
+                type="time"
+                value={form.timing.birthTime}
+                onChange={(e) => setTiming('birthTime', e.target.value)}
+                className="w-36 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
             </div>
 
             {/* Flow sliders */}

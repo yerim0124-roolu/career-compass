@@ -30,8 +30,6 @@ export interface TraitInput {
 }
 
 export interface BasicProfile {
-  age: number;
-  yearsOfExperience: number;
   currentRole: string;
   industry: string;
   annualSalary: number;

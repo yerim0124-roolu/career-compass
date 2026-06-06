@@ -60,3 +60,12 @@
 }
 .step-in      { animation: stepIn     0.22s ease both; }
 .step-in-back { animation: stepInBack 0.22s ease both; }
+
+/* Chat-style sequential reveal — used by the P3 chat UI to render result
+   bubbles one after another. CSS-only, no streaming, no setTimeout: each
+   bubble carries an inline animation-delay so the cascade is purely visual. */
+@keyframes chatRise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.chat-rise { animation: chatRise 0.28s ease-out both; }
