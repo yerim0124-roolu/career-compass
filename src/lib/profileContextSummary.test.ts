@@ -6,7 +6,7 @@
 //   Tags map to user-spec categories: 직업군 / 경력 단계 / 일하는 방식 /
 //   전환 가능 시점 / 커리어 패턴. Raw enum values must NOT appear in output.
 
-import { buildProfileContextSummary } from './profileContextSummary.ts';
+import { buildProfileContextSummary, personalizeNarrativeOpening } from './profileContextSummary.ts';
 import { buildResultFromResponses } from '../components/careerCompassV2/session.ts';
 import type { FlowResponses } from '../components/careerCompassV2/session.ts';
 import type { UserProfile, ResultSpine } from '../types/careerCompass.ts';
@@ -765,6 +765,35 @@ function mockResult(opts: {
   const leaked = PROHIBITED.find((p) => s && s.body.includes(p));
   check(`P3.5 coherence: recovery-frame body has no content/market/interview leak${leaked ? ' — leaked "' + leaked + '"' : ''}`,
     !!s && !leaked);
+}
+
+// ─── P2.5 — personalizeNarrativeOpening (시안 A: 호명형) ─────────────────────
+{
+  const NARR = '지금은 새로 벌이기보다 기반을 먼저 다질 때예요.';
+  // (a) verbatim jobRoleRaw + tenure phrase, prepended as its own sentence
+  const a = personalizeNarrativeOpening(NARR, { jobRoleRaw: '서비스 기획자', totalCareerStage: 'total_7_12' });
+  check('P2.5 opening: verbatim job + tenure prepended',
+    a === `서비스 기획자로 7년 넘게 일해온 분이에요. ${NARR}`);
+  // (b) batchim-aware '으로' (받침 ending)
+  const b = personalizeNarrativeOpening(NARR, { jobRoleRaw: '회계사무원', totalCareerStage: 'total_3_7' });
+  check('P2.5 opening: batchim ending takes 으로', b.startsWith('회계사무원으로 3년 넘게'));
+  // (c) non-Hangul ending (e.g. English role) takes 으로
+  const c = personalizeNarrativeOpening(NARR, { jobRoleRaw: 'PM', totalCareerStage: 'total_3_7' });
+  check('P2.5 opening: non-Hangul ending takes 으로', c.startsWith('PM으로'));
+  // (d) early tenure → role named without a years phrase
+  const d = personalizeNarrativeOpening(NARR, { jobRoleRaw: '디자이너', totalCareerStage: 'total_0_3' });
+  check('P2.5 opening: total_0_3 names role without years', d === `디자이너로 일해온 분이에요. ${NARR}`);
+  // (e) skip cases: empty role / no_fulltime_experience / over-long free text
+  check('P2.5 opening: empty jobRoleRaw → unchanged',
+    personalizeNarrativeOpening(NARR, {}) === NARR);
+  check('P2.5 opening: no_fulltime_experience → unchanged (never mis-reads the user)',
+    personalizeNarrativeOpening(NARR, { jobRoleRaw: '디자이너', totalCareerStage: 'no_fulltime_experience' }) === NARR);
+  check('P2.5 opening: over-long free text → unchanged',
+    personalizeNarrativeOpening(NARR, { jobRoleRaw: '회사에서 이것저것 다 하는데 뭐라고 불러야 할지 모르겠어요' }) === NARR);
+  // (f) end-to-end: buildResultFromResponses decorates evidence.narrative
+  const spine = buildResultFromResponses(baseResponses, { profile: { jobRoleRaw: '서비스 기획자', totalCareerStage: 'total_7_12' } });
+  check('P2.5 opening: end-to-end narrative starts with the naming sentence',
+    spine.evidence.narrative.startsWith('서비스 기획자로 7년 넘게 일해온 분이에요. '));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

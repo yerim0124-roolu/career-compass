@@ -171,6 +171,36 @@ function objectParticle(word: string): '을' | '를' {
   return hasBatchim(word) ? '을' : '를';
 }
 
+// ─── P2.5 — narrative opening personalization (시안 A: 호명형) ────────────────
+// Prepends one naming sentence to evidence.narrative using jobRoleRaw VERBATIM
+// (the user's own words — can never mis-read them) plus a tenure phrase from
+// totalCareerStage. COPY-ONLY decoration applied after the engine has produced
+// the spine; never feeds routing (P2.0 fingerprint tests exclude narrative).
+const STAGE_TENURE_PHRASE: Record<NonNullable<UserProfile['totalCareerStage']>, string> = {
+  total_0_3: '',            // early tenure — naming the role is enough, years would feel thin
+  total_3_7: '3년 넘게 ',
+  total_7_12: '7년 넘게 ',
+  total_12_plus: '12년 넘게 ',
+  no_fulltime_experience: '', // handled below — skip naming entirely
+};
+
+export function personalizeNarrativeOpening(narrative: string, profile: UserProfile): string {
+  const job = (profile.jobRoleRaw ?? '').trim();
+  // Skip when: no role text, implausibly long input (free-text essays), no
+  // narrative to decorate, or the user has no fulltime experience yet (calling
+  // them "{job}로 일해온 분" would mis-read their situation — the exact failure
+  // mode personalization must avoid).
+  if (!job || job.length > 24 || !narrative) return narrative;
+  if (profile.totalCareerStage === 'no_fulltime_experience') return narrative;
+  // '로/으로': Hangul follows batchim; non-Hangul endings (e.g. "PM") read most
+  // naturally with '으로' in common usage.
+  const lastCode = job.charCodeAt(job.length - 1);
+  const isHangul = lastCode >= 0xac00 && lastCode <= 0xd7a3;
+  const roJosa = !isHangul || hasBatchim(job) ? '으로' : '로';
+  const tenure = profile.totalCareerStage ? STAGE_TENURE_PHRASE[profile.totalCareerStage] ?? '' : '';
+  return `${job}${roJosa} ${tenure}일해온 분이에요. ${narrative}`;
+}
+
 // ─── Burnout dominance ──────────────────────────────────────────────────────
 // When mainTypeKey === 'overloadedBurnout' OR planModule.key === 'recoveryFirst',
 // body is 2 sentences: a verbatim recovery framing S1 + a timing-aware

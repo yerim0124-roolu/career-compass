@@ -6,7 +6,7 @@ import { CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CA
 import { createEmptyCareerVector, applyMultipleChoiceEffects, applyRankingEffects, normalizeCareerVector } from '../../lib/careerVectorEngine.ts';
 import { buildResultSpine } from '../../lib/resultSpineEngine.ts';
 import { normalizeJobRole } from '../../lib/jobRoleNormalizer.ts';
-import { buildProfileContextSummary } from '../../lib/profileContextSummary.ts';
+import { buildProfileContextSummary, personalizeNarrativeOpening } from '../../lib/profileContextSummary.ts';
 
 export interface StepResponse2 {
   selectedOptionIds?: string[];
@@ -322,7 +322,14 @@ export function buildResultFromResponses(
   // undefined so the optional `profileContext?: ProfileContextSummary` stays
   // strictly absent on the wire, not `"profileContext": undefined`.
   const profileContext = buildProfileContextSummary({ profile, result: spine });
-  return profileContext ? { ...spine, profileContext } : spine;
+  // P2.5 — 시안 A: copy-only narrative opening personalization (jobRoleRaw verbatim).
+  // Applied AFTER the engine, same additive contract as profileContext above:
+  // routing fingerprints (P2.0 R-tests) do not include evidence.narrative.
+  const narrative = personalizeNarrativeOpening(spine.evidence.narrative, profile);
+  const decorated = narrative === spine.evidence.narrative
+    ? spine
+    : { ...spine, evidence: { ...spine.evidence, narrative } };
+  return profileContext ? { ...decorated, profileContext } : decorated;
 }
 
 // P2.0 — thin SessionState adapter. Equivalent to
