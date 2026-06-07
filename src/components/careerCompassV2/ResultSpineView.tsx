@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ResultSpine, ActionReadiness, ConfidenceBand, MoveRecommendation, MainTypeKey } from '../../types/careerCompass.ts';
 import { ARCHETYPE_LABELS, SUPPORT_TAG_LABELS } from '../../types/careerCompass.ts';
 
@@ -13,6 +13,50 @@ const MAIN_TYPE_DISPLAY: Partial<Record<MainTypeKey, string>> = {
   unvalidatedAspirant: '검증 전 도전형',     // was 시장 미검증 도전형
   restlessStabilizer: '안정 속 변화 모색형', // was 안정 속 권태형
 };
+
+// ADR-001 — LLM narrative layer client side. The deterministic template renders
+// immediately (skeleton + permanent fallback); when /api/narrative responds with
+// a validated rewrite, it fades in over the template. Identical answer sets hit
+// a sessionStorage cache so re-opening the result doesn't re-call the API.
+interface LlmNarrative { coreInsight: string; narrative: string; whyBullets: string[] }
+
+function hashString(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+function useLlmNarrative(spine: ResultSpine): LlmNarrative | null {
+  const [llm, setLlm] = useState<LlmNarrative | null>(null);
+  const seed = spine.narrativeSeed;
+  useEffect(() => {
+    if (!seed) return;
+    const body = JSON.stringify(seed);
+    const cacheKey = `cc-llm-narrative-${hashString(body)}`;
+    try {
+      const cached = window.sessionStorage.getItem(cacheKey);
+      if (cached) { setLlm(JSON.parse(cached) as LlmNarrative); return; }
+    } catch { /* noop */ }
+    const ctrl = new AbortController();
+    fetch('/api/narrative', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((out: unknown) => {
+        const o = out as LlmNarrative | null;
+        if (o && typeof o.coreInsight === 'string' && typeof o.narrative === 'string' && Array.isArray(o.whyBullets)) {
+          setLlm(o);
+          try { window.sessionStorage.setItem(cacheKey, JSON.stringify(o)); } catch { /* noop */ }
+        }
+      })
+      .catch(() => { /* template stays — that's the fallback */ });
+    return () => ctrl.abort();
+  }, [seed]);
+  return llm;
+}
 
 // 30일 체크리스트 체크 상태 — 결과지를 다시 열었을 때 유지되도록 localStorage에 저장.
 // 항목 텍스트를 키로 써서 플랜이 바뀌면 자연스럽게 초기화된 것처럼 보이게 한다.
@@ -72,6 +116,7 @@ function cleanRationale(r: string): string {
 }
 
 export default function ResultSpineView({ spine, onRestart }: Props) {
+  const llm = useLlmNarrative(spine);
   const [reevalChecks, setReevalChecks] = useState<Record<string, boolean>>(loadReevalChecks);
   const toggleReevalCheck = (item: string) => {
     setReevalChecks((prev) => {
@@ -257,8 +302,17 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           {/* what '판단 확실성' means (not capability, not safety) */}
           <p className="text-[11px] text-slate-500 leading-relaxed">{spine.evidence.confidenceNote}</p>
 
-          {/* hero: connected counseling paragraph */}
-          <p className="text-[15px] text-slate-800 leading-relaxed">{spine.evidence.narrative}</p>
+          {/* hero: counseling paragraph. Template renders first; the validated
+              LLM rewrite (insight box + reinterpreted narrative) fades in over it. */}
+          {llm && (
+            <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 space-y-1">
+              <p className="text-[11px] font-bold text-indigo-600">핵심 인사이트</p>
+              <p className="text-[15px] font-bold text-indigo-950 leading-relaxed">{llm.coreInsight}</p>
+            </div>
+          )}
+          <p key={llm ? 'llm' : 'template'} className="text-[15px] text-slate-800 leading-relaxed whitespace-pre-line animate-[fadeIn_0.5s_ease]">
+            {llm ? llm.narrative : spine.evidence.narrative}
+          </p>
 
           {/* actionable: what would raise confidence */}
           {spine.evidence.missingInformation.length > 0 && (

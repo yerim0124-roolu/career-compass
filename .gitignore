@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 .vercel
 tmp_*
+
+# ADR-001 golden run artifacts
+golden-narrative-outputs.json

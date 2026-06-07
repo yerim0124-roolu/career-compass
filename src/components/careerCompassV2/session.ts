@@ -7,6 +7,7 @@ import { createEmptyCareerVector, applyMultipleChoiceEffects, applyRankingEffect
 import { buildResultSpine } from '../../lib/resultSpineEngine.ts';
 import { normalizeJobRole } from '../../lib/jobRoleNormalizer.ts';
 import { buildProfileContextSummary, personalizeNarrativeOpening } from '../../lib/profileContextSummary.ts';
+import { buildNarrativePayload } from '../../lib/narrativePayload.ts';
 
 export interface StepResponse2 {
   selectedOptionIds?: string[];
@@ -329,7 +330,11 @@ export function buildResultFromResponses(
   const decorated = narrative === spine.evidence.narrative
     ? spine
     : { ...spine, evidence: { ...spine.evidence, narrative } };
-  return profileContext ? { ...decorated, profileContext } : decorated;
+  // ADR-001 — additive LLM-layer seed. Same contract as profileContext:
+  // engines never read it; P2.0 routing fingerprints exclude it.
+  const narrativeSeed = buildNarrativePayload(decorated, profile, responses);
+  const seeded = { ...decorated, narrativeSeed };
+  return profileContext ? { ...seeded, profileContext } : seeded;
 }
 
 // P2.0 — thin SessionState adapter. Equivalent to

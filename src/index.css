@@ -69,3 +69,9 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 .chat-rise { animation: chatRise 0.28s ease-out both; }
+
+/* ADR-001 — LLM narrative swap-in on the result page. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

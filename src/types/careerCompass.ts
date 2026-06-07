@@ -635,6 +635,11 @@ export interface UserProfile {
     | 'ready_to_switch'
     | 'must_stay';
 
+  // ADR-001 — 사용자의 고민 한 문장 (자유 텍스트, 선택 입력).
+  // 엔진은 절대 소비하지 않는다 (P2.0 패스스루 계약과 동일). LLM narrative
+  // 페이로드 전용. 외부 API로 전송되므로 analytics 페이로드에는 넣지 않는다.
+  concernFreeText?: string;
+
   concernTags?: Array<
     | 'job_change'
     | 'stay_or_leave'
@@ -744,4 +749,35 @@ export interface ResultSpine {
   // userSelectedExperimentKey. `undefined` here means the user picked ap_unsure
   // (no mapping) or didn't reach the experiment step.
   userSelectedExperimentKey?: CareerOptionKey;
+  // ─── ADR-001 ───────────────────────────────────────────────────────────────
+  // Pre-assembled input for the LLM narrative layer (built by narrativePayload.ts
+  // from spine + profile + responses). ADDITIVE metadata, same contract as
+  // profileContext: engines never read it; routing fingerprints exclude it.
+  narrativeSeed?: NarrativePayload;
+}
+
+// ─── ADR-001 — LLM narrative layer payload ────────────────────────────────────
+// The exact JSON POSTed to /api/narrative. Facts only — the LLM may rephrase and
+// cross-infer from these, never invent beyond them.
+export interface NarrativePayload {
+  profile: {
+    jobRoleRaw?: string;
+    jobRoleTraits?: string;       // e.g. '전문직(자격 기반)' — fuels life-history inference (A1)
+    ageBand?: string;             // Korean label
+    workMode?: string;            // Korean label
+    totalCareerStage?: string;    // Korean label — A1 cross-reference material
+    currentFieldStage?: string;   // Korean label — A1 cross-reference material
+  };
+  recommendation: {
+    currentBestMove: string;
+    strategicDirection?: string;  // includes readiness label when present
+    coreExperiment: string;
+    conditionalOption?: { label: string; blockedBy: string };
+    pausedOption?: { label: string; blockedBy: string };
+    confidenceBand: string;
+    resultMode: string;
+  };
+  answerHighlights: string[];     // '질문 맥락: 선택 라벨' lines — provenance + A3~A7 material
+  constructSignals: string[];     // e.g. '실행 자신감 높음'
+  userConcern?: string;           // free-text concern (pc_concernText)
 }
