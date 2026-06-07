@@ -29,64 +29,59 @@ interface Props {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2.5">
-      <h2 className="text-sm font-bold text-slate-700">{title}</h2>
+      <h2 className="text-[17px] font-extrabold text-slate-900">{title}</h2>
       {children}
     </section>
   );
 }
 
+// P3.9 UI — strip the engine's "blocker → consequence" arrow notation from rationales
+// shown to users: the row's tag chip (조건 충족 시 / 지금은 보류 / 준비 후) already
+// carries the consequence, so only the blocker clause renders.
+function cleanRationale(r: string): string {
+  const head = r.split('→')[0].trim().replace(/[,，]\s*$/, '');
+  return /[.!?。]$/.test(head) ? head : `${head}.`;
+}
+
 export default function ResultSpineView({ spine, onRestart }: Props) {
   return (
     <div className="max-w-2xl mx-auto px-5 py-8 space-y-8">
-      {/* Identity axis — the hook (archetypes are secondary chips only) */}
-      <header className="text-center space-y-3">
-        <p className="text-xs font-semibold text-indigo-500 uppercase tracking-widest">당신의 중심축</p>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-snug">{spine.identityAxis.statement}</h1>
-        {/* archetype = secondary disposition tags; kept small/muted so the identity headline leads */}
+      {/* P3.9 UI — gradient identity hero: the result's visual payoff. Absorbs the
+          P2.4 profile-context summary (headline/body/tags) so "이게 나" and "지금 상태"
+          land in one block instead of a dashboard-style card stack. */}
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-violet-700 to-purple-700 px-7 py-10 text-center space-y-3.5 shadow-xl shadow-indigo-700/20">
+        <div aria-hidden className="absolute -top-16 -right-10 w-64 h-64 rounded-full bg-white/15 blur-2xl pointer-events-none" />
+        <p className="relative text-[11px] font-bold text-white/75 uppercase tracking-[0.14em]">당신의 중심축</p>
+        <h1 className="relative text-2xl sm:text-3xl font-black text-white leading-snug">{spine.identityAxis.statement}</h1>
         {spine.identityAxis.archetypeTags.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-1 pt-0.5">
+          <div className="relative flex flex-wrap justify-center gap-1.5 pt-0.5">
             {spine.identityAxis.archetypeTags.slice(0, 2).map((t) => (
-              <span key={t} className="text-[11px] text-slate-400 bg-slate-100/70 px-2 py-0.5 rounded-full">
+              <span key={t} className="text-xs font-bold text-white bg-white/15 border border-white/30 px-3.5 py-1 rounded-full">
                 {ARCHETYPE_LABELS[t]}
               </span>
             ))}
           </div>
         )}
+        {spine.profileContext && (
+          <div className="relative pt-2 space-y-2" aria-label="지금 상태 요약">
+            <p className="text-[13px] font-semibold text-white/85">
+              {spine.profileContext.headline}
+            </p>
+            <p className="text-xs text-white/70 leading-relaxed max-w-md mx-auto">
+              {spine.profileContext.body}
+            </p>
+            {spine.profileContext.tags && spine.profileContext.tags.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-1.5 pt-0.5">
+                {spine.profileContext.tags.map((t) => (
+                  <span key={t} className="text-[11px] text-white/80 bg-white/12 px-2.5 py-0.5 rounded-full">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </header>
-
-      {/* P2.4 — Profile context summary card (copy-only). Sits between the
-          identity headline and the execution plan so the user reads "this is
-          who I am right now" before "here's what to do". The shape is
-          { headline: string, body: string, tags?: string[] } per the user
-          spec; both headline and body always have content. Visually lighter
-          than the main strategy block — soft slate border, no shadow, small
-          leading text — to keep the strategy header dominant. */}
-      {spine.profileContext && (
-        <section
-          aria-label="지금 상태 요약"
-          className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3.5 space-y-2"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">현재 맥락 요약</p>
-          <p className="text-sm font-semibold text-slate-800 leading-snug">
-            {spine.profileContext.headline}
-          </p>
-          <p className="text-[13px] text-slate-600 leading-relaxed">
-            {spine.profileContext.body}
-          </p>
-          {spine.profileContext.tags && spine.profileContext.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {spine.profileContext.tags.map((t) => (
-                <span
-                  key={t}
-                  className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
       {/* 이번 달 실행 계획 — one merged plan (module + core experiment + reeval + safety bridge).
           Replaces the separate solution-module / 30일 실험 / 재판정 sections. */}
@@ -101,37 +96,35 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           : ep.supportTagLabels;
         return (
           <section className="space-y-3">
-            {/* ① strategy header — strategy statement is the framing; main type is only a small label */}
-            <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-5 space-y-3">
+            {/* ①+② merged — P3.9 UI: the old indigo strategy card and green experiment
+                card said nearly the same thing back-to-back. One card now leads with the
+                experiment (the page's second-biggest type), with the strategy statement
+                as its supporting line. */}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-indigo-500 uppercase tracking-widest">이번 달 실행 계획</p>
-                <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">{ep.mainTypeLabel}</span>
+                <p className="text-xs font-extrabold tracking-wide text-emerald-700/90">이번 달 플랜 · 핵심 실험</p>
+                <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full">{ep.mainTypeLabel}</span>
               </div>
-              <p className="text-lg font-bold text-slate-900 leading-snug">{ep.strategyStatement}</p>
+              <p className="text-[21px] font-extrabold text-slate-900 leading-snug">{ep.coreExperiment.label}</p>
+              <p className="text-sm text-slate-600 leading-relaxed">{ep.strategyStatement}</p>
               {ep.mainTypeContextNote && (
                 <p className="text-xs text-slate-600 leading-relaxed bg-white/60 border border-slate-200/60 rounded-xl px-3 py-2">{ep.mainTypeContextNote}</p>
               )}
-              {visibleTags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {visibleTags.map((t) => (
-                    <span key={t} className="text-xs font-medium text-indigo-700 bg-indigo-100/70 px-2.5 py-1 rounded-full">#{t}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ② this month's core experiment (+ optional safety-bridge dual thread) */}
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-2">
-              <p className="text-xs font-semibold text-emerald-700/80">이번 달 핵심 실험</p>
-              <p className="font-bold text-emerald-900 text-[15px]">{ep.coreExperiment.label}</p>
               {ep.coreExperimentBridge && (
-                <p className="text-xs text-emerald-800/70 leading-relaxed">{ep.coreExperimentBridge}</p>
+                <p className="text-xs text-emerald-800/80 leading-relaxed">{ep.coreExperimentBridge}</p>
               )}
               {ep.safetyBridge && ep.directionToValidate && (
                 <div className="mt-1 space-y-1.5 border-t border-emerald-200/70 pt-2.5">
-                  <p className="text-sm text-slate-700"><span className="text-xs font-semibold text-slate-400 mr-1.5">지금의 안전판</span><span className="font-bold">{ep.safetyBridge.label}</span> — {ep.safetyBridge.why}</p>
-                  <p className="text-sm text-slate-700"><span className="text-xs font-semibold text-slate-400 mr-1.5">이번 달 검증할 방향</span><span className="font-bold">{ep.directionToValidate.label}</span> <span className="text-xs text-indigo-600">{ep.directionToValidate.readinessLabel}</span></p>
+                  <p className="text-sm text-slate-700"><span className="text-xs font-semibold text-slate-500 mr-1.5">지금의 안전판</span><span className="text-base font-extrabold">{ep.safetyBridge.label}</span> — {ep.safetyBridge.why}</p>
+                  <p className="text-sm text-slate-700"><span className="text-xs font-semibold text-slate-500 mr-1.5">이번 달 검증할 방향</span><span className="text-base font-extrabold">{ep.directionToValidate.label}</span> <span className="text-xs font-bold text-indigo-600">{ep.directionToValidate.readinessLabel}</span></p>
                   <p className="text-xs text-slate-500 leading-relaxed">둘은 경쟁이 아니라 한 쌍이에요. 안전판으로 지금의 바닥을 지키면서, 이번 달 실험으로 방향을 검증합니다.</p>
+                </div>
+              )}
+              {visibleTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {visibleTags.map((t) => (
+                    <span key={t} className="text-xs font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">#{t}</span>
+                  ))}
                 </div>
               )}
             </div>
@@ -142,7 +135,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               <ol className="space-y-1.5">
                 {ep.weeklyActions.map((s, i) => (
                   <li key={i} className="text-sm text-slate-700 flex gap-2">
-                    <span className="shrink-0 text-xs font-bold text-indigo-500 mt-0.5 w-10">{s.week}</span>
+                    <span className="shrink-0 text-[13px] font-black text-indigo-600 mt-0.5 w-11">{s.week}</span>
                     <span className="leading-relaxed">{s.action}</span>
                   </li>
                 ))}
@@ -163,7 +156,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
 
             {/* ⑥ re-evaluation (absorbs 재판정) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-bold text-slate-700 mb-1.5">{ep.reevaluationDateLabel}에 다시 보기</p>
+              <p className="text-[17px] font-extrabold text-slate-900 mb-2">{ep.reevaluationDateLabel}에 다시 보기</p>
               <ul className="space-y-1.5">
                 {ep.reevaluationChecklist.map((c, i) => (
                   <li key={i} className="text-sm text-slate-600 flex gap-2"><span className="text-slate-400">□</span>{c}</li>
@@ -172,7 +165,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
             </div>
 
             {ep.secondaryModuleHint && (
-              <p className="text-xs text-slate-400 px-1">{ep.secondaryModuleHint}</p>
+              <p className="text-xs text-slate-500 px-1">{ep.secondaryModuleHint}</p>
             )}
           </section>
         );
@@ -180,20 +173,38 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
 
       <Section title="왜 이 추천인가 · 판단 확실성">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3.5">
-          {/* two distinct metrics: 실행 준비도 vs 판단 확실성 */}
+          {/* two distinct metrics: 실행 준비도 vs 판단 확실성.
+              P3.9 UI — the "N점" score read like a report-card grade and contradicted the
+              goal-gradient copy ("30일 실험이 채워 줍니다"). It now renders as an
+              evidence-fill gauge: partially full, with the experiment as what fills the rest. */}
           <div className="flex flex-wrap gap-x-6 gap-y-1.5">
             <span className="text-sm">
-              <span className="text-xs font-semibold text-slate-400 mr-1.5">실행 준비도</span>
+              <span className="text-xs font-semibold text-slate-500 mr-1.5">실행 준비도</span>
               <span className="font-bold text-slate-700">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>
             </span>
-            <span className="text-sm">
-              <span className="text-xs font-semibold text-slate-400 mr-1.5">판단 확실성</span>
-              <span className={`font-bold ${BAND_COLOR[spine.evidence.confidenceBand]}`}>{spine.evidence.confidenceBand}</span>
-              {spine.evidence.confidenceBand !== '낮음' && <span className="text-[11px] text-slate-400 ml-1">{spine.evidence.confidenceScore}점</span>}
-            </span>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">장기 방향 근거 모임 (판단 확실성)</span>
+              <span className={`text-xs font-bold ${BAND_COLOR[spine.evidence.confidenceBand]}`}>{spine.evidence.confidenceBand}</span>
+            </div>
+            <div
+              className="h-2 w-full rounded-full bg-slate-100 overflow-hidden"
+              role="progressbar"
+              aria-valuenow={spine.evidence.confidenceScore}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="장기 방향 근거 수집 정도"
+            >
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                style={{ width: `${Math.max(spine.evidence.confidenceScore, 6)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">남은 칸은 이번 달 30일 실험이 채워요.</p>
           </div>
           {/* what '판단 확실성' means (not capability, not safety) */}
-          <p className="text-[11px] text-slate-400 leading-relaxed">{spine.evidence.confidenceNote}</p>
+          <p className="text-[11px] text-slate-500 leading-relaxed">{spine.evidence.confidenceNote}</p>
 
           {/* hero: connected counseling paragraph */}
           <p className="text-[15px] text-slate-800 leading-relaxed">{spine.evidence.narrative}</p>
@@ -281,12 +292,12 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         return (
           <details className="rounded-2xl border border-slate-200 bg-white p-4">
             <summary className="text-sm font-bold text-slate-700 cursor-pointer select-none">다른 선택지도 함께 본 이유</summary>
-            <p className="text-xs text-slate-400 mt-2 leading-relaxed">이번 달 계획은 위 한 가지예요. 아래는 함께 검토한 선택지와 지금의 타이밍입니다.</p>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">이번 달 계획은 위 한 가지예요. 아래는 함께 검토한 선택지와 지금의 타이밍입니다.</p>
             <ul className="mt-2 space-y-2">
               {items.map((it, i) => (
                 <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
                   <span className="shrink-0 text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full mt-0.5">{it.tag}</span>
-                  <span><span className="font-semibold text-slate-800">{it.move.label}</span> — {it.move.rationale}</span>
+                  <span><span className="font-semibold text-slate-800">{it.move.label}</span> — {cleanRationale(it.move.rationale)}</span>
                 </li>
               ))}
             </ul>
@@ -328,7 +339,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           one-liner (mainType-aware closingLine), not the disclaimer. Moved here from
           the plan section so the page ends on permission, not hedging. */}
       {spine.executionPlan.closingLine && (
-        <p className="pt-3 text-center text-[15px] font-bold text-slate-800 leading-relaxed px-4">
+        <p className="pt-3 text-center text-[19px] font-extrabold text-slate-800 leading-relaxed px-4">
           {spine.executionPlan.closingLine}
         </p>
       )}
@@ -342,7 +353,8 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           처음부터 다시 하기
         </button>
       </div>
-      <p className="text-center text-[11px] text-slate-300 leading-relaxed">
+      {/* small but WCAG-readable (slate-500 ≥ 4.5:1 on white) */}
+      <p className="text-center text-[11px] text-slate-500 leading-relaxed">
         본 결과는 현재 입력값 기준의 의사결정 참고용입니다. 조건이 바뀌면 결론도 달라질 수 있어요.
       </p>
     </div>
