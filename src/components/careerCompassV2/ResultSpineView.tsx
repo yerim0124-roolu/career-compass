@@ -1,5 +1,33 @@
-import type { ResultSpine, ActionReadiness, ConfidenceBand, MoveRecommendation } from '../../types/careerCompass.ts';
+import { useState } from 'react';
+import type { ResultSpine, ActionReadiness, ConfidenceBand, MoveRecommendation, MainTypeKey } from '../../types/careerCompass.ts';
 import { ARCHETYPE_LABELS, SUPPORT_TAG_LABELS } from '../../types/careerCompass.ts';
+
+// P3.9 UI — display-only softening of judgment-flavored mainType labels.
+// The canonical MAIN_TYPE_LABELS stay untouched (engine copy, analytics payloads,
+// tests all keep reading them); this map only changes the badge the user sees.
+// Burnout keeps its name — naming the exhaustion is empathic accuracy, not judgment.
+const MAIN_TYPE_DISPLAY: Partial<Record<MainTypeKey, string>> = {
+  plateauedPerformer: '도약 준비 성실형',   // was 정체된 성실형 — same diagnosis, forward frame
+  scatteredExplorer: '폭넓은 탐색형',        // was 탐색 과잉형
+  lowOptionVisibility: '선택지 발굴형',      // was 기회 탐색 부족형
+  unvalidatedAspirant: '검증 전 도전형',     // was 시장 미검증 도전형
+  restlessStabilizer: '안정 속 변화 모색형', // was 안정 속 권태형
+};
+
+// 30일 체크리스트 체크 상태 — 결과지를 다시 열었을 때 유지되도록 localStorage에 저장.
+// 항목 텍스트를 키로 써서 플랜이 바뀌면 자연스럽게 초기화된 것처럼 보이게 한다.
+const REEVAL_CHECKS_KEY = 'career-compass-reeval-checks-v1';
+function loadReevalChecks(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(REEVAL_CHECKS_KEY) ?? '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, boolean>)
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 const ACTION_READINESS_KO: Record<ActionReadiness, string> = {
   ready: '실행 준비됨',
@@ -44,6 +72,16 @@ function cleanRationale(r: string): string {
 }
 
 export default function ResultSpineView({ spine, onRestart }: Props) {
+  const [reevalChecks, setReevalChecks] = useState<Record<string, boolean>>(loadReevalChecks);
+  const toggleReevalCheck = (item: string) => {
+    setReevalChecks((prev) => {
+      const next = { ...prev, [item]: !prev[item] };
+      try { window.localStorage.setItem(REEVAL_CHECKS_KEY, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+  };
+  const mainTypeDisplayLabel =
+    MAIN_TYPE_DISPLAY[spine.solutionLayer.mainTypeKey as MainTypeKey] ?? spine.executionPlan.mainTypeLabel;
   return (
     <div className="max-w-2xl mx-auto px-5 py-8 space-y-8">
       {/* P3.9 UI — gradient identity hero: the result's visual payoff. Absorbs the
@@ -103,7 +141,8 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-extrabold tracking-wide text-emerald-700/90">이번 달 플랜 · 핵심 실험</p>
-                <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full">{ep.mainTypeLabel}</span>
+                {/* display label may be softened (MAIN_TYPE_DISPLAY); ep.mainTypeLabel stays canonical */}
+                <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full" title={ep.mainTypeLabel}>{mainTypeDisplayLabel}</span>
               </div>
               <p className="text-[21px] font-extrabold text-slate-900 leading-snug">{ep.coreExperiment.label}</p>
               <p className="text-sm text-slate-600 leading-relaxed">{ep.strategyStatement}</p>
@@ -157,9 +196,21 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
             {/* ⑥ re-evaluation (absorbs 재판정) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-[17px] font-extrabold text-slate-900 mb-2">{ep.reevaluationDateLabel}에 다시 보기</p>
+              {/* real checkboxes (persisted) — the old decorative □ glyphs looked
+                  interactive but weren't, which is an affordance lie */}
               <ul className="space-y-1.5">
                 {ep.reevaluationChecklist.map((c, i) => (
-                  <li key={i} className="text-sm text-slate-600 flex gap-2"><span className="text-slate-400">□</span>{c}</li>
+                  <li key={i}>
+                    <label className="flex items-start gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!reevalChecks[c]}
+                        onChange={() => toggleReevalCheck(c)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600 cursor-pointer"
+                      />
+                      <span className={reevalChecks[c] ? 'text-slate-400 line-through leading-relaxed' : 'text-slate-600 leading-relaxed'}>{c}</span>
+                    </label>
+                  </li>
                 ))}
               </ul>
             </div>
