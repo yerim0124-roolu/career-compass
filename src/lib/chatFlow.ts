@@ -158,21 +158,14 @@ const PROFILE_DESIRED_PATHS: Array<{ label: string; value: string }> = [
   { label: '아직 모르겠음',              value: 'undecided' },
 ];
 
-// ─── PROFILE_CHAT_STEPS (11 fields, in user-spec order) ─────────────────────
-// ADR-001 P0 — pc_concernText leads the script: its message doubles as the chat
-// opening, and a free-text concern gives the LLM narrative layer the user's own
-// words to answer. Optional; the engine never consumes it (pass-through only).
+// ─── PROFILE_CHAT_STEPS (10 fields, in user-spec order) ─────────────────────
+// NOTE: pc_concernText(고민 자유 입력)는 제거됨 — LLM 레이어 미연결 상태에선 수집해도
+// 어디에도 안 쓰여 첫 화면의 죽은 입력이었다(사용자 피드백). concernFreeText 타입 필드와
+// narrativePayload의 userConcern 매핑은 남겨둬, LLM 연결 시 이 스텝만 복원하면 되살아난다.
 export const PROFILE_CHAT_STEPS: ChatStep[] = [
   {
-    id: 'pc_concernText', phase: 'profile',
-    message: '안녕하세요! 시작 전에 하나만 물어볼게요. 지금 어떤 고민으로 오셨어요? 한 문장이면 충분해요. (적어주신 내용은 결과 해석에만 쓰여요 — 이름이나 회사명은 빼주세요)',
-    answerType: 'text', targetField: 'concernFreeText',
-    required: false,
-    placeholder: '예: 회사를 계속 다닐지, 내 일을 시작할지 고민이에요',
-  },
-  {
     id: 'pc_ageBand', phase: 'profile',
-    message: '고마워요. 이제 현재 커리어 맥락을 가볍게 볼게요. 연령대는 어디에 가까우세요?',
+    message: '안녕하세요! 시작 전에 현재 커리어 맥락을 가볍게 볼게요. 연령대는 어디에 가까우세요?',
     answerType: 'single_select', targetField: 'ageBand',
     options: PROFILE_AGE_BAND, required: false,
   },
