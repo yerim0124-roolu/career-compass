@@ -211,17 +211,17 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           </div>
         )}
         {spine.profileContext && (
-          <div className="relative pt-2 space-y-2" aria-label="지금 상태 요약">
-            <p className="text-[13px] font-semibold text-white/85">
+          <div className="relative pt-3 mt-1 space-y-2.5 border-t border-white/20" aria-label="지금 상태 요약">
+            <p className="text-[15px] font-bold text-white pt-3">
               {spine.profileContext.headline}
             </p>
-            <p className="text-xs text-white/70 leading-relaxed max-w-md mx-auto">
+            <p className="text-[14px] text-white/90 leading-[1.7] max-w-md mx-auto">
               {spine.profileContext.body}
             </p>
             {spine.profileContext.tags && spine.profileContext.tags.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-1.5 pt-0.5">
+              <div className="flex flex-wrap justify-center gap-1.5 pt-1">
                 {spine.profileContext.tags.map((t) => (
-                  <span key={t} className="text-[11px] text-white/80 bg-white/12 px-2.5 py-0.5 rounded-full">
+                  <span key={t} className="text-[12px] font-medium text-white bg-white/20 px-2.5 py-1 rounded-full">
                     {t}
                   </span>
                 ))}
@@ -440,7 +440,6 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               <div>
                 <p className="text-[14px] font-bold text-zinc-700 mb-1.5">장기 방향 근거, 얼마나 모였나</p>
                 <ConfidenceDonut score={spine.evidence.confidenceScore} />
-                <p className="text-[13px] text-zinc-500 leading-[1.65] mt-1.5">{spine.evidence.confidenceNote}</p>
                 <p className="text-[14px] text-zinc-600 mt-2">
                   <span className="font-semibold text-zinc-500 mr-1.5">실행 준비도</span>
                   <span className="font-bold text-zinc-800">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>

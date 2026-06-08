@@ -172,33 +172,32 @@ function objectParticle(word: string): '을' | '를' {
 }
 
 // ─── P2.5 — narrative opening personalization (시안 A: 호명형) ────────────────
-// Prepends one naming sentence to evidence.narrative using jobRoleRaw VERBATIM
-// (the user's own words — can never mis-read them) plus a tenure phrase from
-// totalCareerStage. COPY-ONLY decoration applied after the engine has produced
-// the spine; never feeds routing (P2.0 fingerprint tests exclude narrative).
-const STAGE_TENURE_PHRASE: Record<NonNullable<UserProfile['totalCareerStage']>, string> = {
-  total_0_3: '',            // early tenure — naming the role is enough, years would feel thin
-  total_3_7: '3년 넘게 ',
-  total_7_12: '7년 넘게 ',
-  total_12_plus: '12년 넘게 ',
-  no_fulltime_experience: '', // handled below — skip naming entirely
+// Prepends one naming sentence to evidence.narrative using jobRoleRaw VERBATIM.
+// COPY-ONLY decoration; never feeds routing (P2.0 fingerprint tests exclude narrative).
+//
+// P3.11 버그 수정: jobRoleRaw는 '현재 직무'다. 여기에 totalCareerStage(총 경력)의
+// 연수를 붙이면 "수의사로 7년 넘게"처럼 틀린다 — 수의사 경력은 currentFieldStage(1~3년)
+// 일 수 있다. 연수는 반드시 현재 직무 경력(currentFieldStage) 기준으로만 말하고,
+// 그것이 없거나 짧으면(1~3년 이하) 연수를 빼고 호명만 한다.
+const CURRENT_TENURE_PHRASE: Record<NonNullable<UserProfile['currentFieldStage']>, string> = {
+  current_under_1: '',
+  current_1_3: '',
+  current_3_7: '3년 넘게 ',
+  current_7_plus: '7년 넘게 ',
+  multiple_current_fields: '',
 };
 
 export function personalizeNarrativeOpening(narrative: string, profile: UserProfile): string {
   const job = (profile.jobRoleRaw ?? '').trim();
-  // Skip when: no role text, implausibly long input (free-text essays), no
-  // narrative to decorate, or the user has no fulltime experience yet (calling
-  // them "{job}로 일해온 분" would mis-read their situation — the exact failure
-  // mode personalization must avoid).
   if (!job || job.length > 24 || !narrative) return narrative;
   if (profile.totalCareerStage === 'no_fulltime_experience') return narrative;
-  // '로/으로': Hangul follows batchim; non-Hangul endings (e.g. "PM") read most
-  // naturally with '으로' in common usage.
   const lastCode = job.charCodeAt(job.length - 1);
   const isHangul = lastCode >= 0xac00 && lastCode <= 0xd7a3;
   const roJosa = !isHangul || hasBatchim(job) ? '으로' : '로';
-  const tenure = profile.totalCareerStage ? STAGE_TENURE_PHRASE[profile.totalCareerStage] ?? '' : '';
-  return `${job}${roJosa} ${tenure}일해온 분이에요. ${narrative}`;
+  // 현재 직무 경력 기준 연수만 사용. 없으면 연수 생략.
+  const tenure = profile.currentFieldStage ? CURRENT_TENURE_PHRASE[profile.currentFieldStage] ?? '' : '';
+  const verb = tenure ? '일해온' : '일하고 있는';
+  return `${job}${roJosa} ${tenure}${verb} 분이에요. ${narrative}`;
 }
 
 // ─── Burnout dominance ──────────────────────────────────────────────────────

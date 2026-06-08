@@ -770,19 +770,21 @@ function mockResult(opts: {
 // ─── P2.5 — personalizeNarrativeOpening (시안 A: 호명형) ─────────────────────
 {
   const NARR = '지금은 새로 벌이기보다 기반을 먼저 다질 때예요.';
-  // (a) verbatim jobRoleRaw + tenure phrase, prepended as its own sentence
-  const a = personalizeNarrativeOpening(NARR, { jobRoleRaw: '서비스 기획자', totalCareerStage: 'total_7_12' });
-  check('P2.5 opening: verbatim job + tenure prepended',
+  // P3.11 — 연수는 현재 직무 경력(currentFieldStage) 기준. 총 경력과 혼동 금지.
+  // (a) current-field tenure prepended as its own sentence
+  const a = personalizeNarrativeOpening(NARR, { jobRoleRaw: '서비스 기획자', currentFieldStage: 'current_7_plus' });
+  check('P2.5 opening: verbatim job + current-field tenure prepended',
     a === `서비스 기획자로 7년 넘게 일해온 분이에요. ${NARR}`);
   // (b) batchim-aware '으로' (받침 ending)
-  const b = personalizeNarrativeOpening(NARR, { jobRoleRaw: '회계사무원', totalCareerStage: 'total_3_7' });
+  const b = personalizeNarrativeOpening(NARR, { jobRoleRaw: '회계사무원', currentFieldStage: 'current_3_7' });
   check('P2.5 opening: batchim ending takes 으로', b.startsWith('회계사무원으로 3년 넘게'));
   // (c) non-Hangul ending (e.g. English role) takes 으로
-  const c = personalizeNarrativeOpening(NARR, { jobRoleRaw: 'PM', totalCareerStage: 'total_3_7' });
+  const c = personalizeNarrativeOpening(NARR, { jobRoleRaw: 'PM', currentFieldStage: 'current_3_7' });
   check('P2.5 opening: non-Hangul ending takes 으로', c.startsWith('PM으로'));
-  // (d) early tenure → role named without a years phrase
-  const d = personalizeNarrativeOpening(NARR, { jobRoleRaw: '디자이너', totalCareerStage: 'total_0_3' });
-  check('P2.5 opening: total_0_3 names role without years', d === `디자이너로 일해온 분이에요. ${NARR}`);
+  // (d) BUG FIX: 현재 직무 경력이 짧으면(1~3년) 총 경력이 길어도 "N년 넘게" 안 붙인다.
+  const vet = personalizeNarrativeOpening(NARR, { jobRoleRaw: '수의사', totalCareerStage: 'total_7_12', currentFieldStage: 'current_1_3' });
+  check('P2.5 opening: short current tenure → no inflated years (vet bug)',
+    vet === `수의사로 일하고 있는 분이에요. ${NARR}`);
   // (e) skip cases: empty role / no_fulltime_experience / over-long free text
   check('P2.5 opening: empty jobRoleRaw → unchanged',
     personalizeNarrativeOpening(NARR, {}) === NARR);
@@ -791,7 +793,7 @@ function mockResult(opts: {
   check('P2.5 opening: over-long free text → unchanged',
     personalizeNarrativeOpening(NARR, { jobRoleRaw: '회사에서 이것저것 다 하는데 뭐라고 불러야 할지 모르겠어요' }) === NARR);
   // (f) end-to-end: buildResultFromResponses decorates evidence.narrative
-  const spine = buildResultFromResponses(baseResponses, { profile: { jobRoleRaw: '서비스 기획자', totalCareerStage: 'total_7_12' } });
+  const spine = buildResultFromResponses(baseResponses, { profile: { jobRoleRaw: '서비스 기획자', currentFieldStage: 'current_7_plus' } });
   check('P2.5 opening: end-to-end narrative starts with the naming sentence',
     spine.evidence.narrative.startsWith('서비스 기획자로 7년 넘게 일해온 분이에요. '));
 }
