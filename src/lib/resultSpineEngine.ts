@@ -199,6 +199,7 @@ const NOW_RATIONALE: Record<CareerOptionKey, string> = {
   contentBrand: '전문성을 바깥의 언어로 옮겨 반응을 확인하기 좋은 때예요. 만든 것 하나를 정리해 글로 내보내는 것부터.',
   advisoryTeaching: '쌓은 전문성을 수익·신뢰로 바꿔볼 수 있는 단계예요. 작은 유료 세션이나 자문 1회로 수요부터 확인해 보세요.',
   investAnalysis: '시장을 해석하는 강점을 눈에 보이는 결과물로 만들기 좋은 때예요. 분석 한 편을 공개해 반응을 받아보세요.',
+  orgLeadership: '수입을 지키면서 지금 자리에서 역할을 키울 수 있는 단계예요. 이번 달엔 팀·프로젝트 하나의 방향을 직접 끌어보거나, 리드 역할에 관심 있다는 신호를 윗선에 전해보세요.',
   restRecover: '지금은 새 판을 벌이기보다 에너지를 먼저 회복하는 편이, 다음 선택의 성공률을 높여요. 2주 회복 루틴부터 시작해요.',
 };
 
@@ -254,6 +255,7 @@ const EXPERIMENT_TEMPLATES: Record<CareerOptionKey, { label: string; evidenceToC
   contentBrand: { label: '콘텐츠 4개를 발행하고 반응 측정', evidenceToCheck: ['저장·공유·문의 수', '팔로우 증가 여부'] },
   advisoryTeaching: { label: '소규모 유료 세션/강의 1회 진행', evidenceToCheck: ['신청 수', '후속 문의·재요청 여부'] },
   investAnalysis: { label: '글·리포트로 생각을 정리해 한 편 공유', evidenceToCheck: ['조회·저장 수', '피드백·문의가 오는지'] },
+  orgLeadership: { label: '팀·프로젝트 하나의 방향을 직접 끌어보는 리드 역할 2주 시험', evidenceToCheck: ['주도해서 끌어본 일의 성과·반응', '리드 역할 확대에 대한 윗선의 신호'] },
   restRecover: { label: '2주 회복 루틴 + 1주 가벼운 탐색', evidenceToCheck: ['에너지가 회복되는지', '다시 떠오르는 관심 주제가 있는지'] },
 };
 

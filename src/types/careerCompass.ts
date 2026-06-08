@@ -82,6 +82,7 @@ export type CareerOptionKey =
   | 'contentBrand'     // 콘텐츠/퍼스널 브랜드
   | 'advisoryTeaching' // 전문 자문/강의
   | 'investAnalysis'   // 투자/분석/리포트
+  | 'orgLeadership'    // 조직 내 리더십·매니지먼트
   | 'restRecover';     // 휴식/재정비
 
 export const CAREER_OPTION_LABELS = {
@@ -92,6 +93,7 @@ export const CAREER_OPTION_LABELS = {
   contentBrand: '콘텐츠/퍼스널 브랜드',
   advisoryTeaching: '전문 자문/강의',
   investAnalysis: '투자/분석/리포트',
+  orgLeadership: '조직 내 리더십',
   restRecover: '휴식/재정비',
 } as const satisfies Record<CareerOptionKey, string>;
 

@@ -159,10 +159,30 @@ const OPTION_AXIS_WEIGHTS: Record<CareerOptionKey, Partial<Record<CareerVectorKe
   startup:          { ventureOrientation: 0.35, executionDrive: 0.3, riskTolerance: 0.2, impactOrientation: 0.15 },
   independent:      { autonomy: 0.3, expertise: 0.25, marketOrientation: 0.2, riskTolerance: 0.25 },
   contentBrand:     { creativity: 0.3, impactOrientation: 0.3, marketOrientation: 0.2, expertise: 0.2 },
-  advisoryTeaching: { expertise: 0.4, impactOrientation: 0.3, autonomy: 0.3 },
+  // 자문/강의 — 본질은 '깊은 전문성에 돈·시간을 낼 사람이 있나'다. autonomy(0.3)가 과해
+  // 자율성만 높은 창업·크리에이터·독립 성향을 fit 1위로 빨아들이던 과대우위를 교정. autonomy만
+  // 0.1로 낮추고 expertise·impact는 그대로 둔다(합계<1 → 자문의 전체 높이도 약간 내려가
+  // 분석가·리더를 자문이 밀어내던 현상까지 함께 해소). expertise를 더 올리면 이번엔 '전문가'를
+  // 싹쓸이하므로 올리지 않는다.
+  advisoryTeaching: { expertise: 0.4, impactOrientation: 0.3, autonomy: 0.1 },
   investAnalysis:   { analysisOrientation: 0.4, marketOrientation: 0.35, expertise: 0.25 },
+  // 조직 내 리더십 — 진짜 리더 신호는 stability(조직 잔류)·executionDrive(주도)가 함께
+  // 높은 것. impact는 자문·콘텐츠·창업과 공유돼 변별력이 약하므로 비중을 낮췄다(impact만
+  // 높은 크리에이터·전문가가 리더십으로 오분류되는 걸 방지). autonomy는 음수: 조직 리더십은
+  // 위계 속 팀 운영이라 자율성 추구가 강한 사람은 independent/contentBrand로 빠져야 한다.
+  // 결과적으로 stability+execDrive 동반(리더)만 surfacing되고, exec만/impact만 높은 사람은
+  // 중립 안전판(현직 재설계)으로 남는다.
+  orgLeadership:    { executionDrive: 0.4, impactOrientation: 0.25, stability: 0.3, autonomy: -0.25 },
   restRecover:      { recoveryNeed: 0.8, stability: 0.2 },
 };
+
+// 조직 리더십은 두 신호가 *함께* 높아야 하는 결합형이다: 조직 잔류 의지(stability)와
+// 주도력(executionDrive). 둘 중 하나라도 하한 미만이면 부족분에 비례해 강하게 깎는다.
+//  • stability 미달 → 그 조직에 남을 마음이 없는 사람(크리에이터·갈등형). 리더십 권고 대상 X.
+//  • executionDrive 미달 → 팀을 끌기보다 맡은 일을 안정적으로 해내는 사람(헬퍼·안정형). 리더 X.
+// 이 두 하한이 impact만 높은 사람이 리더십을 중립 안전판으로 떠안는 오분류를 막는다.
+const ORG_LEADERSHIP_STABILITY_FLOOR = 30;
+const ORG_LEADERSHIP_EXECUTION_FLOOR = 40;
 
 export function calculateOptionFit(optionKey: CareerOptionKey, vector: CareerVector): number {
   const weights = OPTION_AXIS_WEIGHTS[optionKey];
@@ -170,6 +190,12 @@ export function calculateOptionFit(optionKey: CareerOptionKey, vector: CareerVec
   for (const key of Object.keys(weights) as CareerVectorKey[]) {
     const w = weights[key];
     if (w !== undefined) base += w * vector[key];
+  }
+
+  // org-leadership conjunctive floors: needs BOTH org-commitment and drive-to-lead
+  if (optionKey === 'orgLeadership') {
+    if (vector.stability < ORG_LEADERSHIP_STABILITY_FLOOR) base -= (ORG_LEADERSHIP_STABILITY_FLOOR - vector.stability) * 0.6;
+    if (vector.executionDrive < ORG_LEADERSHIP_EXECUTION_FLOOR) base -= (ORG_LEADERSHIP_EXECUTION_FLOOR - vector.executionDrive) * 0.6;
   }
 
   const profile = RISK_PROFILES[optionKey];

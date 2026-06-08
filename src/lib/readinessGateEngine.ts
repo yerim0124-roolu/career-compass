@@ -52,6 +52,10 @@ export const RISK_PROFILES = {
   advisoryTeaching: { executionLoad: 'medium', financialRisk: 'low',    marketValidationRequired: 'high',   reversibility: 'high',   timeToFeedback: 'medium' },
   // investAnalysis (added; not in the original 7 — content/advisory-shaped)
   investAnalysis:   { executionLoad: 'medium', financialRisk: 'low',    marketValidationRequired: 'high',   reversibility: 'high',   timeToFeedback: 'slow' },
+  // org_leadership — 조직 내에서 역할을 키우는 길. 수입을 지키고(financialRisk low) 시장
+  // 검증이 필요 없는 내부 이동(marketValidation low)이라 거의 항상 now/conditional. 단,
+  // 팀을 끌려면 에너지가 필요해 executionLoad medium(번아웃 시 conditional로 눌림).
+  orgLeadership:    { executionLoad: 'medium', financialRisk: 'low',    marketValidationRequired: 'low',    reversibility: 'high',   timeToFeedback: 'medium' },
   // recovery_reset
   restRecover:      { executionLoad: 'low',    financialRisk: 'medium', marketValidationRequired: 'low',    reversibility: 'high',   timeToFeedback: 'fast' },
 } as const satisfies Record<CareerOptionKey, CareerOptionRiskProfile>;
@@ -269,6 +273,7 @@ export const CONTEXT_REEVAL_CRITERIA: Record<CareerOptionKey, string[]> = {
   contentBrand: ['콘텐츠를 꾸준히(주 1회 이상) 발행했는지', '저장·공유·문의 등 반응이 늘었는지', '다루는 주제가 일관되게 모였는지'],
   advisoryTeaching: ['돈·시간을 써서라도 해결하려는 문의가 있었는지', '실제 니즈가 있는(자격 있는) 문의가 들어왔는지', '반복 가능한 자문 주제가 잡혔는지'],
   investAnalysis: ['리포트 조회·저장이 늘었는지', '피드백·인용·문의가 들어왔는지'],
+  orgLeadership: ['주도해서 끌어본 일에서 팀 성과·신뢰가 쌓였는지', '리드·매니지먼트 역할을 맡거나 확대 논의가 시작됐는지'],
   independent: ['유료 일감 문의·계약이 있었는지', '제시한 단가가 수용됐는지'],
   startup: ['관심 있는 사람 10명 이상과 충분히 대화/인터뷰했는지', '돈·시간을 써서라도 해결하려는 반응이 있었는지', '작은 시도·가설에 대한 피드백이 모였는지', 'runway(생활비 여유)가 6개월 이상으로 늘었는지'],
 };

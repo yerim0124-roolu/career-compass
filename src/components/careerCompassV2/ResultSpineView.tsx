@@ -577,7 +577,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           '준비 후': '준비가 조금 더 필요해서예요. ',
           '지금은 보류': '에너지가 아주 낮은 상태라기보다, 방향을 정리해야 하는 신호가 더 강해요. 그래서 완전한 회복 모드보다 기준 정리와 작은 검증이 더 적합해요. ',
         };
-        const SAFE_NOW = new Set(['stayRedesign', 'jobChange', 'restRecover']);
+        const SAFE_NOW = new Set(['stayRedesign', 'jobChange', 'orgLeadership', 'restRecover']);
         const safeLed = SAFE_NOW.has(spine.currentBestMove.optionKey);
 
         return (

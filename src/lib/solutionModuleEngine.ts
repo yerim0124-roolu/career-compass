@@ -461,6 +461,9 @@ const EXPERIMENT_HOME_MODULE: Record<CareerOptionKey, SolutionModuleKey | null> 
   // user gets writing-aligned weekly steps (성과 추리기 → 케이스 정리 → 외부 공개)
   // instead of the interview-heavy marketTest fallback.
   investAnalysis: 'portfolioConvert',
+  // 조직 내 리더십 — 현직에서 역할을 키우는 길이라 roleRedesign(현직 재설계) 모듈로 흡수.
+  // 별도 모듈을 만들지 않고 진단된 모듈이 주도하되 주간 스텝은 역할 재설계 계열로 정렬된다.
+  orgLeadership: 'roleRedesign',
 };
 
 const SAFETY_BRIDGE_KEYS: ReadonlySet<CareerOptionKey> = new Set<CareerOptionKey>(['stayRedesign', 'jobChange', 'restRecover']);

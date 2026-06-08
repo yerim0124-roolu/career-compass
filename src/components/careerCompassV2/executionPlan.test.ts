@@ -143,7 +143,10 @@ for (const k of Object.keys(SCN) as (keyof typeof SCN)[]) {
 {
   const ve = buildResultFromResponses(SCN.venture);
   const keys = ve.executionPlan.promotionConditions.map((r) => r.promoteTo);
-  check('P4 venture: promotions are contextual (startup/advisory only)', keys.length >= 1 && keys.every((kk) => kk === 'startup' || kk === 'advisoryTeaching'));
+  // Contextual (not fabricated): promotions are this founder's gated high-fit directions.
+  // contentBrand is now a legitimate slot — advisory's fit correctly dropped for this
+  // autonomy-heavy venture type (advisory no longer over-attracts non-experts).
+  check('P4 venture: promotions are contextual (startup/advisory/content)', keys.length >= 1 && keys.every((kk) => kk === 'startup' || kk === 'advisoryTeaching' || kk === 'contentBrand'));
 }
 {
   const cr = buildResultFromResponses(SCN.creator);
