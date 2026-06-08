@@ -155,6 +155,11 @@ function subjectParticle(word: string): string {
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '이' : '가';
   return '이(가)';
 }
+function objectParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '을' : '를';
+  return '을(를)';
+}
 
 interface Props {
   spine: ResultSpine;
@@ -304,25 +309,26 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               return (
                 <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-5 space-y-4">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[13px] font-extrabold tracking-wide text-emerald-800">그래서, 지금 추천하는 솔루션</p>
+                    <p className="text-[13px] font-extrabold tracking-wide text-emerald-800">그래서, 지금 당신에게 필요한 솔루션</p>
                     <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full" title={ep.mainTypeLabel}>{mainTypeDisplayLabel}</span>
                   </div>
-                  {/* ① 무엇 */}
-                  <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{spine.currentBestMove.label}</p>
-                  <p className="text-[15px] text-zinc-700 leading-[1.75]">{spine.currentBestMove.rationale}</p>
 
-                  {/* 오해 방지 — 안전판≠소극적 선택 */}
-                  {ep.safetyBridge && ep.directionToValidate && (
-                    <p className="text-[15px] text-zinc-700 leading-[1.75] bg-white/70 border border-emerald-100 rounded-xl px-4 py-3">
-                      즉, 지금의 선택은 <span className="font-bold">‘{ep.safetyBridge.label}에 머무르기’가 아니에요.</span> {ep.safetyBridge.label}을 안전판으로 두고, <span className="font-bold">{ep.directionToValidate.label}</span> 방향이 실제로 작동하는지 작게 검증하는 전략이에요.
-                    </p>
-                  )}
+                  {/* ① 솔루션(심리적 처방)이 헤드라인 — '왜→무엇'의 무엇. 커리어 옵션보다 위. */}
+                  <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{mod.title}</p>
+                  <p className="text-[15px] font-bold text-emerald-800 leading-[1.6]">{mod.goal}</p>
+                  <p className="text-[15px] text-zinc-700 leading-[1.75]">{mod.why}</p>
 
-                  {/* ② 왜 이 솔루션 — primaryModule */}
-                  <div className="border-t border-emerald-200/70 pt-3.5">
-                    <p className="text-[11px] font-bold tracking-wide text-emerald-700 mb-1">이 솔루션은</p>
-                    <p className="text-[16px] font-extrabold text-zinc-900 mb-1">{mod.title} — {mod.goal}</p>
-                    <p className="text-[14px] text-zinc-600 leading-[1.7]">{mod.why}</p>
+                  {/* ② 커리어적 권고 — 그 솔루션을 커리어 행동으로 옮기면 (currentBestMove) */}
+                  <div className="border-t border-emerald-200/70 pt-3.5 space-y-2">
+                    <p className="text-[11px] font-bold tracking-wide text-emerald-700">커리어적으로는</p>
+                    <p className="text-[17px] font-extrabold text-zinc-900">{spine.currentBestMove.label}{objectParticle(spine.currentBestMove.label)} 추천해요</p>
+                    <p className="text-[15px] text-zinc-700 leading-[1.75]">{spine.currentBestMove.rationale}</p>
+                    {/* 오해 방지 — 안전판≠소극적 선택 */}
+                    {ep.safetyBridge && ep.directionToValidate && (
+                      <p className="text-[15px] text-zinc-700 leading-[1.75] bg-white/70 border border-emerald-100 rounded-xl px-4 py-3 mt-1">
+                        즉, 지금의 선택은 <span className="font-bold">‘{ep.safetyBridge.label}에 머무르기’가 아니에요.</span> {ep.safetyBridge.label}을 안전판으로 두고, <span className="font-bold">{ep.directionToValidate.label}</span> 방향이 실제로 작동하는지 작게 검증하는 전략이에요.
+                      </p>
+                    )}
                   </div>
 
                   {/* ③ 하지 말 것 */}
