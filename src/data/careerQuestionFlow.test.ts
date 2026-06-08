@@ -129,7 +129,7 @@ check('debias rc_validation: title "지금 방향에 받은 반응"', stepById2(
 check('debias rc_validation: labels drop 시장/유료 의향까지, gate keys intact', ['rc_val_none', 'rc_val_early', 'rc_val_partial', 'rc_val_done'].every((id) => !opt(id).label.includes('시장') && !opt(id).label.includes('유료 의향까지')) && opt('rc_val_none').gateAssignment?.marketValidation === 'unvalidated' && opt('rc_val_done').gateAssignment?.marketValidation === 'validated');
 check('debias rc_validation: rc_val_none reads "혼자 생각만"', opt('rc_val_none').label.includes('혼자 생각만'));
 check('debias fc_3: no "밖으로", uses "더 드러내고 싶다"', !opt('fc3_public').label.includes('밖으로') && opt('fc3_public').label.includes('더 드러내고 싶다'));
-check('debias cs_between: broader label + description mentions 사내 이동', opt('cs_between').label.includes('여러 갈래') && (opt('cs_between').description ?? '').includes('사내 이동'));
+check('debias cs_between: criterion-framed label + description still lists multiple paths (사내 이동)', opt('cs_between').label.includes('기준') && (opt('cs_between').description ?? '').includes('사내 이동'));
 
 // ─── or_internal probe (organization-internal reaction) ──────────────────────────
 const orInternal = stepById2('or_internal');

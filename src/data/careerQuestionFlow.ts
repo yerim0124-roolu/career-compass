@@ -28,10 +28,13 @@ const currentState: QuestionStep = {
   minSelect: 1,
   maxSelect: 1,
   options: [
-    { id: 'cs_many', label: '하고 싶은 일이 너무 많다', description: '다 흥미로운데 하나를 못 고르겠다', tags: ['state'], scoreEffects: { autonomy: 3, creativity: 2, marketValidationNeed: 4 }, constructEffects: { difficulty: { optionOverload: 5 }, adaptability: { curiosity: 3 } } },
+    // P3.13 — cs_many와 cs_between이 둘 다 optionOverload를 측정해 중복(상호배타성 위반).
+    // 차별화: cs_many = 내적 흥미 과잉(하고 싶은 게 많음 → scatteredExplorer),
+    //         cs_between = 판단 기준 부재(길은 보이나 무엇을 먼저 둘지 모름 → conflictedAtFork).
+    { id: 'cs_many', label: '하고 싶은 게 많아 하나로 못 좁히겠다', description: '관심사가 넘쳐서 우선순위가 안 선다', tags: ['state'], scoreEffects: { autonomy: 3, creativity: 2, marketValidationNeed: 4 }, constructEffects: { difficulty: { optionOverload: 5 }, adaptability: { curiosity: 3 } } },
     { id: 'cs_stay', label: '지금 일을 계속할지 모르겠다', description: '버티는 게 맞는지, 바꾸는 게 맞는지', tags: ['state'], scoreEffects: { marketValidationNeed: 3, recoveryNeed: 2, stability: 2 }, constructEffects: { difficulty: { readinessGap: 4, selfInformationGap: 3 } } },
     { id: 'cs_expand', label: '전문성을 어떻게 확장할지 모르겠다', description: '쌓아온 경력을 다음 단계로 잇고 싶다', tags: ['state'], scoreEffects: { expertise: 4, impactOrientation: 3, marketOrientation: 2 }, constructEffects: { adaptability: { concern: 4, curiosity: 2 }, scct: { goalClarity: 3 } } },
-    { id: 'cs_between', label: '다음 행보가 여러 갈래라 무엇을 선택해야 할지 모르겠다', description: '이직, 사내 이동, 역할 확장, 창업, 독립, 학업, 휴식 등 선택지는 있는데 기준이 없다', tags: ['state'], scoreEffects: { ventureOrientation: 3, autonomy: 3, riskTolerance: 2, marketValidationNeed: 2 }, constructEffects: { difficulty: { optionOverload: 4, valueConflict: 3 } } },
+    { id: 'cs_between', label: '어느 길로 갈지 기준이 안 선다', description: '이직·사내 이동·창업 등 길은 보이는데, 무엇을 먼저 둘지 모르겠다', tags: ['state'], scoreEffects: { marketValidationNeed: 2 }, constructEffects: { difficulty: { valueConflict: 4, optionOverload: 3 } } },
     { id: 'cs_rest', label: '쉬어야 할지 밀어붙여야 할지 모르겠다', description: '방향 문제인지 에너지 문제인지 헷갈린다', tags: ['state'], scoreEffects: { recoveryNeed: 5 }, constructEffects: { difficulty: { readinessGap: 5 } } },
   ],
 };
@@ -53,6 +56,10 @@ const attractiveRoles: QuestionStep = {
     { id: 'ar_analyst', label: '투자자·분석가', description: '시장과 가능성을 해석하는 사람', tags: ['role'], scoreEffects: { marketOrientation: 5, analysisOrientation: 5, impactOrientation: 2 }, constructEffects: { adaptability: { concern: 2 } } },
     { id: 'ar_advisor', label: '자문가', description: '전문성으로 방향을 짚어주는 사람', tags: ['role'], scoreEffects: { expertise: 4, impactOrientation: 3, autonomy: 2 }, constructEffects: { scct: { selfEfficacy: 2 } } },
     { id: 'ar_leader', label: '조직 내 리더', description: '팀과 함께 성과를 만드는 사람', tags: ['role'], scoreEffects: { executionDrive: 4, stability: 3, impactOrientation: 3 }, constructEffects: { adaptability: { control: 3 } } },
+    // P3.13 — RIASEC 균형(content validity): 기존 옵션이 Enterprising·Investigative에 쏠려
+    // 일반 직장인이 고를 Conventional(체계적 실무)·Social(협업·조력)이 없던 결함을 보완.
+    { id: 'ar_steady', label: '안정적 기여자', description: '맡은 일을 책임감 있게 해내는 사람', tags: ['role'], scoreEffects: { stability: 5, executionDrive: 2, expertise: 1 }, constructEffects: { adaptability: { control: 2 }, scct: { selfEfficacy: 2 } } },
+    { id: 'ar_helper', label: '협업·조력자', description: '사람들을 돕고 연결하는 사람', tags: ['role'], scoreEffects: { impactOrientation: 4, stability: 2, executionDrive: 1 }, constructEffects: { adaptability: { concern: 2, control: 1 } } },
     { id: 'ar_freelancer', label: '프리랜서', description: '내 방식대로 일을 꾸리는 사람', tags: ['role'], scoreEffects: { autonomy: 5, marketOrientation: 2, riskTolerance: 2 }, constructEffects: { adaptability: { control: 2, curiosity: 1 } } },
     { id: 'ar_reset', label: '재정비하는 사람', description: '잠시 멈추고 정비하는 시기', tags: ['role'], scoreEffects: { recoveryNeed: 4 }, constructEffects: { difficulty: { readinessGap: 2 } } },
   ],
@@ -251,7 +258,7 @@ const reactionContent: QuestionStep = {
   stage: 'option_reactions',
   inputType: 'single_select',
   title: '콘텐츠·자문 방향',
-  assistantPrompt: '콘텐츠·자문 같은 방향에 1년 집중한다고 상상하면 가장 가까운 느낌은?',
+  assistantPrompt: '콘텐츠·자문 같은 방향에 1년을 쓴다면, 잘 풀리는 날과 지치는 날을 모두 떠올렸을 때 가장 가까운 느낌은?',
   minSelect: 1,
   maxSelect: 1,
   options: [
@@ -268,7 +275,7 @@ const reactionVenture: QuestionStep = {
   stage: 'option_reactions',
   inputType: 'single_select',
   title: '창업·독립 방향',
-  assistantPrompt: '창업·독립 같은 방향에 1년 집중한다고 상상하면 가장 가까운 느낌은?',
+  assistantPrompt: '창업·독립 같은 방향에 1년을 쓴다면, 잘 풀리는 날과 지치는 날을 모두 떠올렸을 때 가장 가까운 느낌은?',
   minSelect: 1,
   maxSelect: 1,
   // liveInsightTrigger moved to or_internal so the insight fires after the full option_reactions stage.

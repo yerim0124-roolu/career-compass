@@ -22,7 +22,10 @@ check('optional_short_text is always complete (skippable)', isStepComplete(stepB
 
 // ─── End-to-end via responses (mirrors the UI state shape) ─────────────────────
 const responses: FlowResponses = {
-  cs_main: { selectedOptionIds: ['cs_between'] },
+  // P3.13 — cs_stay(중립)로: cs_between은 이제 도전 점수를 주지 않아 이 도전형 픽스처를
+  // unvalidatedAspirant로 끌어 riskAverse 태그를 상위에서 밀어냄. 이 테스트의 의도는
+  // 'rc_risk_time → riskAverse 노출'이므로 중립 cs 옵션으로 의도를 보존한다.
+  cs_main: { selectedOptionIds: ['cs_stay'] },
   ar_roles: { selectedOptionIds: ['ar_founder', 'ar_freelancer'] },
   cv_values: { selectedOptionIds: ['cv_autonomy', 'cv_money', 'cv_problem', 'cv_bigmarket'] },
   cv_priorities: { ranking: ['pr_money', 'pr_freedom', 'pr_growth'] },
@@ -55,8 +58,21 @@ check('result: evidence measured constructs (confidence > 0, cites CDDQ)', spine
 
 // ─── Solution layer over the full flow ─────────────────────────────────────────
 check('result: solutionLayer present + primary module', !!spine.solutionLayer && !!spine.solutionLayer.primaryModule);
-// rc_risk_time = timeOnly (explicit low loss tolerance) → riskAverse is measured-legit here
-check('result: explicit low-risk answer (timeOnly) → riskAverse surfaces', spine.solutionLayer.supportTags.includes('riskAverse'));
+// rc_risk_time = timeOnly (explicit low loss tolerance) → riskAverse is measured-legit.
+// P3.13 — 위 픽스처는 도전 신호가 압도적이라 riskAverse가 상위 태그에서 밀린다(정상).
+// 의도(낮은 손실감내 → riskAverse 노출)를 안정형 맥락에서 분리 검증한다.
+{
+  const stableRiskAverse = buildResultFromResponses({
+    ...responses,
+    ar_roles: { selectedOptionIds: ['ar_steady', 'ar_expert'] },
+    cv_values: { selectedOptionIds: ['cv_stability', 'cv_money'] },
+    cv_priorities: { ranking: ['pr_stability', 'pr_money'] },
+    or_venture: { selectedOptionIds: ['orv_money_tiring'] },
+    ap_experiment: { selectedOptionIds: ['ap_redesign'] },
+  });
+  check('result: explicit low-risk answer (timeOnly) → riskAverse surfaces',
+    stableRiskAverse.solutionLayer.supportTags.includes('riskAverse'));
+}
 
 // Sparse flow: no risk question, no self-outlook, only cards without selfEfficacy/confidence.
 const sparseResponses: FlowResponses = {
