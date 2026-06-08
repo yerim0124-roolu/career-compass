@@ -294,9 +294,9 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                 card said nearly the same thing back-to-back. One card now leads with the
                 experiment (the page's second-biggest type), with the strategy statement
                 as its supporting line. */}
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 space-y-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-extrabold tracking-wide text-emerald-700/90">이번 달 플랜 · 핵심 실험</p>
+                <p className="text-[13px] font-extrabold tracking-wide text-emerald-800">이번 달 플랜 · 핵심 실험</p>
                 {/* display label may be softened (MAIN_TYPE_DISPLAY); ep.mainTypeLabel stays canonical */}
                 <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full" title={ep.mainTypeLabel}>{mainTypeDisplayLabel}</span>
               </div>
@@ -305,27 +305,27 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                   주차별 행동과 충돌해 보이므로, 헤드라인은 전략 문장이 갖고 실험은 보조 블록으로 내린다. */}
               {ep.coreExperimentBridge ? (
                 <>
-                  <p className="text-[21px] font-extrabold text-slate-900 leading-snug">{ep.strategyStatement}</p>
-                  <div className="rounded-xl bg-white/80 border border-emerald-100 px-3.5 py-2.5 space-y-1">
-                    <p className="text-xs font-bold text-emerald-700">이번 달 핵심 실험 — 기준을 좁혀줄 데이터 수집</p>
-                    <p className="text-[15px] font-bold text-slate-800 leading-snug">{ep.coreExperiment.label}</p>
-                    <p className="text-xs text-slate-500 leading-relaxed">{ep.coreExperimentBridge}</p>
+                  <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{ep.strategyStatement}</p>
+                  <div className="rounded-xl bg-white/80 border border-emerald-100 px-4 py-3 space-y-1.5">
+                    <p className="text-[13px] font-bold text-emerald-800">이번 달 핵심 실험 — 기준을 좁혀줄 데이터 수집</p>
+                    <p className="text-[15px] font-bold text-zinc-800 leading-[1.5]">{ep.coreExperiment.label}</p>
+                    <p className="text-[13px] text-zinc-600 leading-[1.65]">{ep.coreExperimentBridge}</p>
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="text-[21px] font-extrabold text-slate-900 leading-snug">{ep.coreExperiment.label}</p>
-                  <p className="text-sm text-slate-600 leading-relaxed">{ep.strategyStatement}</p>
+                  <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{ep.coreExperiment.label}</p>
+                  <p className="text-[15px] text-zinc-600 leading-[1.7]">{ep.strategyStatement}</p>
                 </>
               )}
               {ep.mainTypeContextNote && (
-                <p className="text-xs text-slate-600 leading-relaxed bg-white/60 border border-slate-200/60 rounded-xl px-3 py-2">{ep.mainTypeContextNote}</p>
+                <p className="text-[13px] text-zinc-600 leading-[1.65] bg-white/60 border border-slate-200/60 rounded-xl px-3.5 py-2.5">{ep.mainTypeContextNote}</p>
               )}
               {ep.safetyBridge && ep.directionToValidate && (
-                <div className="mt-1 space-y-1.5 border-t border-emerald-200/70 pt-2.5">
-                  <p className="text-sm text-slate-700"><span className="text-xs font-semibold text-slate-500 mr-1.5">지금의 안전판</span><span className="text-base font-extrabold">{ep.safetyBridge.label}</span> — {ep.safetyBridge.why}</p>
-                  <p className="text-sm text-slate-700"><span className="text-xs font-semibold text-slate-500 mr-1.5">이번 달 검증할 방향</span><span className="text-base font-extrabold">{ep.directionToValidate.label}</span> <span className="text-xs font-bold text-indigo-600">{ep.directionToValidate.readinessLabel}</span></p>
-                  <p className="text-xs text-slate-500 leading-relaxed">둘은 경쟁이 아니라 한 쌍이에요. 안전판으로 지금의 바닥을 지키면서, 이번 달 실험으로 방향을 검증합니다.</p>
+                <div className="mt-1 space-y-2 border-t border-emerald-200/70 pt-3">
+                  <p className="text-[15px] text-zinc-700 leading-[1.6]"><span className="text-xs font-semibold text-zinc-500 mr-1.5">지금의 안전판</span><span className="text-base font-extrabold">{ep.safetyBridge.label}</span> — {ep.safetyBridge.why}</p>
+                  <p className="text-[15px] text-zinc-700 leading-[1.6]"><span className="text-xs font-semibold text-zinc-500 mr-1.5">이번 달 검증할 방향</span><span className="text-base font-extrabold">{ep.directionToValidate.label}</span> <span className="text-xs font-bold text-indigo-600">{ep.directionToValidate.readinessLabel}</span></p>
+                  <p className="text-[13px] text-zinc-500 leading-[1.65]">둘은 경쟁이 아니라 한 쌍이에요. 안전판으로 지금의 바닥을 지키면서, 이번 달 실험으로 방향을 검증합니다.</p>
                 </div>
               )}
               {/* 직무별 소재 변형 — 고정 플랜 카피를 사용자 직무의 언어로 구체화.
@@ -333,8 +333,8 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               {(() => {
                 const hint = getExperimentJobHint(spine.profile, ep.coreExperiment.sourceOptionKey);
                 return hint ? (
-                  <p className="text-sm text-slate-700 leading-relaxed bg-white/70 border border-emerald-100 rounded-xl px-3 py-2">
-                    <span className="text-xs font-bold text-emerald-700 mr-1.5">당신의 직무라면</span>{hint}
+                  <p className="text-[15px] text-zinc-700 leading-[1.7] bg-white/70 border border-emerald-100 rounded-xl px-3.5 py-2.5">
+                    <span className="text-[13px] font-bold text-emerald-800 mr-1.5">당신의 직무라면</span>{hint}
                   </p>
                 ) : null;
               })()}
@@ -422,28 +422,28 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
 
           {/* actionable: what would raise confidence */}
           {spine.evidence.missingInformation.length > 0 && (
-            <div className="border-t border-slate-100 pt-3">
-              <p className="text-xs font-semibold text-slate-400 mb-1">더 정확히 보려면</p>
+            <div className="border-t border-zinc-100 pt-3.5">
+              <p className="text-[13px] font-bold text-zinc-500 mb-1.5">더 정확히 보려면</p>
               <ul className="space-y-1">
                 {spine.evidence.missingInformation.map((m, i) => (
-                  <li key={i} className="text-xs text-slate-500 flex gap-2"><span className="text-slate-400">+</span>{m}</li>
+                  <li key={i} className="text-[14px] text-zinc-600 flex gap-2 leading-[1.6]"><span className="text-zinc-400">+</span>{m}</li>
                 ))}
               </ul>
             </div>
           )}
 
           {/* details kept below the main explanation — P3.10 재설계: 도넛 + 소프트 바 차트 */}
-          <details className="border-t border-slate-100 pt-3">
-            <summary className="text-sm font-bold text-slate-600 cursor-pointer select-none">근거 자세히 보기</summary>
-            <div className="mt-3 space-y-5">
+          <details className="border-t border-zinc-100 pt-3.5">
+            <summary className="text-[15px] font-bold text-zinc-700 cursor-pointer select-none">근거 자세히 보기</summary>
+            <div className="mt-4 space-y-6">
               {/* 판단 확실성 (본문에서 이동) — 도넛: 모인 근거 vs 실험이 채울 몫 */}
               <div>
-                <p className="text-xs font-bold text-slate-500 mb-1">장기 방향 근거, 얼마나 모였나</p>
+                <p className="text-[14px] font-bold text-zinc-700 mb-1.5">장기 방향 근거, 얼마나 모였나</p>
                 <ConfidenceDonut score={spine.evidence.confidenceScore} />
-                <p className="text-[11px] text-slate-500 leading-relaxed mt-1">{spine.evidence.confidenceNote}</p>
-                <p className="text-xs text-slate-600 mt-1.5">
-                  <span className="font-semibold text-slate-500 mr-1.5">실행 준비도</span>
-                  <span className="font-bold text-slate-700">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>
+                <p className="text-[13px] text-zinc-500 leading-[1.65] mt-1.5">{spine.evidence.confidenceNote}</p>
+                <p className="text-[14px] text-zinc-600 mt-2">
+                  <span className="font-semibold text-zinc-500 mr-1.5">실행 준비도</span>
+                  <span className="font-bold text-zinc-800">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>
                 </p>
               </div>
 
@@ -451,18 +451,18 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                   연속 막대(78%/32%)는 없는 정밀도를 지어내는 셈 → 단계 표시로 교체. */}
               {spine.evidence.constructSignals.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 mb-2">심리 신호</p>
-                  <div className="space-y-2.5">
+                  <p className="text-[14px] font-bold text-zinc-700 mb-2.5">심리 신호</p>
+                  <div className="space-y-3">
                     {spine.evidence.constructSignals.map((s, i) => (
                       <div key={i}>
                         <div className="flex items-center gap-2.5">
-                          <span className="flex-1 text-xs font-semibold text-slate-700">{s.humanLabel}</span>
+                          <span className="flex-1 text-[14px] font-bold text-zinc-800">{s.humanLabel}</span>
                           <SignalDots level={s.level === 'high' ? 'high' : 'low'} />
-                          <span className="w-8 shrink-0 text-right text-[11px] font-bold" style={{ color: s.level === 'high' ? TONE.progress.fg : TONE.caution.fg }}>
+                          <span className="w-9 shrink-0 text-right text-[12px] font-bold" style={{ color: s.level === 'high' ? TONE.progress.fg : TONE.caution.fg }}>
                             {s.level === 'high' ? '높음' : '낮음'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{s.note}</p>
+                        <p className="text-[13px] text-zinc-500 leading-[1.6] mt-1">{s.note}</p>
                       </div>
                     ))}
                   </div>
@@ -472,13 +472,13 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               {/* 확신을 움직인 것 — +/− 통합 리스트 */}
               {(spine.evidence.confidenceDrivers.raised.length > 0 || spine.evidence.confidenceDrivers.lowered.length > 0) && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 mb-1.5">확신을 움직인 것</p>
-                  <ul className="space-y-1">
+                  <p className="text-[14px] font-bold text-zinc-700 mb-2">확신을 움직인 것</p>
+                  <ul className="space-y-1.5">
                     {spine.evidence.confidenceDrivers.raised.map((r, i) => (
-                      <li key={`r${i}`} className="text-xs text-slate-600 flex gap-1.5"><span className="font-black text-emerald-500">+</span>{r}</li>
+                      <li key={`r${i}`} className="text-[14px] text-zinc-700 flex gap-2 leading-[1.55]"><span className="font-black text-emerald-500">+</span>{r}</li>
                     ))}
                     {spine.evidence.confidenceDrivers.lowered.map((r, i) => (
-                      <li key={`l${i}`} className="text-xs text-slate-600 flex gap-1.5"><span className="font-black text-amber-500">−</span>{r}</li>
+                      <li key={`l${i}`} className="text-[14px] text-zinc-700 flex gap-2 leading-[1.55]"><span className="font-black text-amber-500">−</span>{r}</li>
                     ))}
                   </ul>
                 </div>
@@ -486,10 +486,10 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
 
               {spine.evidence.contextualBarriers.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 mb-1.5">현실 장벽</p>
+                  <p className="text-[14px] font-bold text-zinc-700 mb-2">현실 장벽</p>
                   <div className="flex flex-wrap gap-1.5">
                     {spine.evidence.contextualBarriers.map((b, i) => (
-                      <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: TONE.caution.bg, color: TONE.caution.fg }}>{b}</span>
+                      <span key={i} className="text-[13px] font-medium px-2.5 py-1 rounded-full" style={{ background: TONE.caution.bg, color: TONE.caution.fg }}>{b}</span>
                     ))}
                   </div>
                 </div>
@@ -498,13 +498,13 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           </details>
 
           {/* framework names live here only */}
-          <details className="border-t border-slate-100 pt-3">
-            <summary className="text-xs font-semibold text-slate-400 cursor-pointer select-none">이론적 근거 보기</summary>
-            <p className="text-[11px] text-slate-400 leading-relaxed mt-2">{spine.evidence.theoryGroundedSummary}</p>
+          <details className="border-t border-zinc-100 pt-3.5">
+            <summary className="text-[13px] font-semibold text-zinc-500 cursor-pointer select-none">이론적 근거 보기</summary>
+            <p className="text-[13px] text-zinc-500 leading-[1.65] mt-2">{spine.evidence.theoryGroundedSummary}</p>
             {spine.evidence.constructSignals.length > 0 && (
               <ul className="mt-2 space-y-0.5">
                 {spine.evidence.constructSignals.map((s, i) => (
-                  <li key={i} className="text-[11px] text-slate-400">{s.framework} · {s.construct} ({s.level === 'high' ? '높음' : '낮음'})</li>
+                  <li key={i} className="text-[12px] text-zinc-400">{s.framework} · {s.construct} ({s.level === 'high' ? '높음' : '낮음'})</li>
                 ))}
               </ul>
             )}
