@@ -155,11 +155,6 @@ function subjectParticle(word: string): string {
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '이' : '가';
   return '이(가)';
 }
-function objectParticle(word: string): string {
-  const code = word.charCodeAt(word.length - 1);
-  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '을' : '를';
-  return '을(를)';
-}
 function topicParticle(word: string): string {
   const code = word.charCodeAt(word.length - 1);
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '은' : '는';
@@ -326,12 +321,18 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                   <p className="text-[15px] font-bold text-emerald-800 leading-[1.6]">{mod.goal}</p>
                   <p className="text-[15px] text-zinc-700 leading-[1.75]">{mod.why}</p>
 
-                  {/* 위계 명확화 — 이번 달 핵심은 '방향'이 아니라 '솔루션'. 방향은 검증 후보. */}
-                  {dir && (
-                    <p className="text-[14px] text-zinc-600 leading-[1.7] bg-white/60 border border-emerald-100 rounded-xl px-4 py-3">
-                      이번 달의 핵심은 <span className="font-bold text-zinc-800">{dir}</span>{objectParticle(dir)} 해보라는 게 아니라, <span className="font-bold text-zinc-800">{mod.title}</span>예요. {dir}{topicParticle(dir)} 그 기준을 확인해볼 <span className="font-bold">후보 방향</span>이고요.
-                    </p>
-                  )}
+                  {/* 위계 명확화 — 사용자가 고른 시도(coreExperiment)를 곧장 하지 말고 솔루션부터.
+                      들어갈 건 '검증할 방향'(strategicDirection)이 아니라 '사용자가 고른 시도'다. */}
+                  {(() => {
+                    const DECISION_TYPES = new Set(['conflictedAtFork', 'scatteredExplorer', 'lowOptionVisibility']);
+                    if (!DECISION_TYPES.has(spine.solutionLayer.mainTypeKey)) return null;
+                    const tried = ep.coreExperiment.label;
+                    return (
+                      <p className="text-[14px] text-zinc-600 leading-[1.7] bg-white/60 border border-emerald-100 rounded-xl px-4 py-3">
+                        이번 달의 핵심은 <span className="font-bold text-zinc-800">‘{tried}’</span> 같은 시도를 곧장 하는 게 아니라, <span className="font-bold text-zinc-800">{mod.title}</span>예요. 고른 시도는 기준이 선 다음에 그 기준을 확인해보는 방법일 뿐이고요.
+                      </p>
+                    );
+                  })()}
 
                   {/* ② 커리어적 권고 — 내부 라벨처럼 안 보이게 사용자 언어로 풀어쓴다. */}
                   <div className="border-t border-emerald-200/70 pt-3.5 space-y-2">
