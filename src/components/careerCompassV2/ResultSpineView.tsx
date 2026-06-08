@@ -18,7 +18,7 @@ function StatCard({ tone, label, value }: { tone: keyof typeof TONE; label: stri
   const t = TONE[tone];
   return (
     <div className="rounded-2xl px-3.5 py-4" style={{ background: t.bg }}>
-      <p className="text-[11px] font-semibold opacity-80" style={{ color: t.fg }}>{label}</p>
+      <p className="text-[12px] font-bold opacity-90" style={{ color: t.fg }}>{label}</p>
       <p className="text-[15px] font-extrabold mt-1 leading-snug" style={{ color: t.fg }}>{value}</p>
     </div>
   );
@@ -165,8 +165,8 @@ interface Props {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-2.5">
-      <h2 className="text-[17px] font-extrabold text-slate-900">{title}</h2>
+    <section className="space-y-3">
+      <h2 className="text-[19px] font-extrabold text-zinc-900 tracking-[-0.01em]">{title}</h2>
       {children}
     </section>
   );
@@ -193,7 +193,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
   const mainTypeDisplayLabel =
     MAIN_TYPE_DISPLAY[spine.solutionLayer.mainTypeKey as MainTypeKey] ?? spine.executionPlan.mainTypeLabel;
   return (
-    <div className="max-w-2xl mx-auto px-5 py-8 space-y-8">
+    <div className="max-w-2xl mx-auto px-5 py-8 space-y-10">
       {/* P3.9 UI — gradient identity hero: the result's visual payoff. Absorbs the
           P2.4 profile-context summary (headline/body/tags) so "이게 나" and "지금 상태"
           land in one block instead of a dashboard-style card stack. */}
@@ -253,20 +253,25 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         const story = MAIN_TYPE_NARRATIVES[spine.solutionLayer.mainTypeKey as MainTypeKey];
         if (!story) return null;
         return (
-          <section className="space-y-2.5">
-            <h2 className="text-[17px] font-extrabold text-slate-900">당신의 이야기</h2>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-              <p className="text-base font-bold text-indigo-700 leading-relaxed">{story.thesis}</p>
-              <p className="text-base text-slate-700 leading-[1.75]">{story.arrival}</p>
-              <div className="grid sm:grid-cols-2 gap-2.5">
+          <section className="space-y-3">
+            <h2 className="text-[19px] font-extrabold text-zinc-900 tracking-[-0.01em]">당신의 이야기</h2>
+            {/* P3.11 — 카드 인플레이션 제거: 함정을 별도 박스에 가두지 않고 구분선 + 경고
+                아이콘으로. 위계 점프(thesis 19 / 본문 16 / 함정 14)와 본문 대비 강화. */}
+            <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-7 space-y-5">
+              <p className="text-[19px] font-bold text-indigo-900 leading-[1.45] tracking-[-0.01em]">{story.thesis}</p>
+              <p className="text-base text-zinc-800 leading-[1.8]">{story.arrival}</p>
+              <div className="border-t border-zinc-100 pt-5 space-y-4">
                 {story.traps.map((t) => (
-                  <div key={t.title} className="rounded-xl bg-slate-50 border border-slate-100 p-3.5">
-                    <p className="text-sm font-bold text-slate-800 mb-1">{t.title}</p>
-                    <p className="text-sm text-slate-600 leading-[1.65]">{t.body}</p>
+                  <div key={t.title} className="flex gap-3">
+                    <span className="text-amber-500 text-lg leading-tight shrink-0 mt-0.5" aria-hidden>⚠</span>
+                    <div>
+                      <p className="text-[15px] font-bold text-zinc-900 mb-0.5">{t.title.replace(/^함정 \d+ — /, '')}</p>
+                      <p className="text-[15px] text-zinc-600 leading-[1.7]">{t.body}</p>
+                    </div>
                   </div>
                 ))}
               </div>
-              <p className="text-base text-slate-700 leading-[1.75]">{story.meaning}</p>
+              <p className="text-base text-zinc-800 leading-[1.8] border-t border-zinc-100 pt-5">{story.meaning}</p>
             </div>
           </section>
         );
@@ -343,16 +348,16 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
             </div>
 
             {/* ③ week-by-week actions — 타임라인 스테퍼 (알약 배지 + 연결선) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-semibold text-slate-500 mb-1">주차별 행동</p>
+            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+              <p className="text-[13px] font-bold text-zinc-500 mb-2">주차별 행동</p>
               <ol>
                 {ep.weeklyActions.map((s, i) => (
                   <li key={i} className="relative pl-14 py-2.5">
-                    <span className="absolute left-0 top-2 w-11 h-[26px] rounded-full bg-indigo-50 text-indigo-700 text-xs font-black flex items-center justify-center">{s.week}</span>
+                    <span className="absolute left-0 top-1.5 w-11 h-[26px] rounded-full bg-indigo-100 text-indigo-700 text-xs font-black flex items-center justify-center">{s.week}</span>
                     {i < ep.weeklyActions.length - 1 && (
-                      <span aria-hidden className="absolute left-[21px] top-9 -bottom-1 w-0.5 bg-slate-200" />
+                      <span aria-hidden className="absolute left-[21px] top-9 -bottom-1 w-0.5 bg-zinc-200" />
                     )}
-                    <span className="text-sm text-slate-700 leading-relaxed">{s.action}</span>
+                    <span className="text-[15px] text-zinc-800 leading-[1.7]">{s.action}</span>
                   </li>
                 ))}
               </ol>
@@ -360,19 +365,19 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
 
             {/* ④⑤ success / stop */}
             <div className="grid sm:grid-cols-2 gap-2.5">
-              <div className="rounded-2xl border border-emerald-200 bg-white p-4">
-                <p className="text-xs font-semibold text-emerald-600 mb-1.5">잘되고 있다는 신호</p>
-                <ul className="space-y-1">{ep.successSignals.map((x, i) => <li key={i} className="text-sm text-slate-600 flex gap-1.5"><span className="text-emerald-500">·</span>{x}</li>)}</ul>
+              <div className="rounded-2xl border border-emerald-200 bg-white px-5 py-4">
+                <p className="text-[13px] font-bold text-emerald-700 mb-2">잘되고 있다는 신호</p>
+                <ul className="space-y-1.5">{ep.successSignals.map((x, i) => <li key={i} className="text-[15px] text-zinc-700 flex gap-2 leading-[1.6]"><span className="text-emerald-500 font-bold">·</span>{x}</li>)}</ul>
               </div>
-              <div className="rounded-2xl border border-amber-200 bg-white p-4">
-                <p className="text-xs font-semibold text-amber-600 mb-1.5">멈추거나 바꿀 때</p>
-                <ul className="space-y-1">{ep.stopOrPivotCriteria.map((x, i) => <li key={i} className="text-sm text-slate-600 flex gap-1.5"><span className="text-amber-500">·</span>{x}</li>)}</ul>
+              <div className="rounded-2xl border border-amber-200 bg-white px-5 py-4">
+                <p className="text-[13px] font-bold text-amber-700 mb-2">멈추거나 바꿀 때</p>
+                <ul className="space-y-1.5">{ep.stopOrPivotCriteria.map((x, i) => <li key={i} className="text-[15px] text-zinc-700 flex gap-2 leading-[1.6]"><span className="text-amber-500 font-bold">·</span>{x}</li>)}</ul>
               </div>
             </div>
 
             {/* ⑥ re-evaluation (absorbs 재판정) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-[17px] font-extrabold text-slate-900 mb-2">{ep.reevaluationDateLabel}에 다시 보기</p>
+            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+              <p className="text-[17px] font-extrabold text-zinc-900 mb-2.5">{ep.reevaluationDateLabel}에 다시 보기</p>
               {/* real checkboxes (persisted) — the old decorative □ glyphs looked
                   interactive but weren't, which is an affordance lie */}
               <ul className="space-y-1.5">
@@ -385,7 +390,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                         onChange={() => toggleReevalCheck(c)}
                         className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600 cursor-pointer"
                       />
-                      <span className={reevalChecks[c] ? 'text-slate-400 line-through leading-relaxed' : 'text-slate-600 leading-relaxed'}>{c}</span>
+                      <span className={reevalChecks[c] ? 'text-[15px] text-zinc-400 line-through leading-[1.6]' : 'text-[15px] text-zinc-700 leading-[1.6]'}>{c}</span>
                     </label>
                   </li>
                 ))}
@@ -402,16 +407,16 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
       {/* P3.10 — 사용자 피드백: 본문 위의 확실성·준비도 메타 지표가 흐름을 끊는다.
           본문은 상담 문단만 남기고, 지표(도넛·준비도·노트)는 '근거 자세히 보기'로 접어 넣는다. */}
       <Section title="왜 이 추천인가">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3.5">
+        <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 space-y-4">
           {/* hero: counseling paragraph. Template renders first; the validated
               LLM rewrite (insight box + reinterpreted narrative) fades in over it. */}
           {llm && (
-            <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 space-y-1">
-              <p className="text-[11px] font-bold text-indigo-600">핵심 인사이트</p>
-              <p className="text-[15px] font-bold text-indigo-950 leading-relaxed">{llm.coreInsight}</p>
+            <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3.5 space-y-1.5">
+              <p className="text-[11px] font-bold text-indigo-600 tracking-wide">핵심 인사이트</p>
+              <p className="text-[17px] font-bold text-indigo-950 leading-[1.55]">{llm.coreInsight}</p>
             </div>
           )}
-          <p key={llm ? 'llm' : 'template'} className="text-base text-slate-800 leading-[1.75] whitespace-pre-line animate-[fadeIn_0.5s_ease]">
+          <p key={llm ? 'llm' : 'template'} className="text-base text-zinc-800 leading-[1.85] whitespace-pre-line animate-[fadeIn_0.5s_ease]">
             {llm ? llm.narrative : spine.evidence.narrative}
           </p>
 

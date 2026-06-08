@@ -9,12 +9,12 @@
   }
   body {
     margin: 0;
-    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-color: #f8fafc;
-    color: #1e293b;
-    letter-spacing: -0.01em;
+    color: #18181b;
+    letter-spacing: -0.011em;
   }
   #root {
     width: 100%;
