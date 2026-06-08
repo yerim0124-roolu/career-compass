@@ -68,6 +68,60 @@ function cleanBlocker(rationale: string): string {
   return head;
 }
 
+// ─── Deterministic cross-signal detection (catalog A1 / A3 / A5) ─────────────
+// Few-shot alone fired these unreliably (golden review: the vet career-change
+// signal was skipped entirely). The engine now DETECTS candidates as plain
+// observations; the LLM only decides which to verbalize and how.
+
+const STAGE_RANK: Partial<Record<NonNullable<UserProfile['totalCareerStage']>, number>> = {
+  total_0_3: 0, total_3_7: 1, total_7_12: 2, total_12_plus: 3,
+};
+const CURRENT_RANK: Partial<Record<NonNullable<UserProfile['currentFieldStage']>, number>> = {
+  current_under_1: 0, current_1_3: 0, current_3_7: 1, current_7_plus: 2,
+};
+
+const CHALLENGE_EXPERIMENTS = new Set(['ap_interview', 'ap_content', 'ap_writing', 'ap_portfolio']);
+const SAFETY_FIRST_RANKS = new Set(['pr_stability', 'pr_recovery']);
+
+function detectInferenceHints(profile: UserProfile, responses: FlowResponses): string[] {
+  const hints: string[] = [];
+
+  // A1 — large gap between total career and current-field tenure → switch history.
+  const t = profile.totalCareerStage ? STAGE_RANK[profile.totalCareerStage] : undefined;
+  const c = profile.currentFieldStage ? CURRENT_RANK[profile.currentFieldStage] : undefined;
+  if (t !== undefined && c !== undefined && t - c >= 2) {
+    const licensed = profile.jobRoleCategory && LICENSED_CATEGORIES.has(profile.jobRoleCategory);
+    hints.push(
+      `이력 신호: ${TOTAL_STAGE_LABELS[profile.totalCareerStage!]}이지만 ${CURRENT_STAGE_LABELS[profile.currentFieldStage!]} — 과거에 분야를 크게 바꾼 이력이 있을 가능성${licensed ? ' (자격이 필요한 전문직으로의 전환이라 신호가 더 강함)' : ''}`,
+    );
+  }
+  if (profile.currentFieldStage === 'multiple_current_fields') {
+    hints.push('이력 신호: 여러 분야를 병행 중 — 한 정체성으로 좁히지 않(못)하는 상태일 가능성');
+  }
+
+  // A3 — flat profile: broad value selection + long deliberate ranking.
+  const valueCount = responses.cv_values?.selectedOptionIds?.length ?? 0;
+  const rankingCount = responses.cv_priorities?.ranking?.length ?? 0;
+  if (valueCount >= 4 || rankingCount >= 5) {
+    hints.push('프로파일 신호: 가치 선택 폭이 넓음 — 선택지를 닫는 것을 손해로 느끼는 성향일 가능성');
+  }
+
+  // A3 — inconsistent profile: safety-first values alongside venture pull.
+  const topRank = responses.cv_priorities?.ranking?.[0];
+  const ventureRole = responses.ar_roles?.selectedOptionIds?.includes('ar_founder') ?? false;
+  if (topRank === 'pr_stability' && ventureRole) {
+    hints.push('프로파일 신호: 우선순위 1위는 안정인데 끌리는 역할은 창업가 — 원하는 것과 스스로 허락한 것이 다른 상태일 가능성');
+  }
+
+  // A5 — stated vs revealed: safety-first ranking but a challenge-type experiment chosen by hand.
+  const chosenExperiment = responses.ap_experiment?.selectedOptionIds?.[0];
+  if (topRank && SAFETY_FIRST_RANKS.has(topRank) && chosenExperiment && CHALLENGE_EXPERIMENTS.has(chosenExperiment)) {
+    hints.push('선호 신호: 말로는 안정·회복이 1순위인데 직접 고른 실험은 도전형 — 손이 먼저 간 쪽이 진심일 가능성');
+  }
+
+  return hints;
+}
+
 function buildAnswerHighlights(responses: FlowResponses): string[] {
   const out: string[] = [];
   for (const step of CAREER_QUESTION_FLOW) {
@@ -124,6 +178,9 @@ export function buildNarrativePayload(
       (s) => `${s.humanLabel} ${s.level === 'high' ? '높음' : '낮음'}`,
     ),
   };
+
+  const hints = detectInferenceHints(profile, responses);
+  if (hints.length > 0) payload.inferenceHints = hints;
 
   const concern = (profile.concernFreeText ?? '').trim();
   if (concern.length > 0) payload.userConcern = concern.slice(0, 300);

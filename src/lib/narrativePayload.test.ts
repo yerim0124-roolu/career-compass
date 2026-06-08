@@ -89,6 +89,40 @@ const VET_PROFILE: UserProfile = {
   const p = buildNarrativePayload(spine, {}, {} as FlowResponses);
   check('empty inputs: no highlights, no profile labels, no crash',
     p.answerHighlights.length === 0 && Object.keys(p.profile).length === 0);
+  check('empty inputs: no inferenceHints fabricated', !('inferenceHints' in p));
+}
+
+// ─── inferenceHints — deterministic cross-signal detection ───────────────────
+{
+  // A1: vet fixture has total 7~12y vs current 1~3y → switch-history hint, licensed-strengthened.
+  const spine = buildResultFromResponses(RESPONSES, { profile: VET_PROFILE });
+  const p = buildNarrativePayload(spine, VET_PROFILE, RESPONSES);
+  check('hints A1: career-stage gap fires for the vet fixture',
+    (p.inferenceHints ?? []).some((h) => h.includes('분야를 크게 바꾼 이력') && h.includes('전문직')));
+
+  // A1 negative: same-tenure profile → no gap hint.
+  const steady: UserProfile = { totalCareerStage: 'total_7_12', currentFieldStage: 'current_7_plus' };
+  const p2 = buildNarrativePayload(buildResultFromResponses(RESPONSES, { profile: steady }), steady, RESPONSES);
+  check('hints A1: no gap hint when tenure matches',
+    !(p2.inferenceHints ?? []).some((h) => h.includes('분야를 크게 바꾼 이력')));
+
+  // A3 flat: 4 values selected → broad-selection hint.
+  const flat: FlowResponses = { ...RESPONSES, cv_values: { selectedOptionIds: ['cv_money', 'cv_expertise', 'cv_impact', 'cv_meaning'] } };
+  const p3 = buildNarrativePayload(buildResultFromResponses(flat, {}), {}, flat);
+  check('hints A3: broad value selection fires',
+    (p3.inferenceHints ?? []).some((h) => h.includes('가치 선택 폭이 넓음')));
+
+  // A3 inconsistent: stability rank-1 + founder role.
+  const torn: FlowResponses = { ...RESPONSES, cv_priorities: { ranking: ['pr_stability', 'pr_money'] }, ar_roles: { selectedOptionIds: ['ar_founder'] } };
+  const p4 = buildNarrativePayload(buildResultFromResponses(torn, {}), {}, torn);
+  check('hints A3: stability-vs-founder tension fires',
+    (p4.inferenceHints ?? []).some((h) => h.includes('안정인데 끌리는 역할은 창업가')));
+
+  // A5 stated-vs-revealed: stability rank-1 + challenge experiment chosen.
+  const revealed: FlowResponses = { ...RESPONSES, cv_priorities: { ranking: ['pr_stability'] }, ap_experiment: { selectedOptionIds: ['ap_interview'] } };
+  const p5 = buildNarrativePayload(buildResultFromResponses(revealed, {}), {}, revealed);
+  check('hints A5: stated(안정) vs revealed(도전형 실험) fires',
+    (p5.inferenceHints ?? []).some((h) => h.includes('손이 먼저 간 쪽')));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

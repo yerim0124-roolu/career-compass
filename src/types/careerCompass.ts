@@ -779,5 +779,9 @@ export interface NarrativePayload {
   };
   answerHighlights: string[];     // '질문 맥락: 선택 라벨' lines — provenance + A3~A7 material
   constructSignals: string[];     // e.g. '실행 자신감 높음'
+  // Deterministically PRE-COMPUTED cross-signal candidates (INSIGHT-INFERENCE-
+  // CATALOG A1/A3/A5). Observations only, never interpretations — the LLM picks
+  // which to verbalize. Added because few-shot alone fired these unreliably.
+  inferenceHints?: string[];
   userConcern?: string;           // free-text concern (pc_concernText)
 }
