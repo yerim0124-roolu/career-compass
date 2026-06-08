@@ -364,23 +364,35 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
             })()}
 
             {/* ⑤ 이번 달 핵심 실험 — 앞에서 맥락(진단·솔루션)을 만든 뒤 마지막에 '어떻게'.
-                실험 라벨 + 목적 + 오늘 한 걸음 + 4주 흐름. */}
+                P3.19: 결정-난도 유형(갈림길·탐색과잉·선택지부족)에선 사용자가 고른 실험을
+                신뢰하지 않는다(기준이 없어 '고를 게 없어서' 고른 것일 수 있음). 그 경우 콘텐츠
+                같은 사용자 선택 실험을 헤드라인에서 빼고, 솔루션(기준 정리)의 firstStep을 그대로
+                이번 달 행동으로 통일한다. 사용자가 고른 방향은 '검증할 방향'에 이미 남아 있다. */}
+            {(() => {
+              const DECISION_TYPES = new Set(['conflictedAtFork', 'scatteredExplorer', 'lowOptionVisibility']);
+              const isDecisionType = DECISION_TYPES.has(spine.solutionLayer.mainTypeKey);
+              const mod = spine.solutionLayer.primaryModule;
+              const hint = getExperimentJobHint(spine.profile, ep.coreExperiment.sourceOptionKey);
+              return (
             <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-5 space-y-3">
-              <p className="text-[11px] font-bold tracking-wide text-indigo-600">이번 달 핵심 실험</p>
-              <p className="text-[18px] font-extrabold text-zinc-900 leading-[1.45]">{ep.coreExperiment.label}</p>
-              {/* strategyStatement = 이번 달 전략 한 문장. 실험의 '목적'으로 둔다. */}
-              <p className="text-[14px] text-zinc-600 leading-[1.7]">{ep.coreExperimentBridge ?? ep.strategyStatement}</p>
-              {ep.coreExperimentBridge && (
-                <p className="text-[13px] text-zinc-500 leading-[1.65]">{ep.strategyStatement}</p>
+              {isDecisionType ? (
+                <>
+                  <p className="text-[11px] font-bold tracking-wide text-indigo-600">이번 달, 이렇게 시작해요</p>
+                  <p className="text-[18px] font-extrabold text-zinc-900 leading-[1.45]">{mod.title}부터 — {ep.strategyStatement}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] font-bold tracking-wide text-indigo-600">이번 달 핵심 실험</p>
+                  {/* coreExperiment.label — 테스트(REQUIRED J)와 비-결정 유형 헤드라인 */}
+                  <p className="text-[18px] font-extrabold text-zinc-900 leading-[1.45]">{ep.coreExperiment.label}</p>
+                  <p className="text-[14px] text-zinc-600 leading-[1.7]">{ep.coreExperimentBridge ?? ep.strategyStatement}</p>
+                  {hint && (
+                    <p className="text-[15px] text-zinc-700 leading-[1.7] bg-zinc-50 border border-zinc-100 rounded-xl px-3.5 py-2.5">
+                      <span className="text-[13px] font-bold text-emerald-800 mr-1.5">당신의 직무라면</span>{hint}
+                    </p>
+                  )}
+                </>
               )}
-              {(() => {
-                const hint = getExperimentJobHint(spine.profile, ep.coreExperiment.sourceOptionKey);
-                return hint ? (
-                  <p className="text-[15px] text-zinc-700 leading-[1.7] bg-zinc-50 border border-zinc-100 rounded-xl px-3.5 py-2.5">
-                    <span className="text-[13px] font-bold text-emerald-800 mr-1.5">당신의 직무라면</span>{hint}
-                  </p>
-                ) : null;
-              })()}
               <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50 px-4 py-4 mt-1">
                 <p className="text-[12px] font-bold tracking-wide text-indigo-700 mb-1.5">👉 이번 주, 딱 이거 하나</p>
                 <p className="text-[17px] font-extrabold text-indigo-950 leading-[1.55]">{spine.solutionLayer.primaryModule.firstStep}</p>
@@ -400,6 +412,8 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                 </details>
               </div>
             </div>
+              );
+            })()}
 
             {/* ④⑤ success / stop */}
             <div className="grid sm:grid-cols-2 gap-2.5">
