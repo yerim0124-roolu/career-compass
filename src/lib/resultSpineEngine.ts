@@ -379,6 +379,7 @@ export function buildResultSpine(
     // them. Default to `{}` and `undefined` respectively when not supplied.
     profile?: UserProfile;
     userSelectedExperimentKey?: CareerOptionKey;
+    topValueLabels?: string[]; // 표시 전용 pass-through — 솔루션 카드 개인화용 (엔진 미소비)
   } = {},
 ): ResultSpine {
   const archetypes = inferCareerArchetypes(vector);
@@ -534,5 +535,6 @@ export function buildResultSpine(
     // null-check; userSelectedExperimentKey stays undefined when no ap_experiment chosen.
     profile: opts.profile ?? {},
     userSelectedExperimentKey: opts.userSelectedExperimentKey,
+    topValueLabels: opts.topValueLabels,
   };
 }

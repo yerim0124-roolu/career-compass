@@ -758,6 +758,9 @@ export interface ResultSpine {
   // userSelectedExperimentKey. `undefined` here means the user picked ap_unsure
   // (no mapping) or didn't reach the experiment step.
   userSelectedExperimentKey?: CareerOptionKey;
+  // P2.0 pass-through: 사용자가 랭킹한 우선순위(cv_priorities) 상위 라벨 (예: ['영향력','성장','돈']).
+  // 엔진은 절대 읽지 않는다(라우팅·분류 무관). 솔루션 카드 개인화(표시 전용) 전용.
+  topValueLabels?: string[];
   // ─── ADR-001 ───────────────────────────────────────────────────────────────
   // Pre-assembled input for the LLM narrative layer (built by narrativePayload.ts
   // from spine + profile + responses). ADDITIVE metadata, same contract as

@@ -165,34 +165,56 @@ function andParticle(word: string): string {
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '과' : '와';
   return '와(과)';
 }
-// 서술격 조사 '이에요/예요' — 받침 있으면 '이에요', 없으면 '예요'.
-function copula(word: string): string {
-  const code = word.charCodeAt(word.length - 1);
-  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '이에요' : '예요';
-  return '이에요';
-}
 
 // 무료 개인화 — "당신의 이야기"는 유형별 고정 에세이라 같은 유형끼리 글자까지 똑같다.
 // 직무·경력은 위 프로필 박스가 이미 보여주므로, 여기선 *유저 고유의 끌림(archetype 태그)과
-// 기우는 방향*을 이름으로 불러주는 한 줄을 thesis 아래에 끼워, 같은 유형이라도 사람마다
-// 다르게 읽히게 한다. 데이터가 부족하면 null → 정적 에세이 그대로(폴백). 표시 전용.
+// 기우는 방향*을 한 줄로 풀어 thesis 아래에 끼워, 같은 유형이라도 사람마다 다르게 읽히게 한다.
+// 내부 라벨('전문 자문가', '투자/분석/리포트')을 그대로 쓰면 딱딱하므로, 사람 말 구절로 바꾼다.
+// 데이터가 부족하면 null → 정적 에세이 그대로(폴백). 표시 전용(엔진·테스트 무영향).
 const STATE_TYPES_NO_LEAD: ReadonlySet<MainTypeKey> = new Set<MainTypeKey>([
   'overloadedBurnout', 'realityLocked', 'lowOptionVisibility', // '상태' 유형 — 끌림·방향 호명이 톤에 안 맞아 정적 에세이가 낫다
 ]);
+// archetype → '~하고 싶은 마음/감각/힘' 평문 구절 (모두 받침으로 끝나 와/과·이/가 처리 일관).
+const ARCHETYPE_PULL_PHRASE: Record<string, string> = {
+  expertExpander: '쌓은 전문성을 더 넓게 펼치고 싶은 마음',
+  marketInterpreter: '시장과 흐름을 읽어내는 감각',
+  careerComposer: '여러 길을 내 방식대로 엮고 싶은 마음',
+  problemFounder: '문제를 직접 풀어 만들고 싶은 마음',
+  expertBuilder: '실력으로 결과를 만들어내는 힘',
+  knowledgeTranslator: '아는 걸 쉽게 풀어 전하고 싶은 마음',
+  expertAdvisor: '전문성으로 방향을 짚어주고 싶은 마음',
+  executionOperator: '맡은 일을 끝까지 굴려내는 추진력',
+  recoveryFirst: '잠시 멈추고 회복하고 싶은 마음',
+  stableRedesigner: '지금 자리를 지키며 바꿔가려는 마음',
+};
+// careerOption → '~하는' 평문 수식 구절 ('쪽'/'쪽으로'에 붙는다).
+const DIRECTION_PHRASE: Record<string, string> = {
+  stayRedesign: '지금 일을 바꿔보는',
+  jobChange: '새 환경으로 옮기는',
+  startup: '직접 만들어보는',
+  independent: '독립해서 일하는',
+  contentBrand: '콘텐츠로 풀어내는',
+  advisoryTeaching: '전문성을 나누고 가르치는',
+  investAnalysis: '분석하고 글로 풀어내는',
+  orgLeadership: '지금 조직에서 더 크게 끌어가는',
+  restRecover: '잠시 쉬어가는',
+};
 function personalizedStoryLead(spine: ResultSpine): string | null {
   const type = spine.solutionLayer.mainTypeKey;
   if (STATE_TYPES_NO_LEAD.has(type)) return null;
-  const tags = spine.identityAxis.archetypeTags.slice(0, 2).map((t) => ARCHETYPE_LABELS[t]).filter(Boolean);
-  if (tags.length === 0) return null;
+  const pulls = spine.identityAxis.archetypeTags.slice(0, 2).map((t) => ARCHETYPE_PULL_PHRASE[t]).filter(Boolean);
+  if (pulls.length === 0) return null;
   // 끌리는 방향이 따로 있으면 그걸, 없으면(직접 추천형) 지금의 한 수를 방향으로.
-  const dir = spine.strategicDirection?.label ?? spine.currentBestMove.label;
-  // 다중 끌림형(갈림길·탐색 과잉): 두 결의 공존을 이름으로.
-  if ((type === 'conflictedAtFork' || type === 'scatteredExplorer') && tags.length >= 2) {
-    const dirClause = spine.strategicDirection ? ` 요즘 마음은 '${dir}' 쪽으로 더 기울어 있고요.` : '';
-    return `당신 안에는 '${tags[0]}'${andParticle(tags[0])} '${tags[1]}'의 결이 함께 있어요.${dirClause}`;
+  const dirMove = spine.strategicDirection ?? spine.currentBestMove;
+  const dirPhrase = DIRECTION_PHRASE[dirMove.optionKey];
+  // 다중 끌림형(갈림길·탐색 과잉): 두 결의 공존을 평문으로.
+  if ((type === 'conflictedAtFork' || type === 'scatteredExplorer') && pulls.length >= 2) {
+    const dirClause = (spine.strategicDirection && dirPhrase) ? ` 요즘은 ${dirPhrase} 쪽으로 마음이 더 기울어 있고요.` : '';
+    return `당신 안에는 ${pulls[0]}${andParticle(pulls[0])} ${pulls[1]}${subjectParticle(pulls[1])} 함께 있어요.${dirClause}`;
   }
   // 단일 방향형: 가장 또렷한 끌림 + 방향.
-  return `당신에게선 '${tags[0]}'의 성향이 특히 또렷하고, 지금 떠오른 방향은 '${dir}'${copula(dir)}.`;
+  if (!dirPhrase) return `당신에게선 ${pulls[0]}${subjectParticle(pulls[0])} 특히 또렷해요.`;
+  return `당신에게선 ${pulls[0]}${subjectParticle(pulls[0])} 또렷하고, 요즘은 ${dirPhrase} 쪽으로 마음이 향해 있어요.`;
 }
 
 interface Props {
@@ -455,6 +477,14 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50 px-4 py-4 mt-1">
                 <p className="text-[12px] font-bold tracking-wide text-indigo-700 mb-1.5">👉 이번 주, 딱 이거 하나</p>
                 <p className="text-[17px] font-extrabold text-indigo-950 leading-[1.55]">{spine.solutionLayer.primaryModule.firstStep}</p>
+                {spine.topValueLabels && spine.topValueLabels.length >= 2 && (() => {
+                  const top = spine.topValueLabels.slice(0, 3);
+                  return (
+                    <p className="text-[13px] text-indigo-700/90 leading-[1.6] mt-2.5">
+                      당신이 위에서 꼽은 우선순위 <span className="font-bold">{top.join(' · ')}</span>{subjectParticle(top[top.length - 1])} 출발점이에요.
+                    </p>
+                  );
+                })()}
                 <details className="mt-3.5 pt-3 border-t border-indigo-200/70">
                   <summary className="text-[13px] font-bold text-indigo-700 cursor-pointer select-none">한 달 전체 흐름 보기</summary>
                   <ol className="mt-3">

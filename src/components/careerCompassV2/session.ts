@@ -311,6 +311,8 @@ export function buildResultFromResponses(
     noOptionsExplicit: computeNoOptionsExplicit(responses),
     profile,
     userSelectedExperimentKey,
+    // 표시 전용 — 사용자가 랭킹한 우선순위 상위 3개 라벨(돈/의미/자유/성장/안정/영향력/회복).
+    topValueLabels: collectRankedCards(responses).slice(0, 3).map((c) => c.label),
   });
   // P2.4 — attach the copy-only Profile Context Summary. ADDITIVE METADATA
   // only: the engine has already produced `spine` above; we never feed the
