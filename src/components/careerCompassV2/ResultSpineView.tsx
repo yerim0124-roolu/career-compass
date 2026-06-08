@@ -189,7 +189,9 @@ function cleanRationale(r: string): string {
 }
 
 export default function ResultSpineView({ spine, onRestart }: Props) {
-  const llm = useLlmNarrative(spine);
+  // P3.20 — narrative 섹션 제거로 LLM 재서술 표시처가 사라졌다. 훅 호출은 비활성화하되
+  // useLlmNarrative 함수·api/narrative는 남겨, 추후 솔루션 추천이유에 재연결할 수 있게 한다.
+  void useLlmNarrative;
   const [reevalChecks, setReevalChecks] = useState<Record<string, boolean>>(loadReevalChecks);
   const toggleReevalCheck = (item: string) => {
     setReevalChecks((prev) => {
@@ -311,6 +313,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                   ? '퇴사·전환·확장 같은 큰 결정을 이번 달에 내리지 마세요. 지금의 핵심은 ‘결정’이 아니라 ‘증거 수집’이에요.'
                   : '조급하게 크게 벌이지 마세요. 작게 시작해 신호부터 확인하는 게 이번 달의 일이에요.';
               const promo = ep.promotionConditions[0];
+              const dir = ep.directionToValidate?.label ?? spine.strategicDirection?.label;
               return (
                 <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-5 space-y-4">
                   <div className="flex items-center justify-between gap-2">
@@ -318,25 +321,37 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                     <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full" title={ep.mainTypeLabel}>{mainTypeDisplayLabel}</span>
                   </div>
 
-                  {/* ① 솔루션(심리적 처방)이 헤드라인 — '왜→무엇'의 무엇. 커리어 옵션보다 위. */}
+                  {/* ① 솔루션(심리적 처방)이 헤드라인 */}
                   <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{mod.title}</p>
                   <p className="text-[15px] font-bold text-emerald-800 leading-[1.6]">{mod.goal}</p>
                   <p className="text-[15px] text-zinc-700 leading-[1.75]">{mod.why}</p>
 
-                  {/* ② 커리어적 권고 — 그 솔루션을 커리어 행동으로 옮기면 (currentBestMove) */}
+                  {/* 위계 명확화 — 이번 달 핵심은 '방향'이 아니라 '솔루션'. 방향은 검증 후보. */}
+                  {dir && (
+                    <p className="text-[14px] text-zinc-600 leading-[1.7] bg-white/60 border border-emerald-100 rounded-xl px-4 py-3">
+                      이번 달의 핵심은 <span className="font-bold text-zinc-800">{dir}</span>{objectParticle(dir)} 해보라는 게 아니라, <span className="font-bold text-zinc-800">{mod.title}</span>예요. {dir}{topicParticle(dir)} 그 기준을 확인해볼 <span className="font-bold">후보 방향</span>이고요.
+                    </p>
+                  )}
+
+                  {/* ② 커리어적 권고 — 내부 라벨처럼 안 보이게 사용자 언어로 풀어쓴다. */}
                   <div className="border-t border-emerald-200/70 pt-3.5 space-y-2">
                     <p className="text-[11px] font-bold tracking-wide text-emerald-700">커리어적으로는</p>
-                    <p className="text-[17px] font-extrabold text-zinc-900">{spine.currentBestMove.label}{objectParticle(spine.currentBestMove.label)} 추천해요</p>
-                    <p className="text-[15px] text-zinc-700 leading-[1.75]">{spine.currentBestMove.rationale}</p>
-                    {/* 오해 방지 — 안전판≠소극적 선택 */}
-                    {ep.safetyBridge && ep.directionToValidate && (
-                      <p className="text-[15px] text-zinc-700 leading-[1.75] bg-white/70 border border-emerald-100 rounded-xl px-4 py-3 mt-1">
-                        즉, 지금의 선택은 <span className="font-bold">‘{ep.safetyBridge.label}에 머무르기’가 아니에요.</span> {ep.safetyBridge.label}을 안전판으로 두고, <span className="font-bold">{ep.directionToValidate.label}</span> 방향이 실제로 작동하는지 작게 검증하는 전략이에요.
-                      </p>
-                    )}
+                    <p className="text-[15px] text-zinc-700 leading-[1.75]">
+                      {ep.safetyBridge && ep.directionToValidate
+                        ? '지금은 퇴사나 전환처럼 큰 결정을 내리기보다, 현재 일을 안전판으로 두고 “무엇을 지키고 무엇을 바꿀지”를 정리하는 단계가 적합해요.'
+                        : spine.currentBestMove.rationale}
+                    </p>
                   </div>
 
-                  {/* ③ 하지 말 것 */}
+                  {/* ③ 짧은 추천 이유 — '왜 이 추천인가' 독립 섹션을 대체하는 박스 */}
+                  <div className="border-t border-emerald-200/70 pt-3.5">
+                    <p className="text-[11px] font-bold tracking-wide text-indigo-600 mb-1">추천 이유</p>
+                    <p className="text-[14px] text-zinc-700 leading-[1.7]">
+                      실행할 힘과 방향 감각은 있지만, {dir ? <>{dir}{topicParticle(dir)} </> : '이 방향이 '}실제 기회로 이어질지에 대한 확인은 아직 부족해요. 그래서 이번 달엔 큰 결정보다, 현재 일을 안전판으로 두고 내가 지킬 기준과 실제 반응을 함께 확인하는 게 가장 안전해요.
+                    </p>
+                  </div>
+
+                  {/* ④ 하지 말 것 */}
                   <div className="border-t border-emerald-200/70 pt-3.5">
                     <p className="text-[11px] font-bold tracking-wide text-amber-700 mb-1">이번 달엔 이건 하지 마세요</p>
                     <p className="text-[14px] text-zinc-700 leading-[1.7]">{dontDo}</p>
@@ -456,42 +471,20 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         );
       })()}
 
-      {/* P3.10 — 사용자 피드백: 본문 위의 확실성·준비도 메타 지표가 흐름을 끊는다.
-          본문은 상담 문단만 남기고, 지표(도넛·준비도·노트)는 '근거 자세히 보기'로 접어 넣는다. */}
-      <Section title="왜 이 추천인가">
-        <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5 space-y-4">
-          {/* hero: counseling paragraph. Template renders first; the validated
-              LLM rewrite (insight box + reinterpreted narrative) fades in over it. */}
-          {llm && (
-            <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3.5 space-y-1.5">
-              <p className="text-[11px] font-bold text-indigo-600 tracking-wide">핵심 인사이트</p>
-              <p className="text-[17px] font-bold text-indigo-950 leading-[1.55]">{llm.coreInsight}</p>
-            </div>
-          )}
-          <p key={llm ? 'llm' : 'template'} className="text-base text-zinc-800 leading-[1.85] whitespace-pre-line animate-[fadeIn_0.5s_ease]">
-            {llm ? llm.narrative : spine.evidence.narrative}
-          </p>
-
-          {/* actionable: what would raise confidence */}
-          {spine.evidence.missingInformation.length > 0 && (
-            <div className="border-t border-zinc-100 pt-3.5">
-              <p className="text-[13px] font-bold text-zinc-500 mb-1.5">더 정확히 보려면</p>
-              <ul className="space-y-1">
-                {spine.evidence.missingInformation.map((m, i) => (
-                  <li key={i} className="text-[14px] text-zinc-600 flex gap-2 leading-[1.6]"><span className="text-zinc-400">+</span>{m}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* details kept below the main explanation — P3.10 재설계: 도넛 + 소프트 바 차트 */}
-          <details className="border-t border-zinc-100 pt-3.5">
-            <summary className="text-[15px] font-bold text-zinc-700 cursor-pointer select-none">근거 자세히 보기</summary>
-            <div className="mt-4 space-y-6">
-              {/* 판단 확실성 (본문에서 이동) — 도넛: 모인 근거 vs 실험이 채울 몫 */}
+      {/* P3.20 — 사용자 지시: '왜 이 추천인가' 독립 narrative 섹션 제거(요약카드·당신의
+          이야기·솔루션·근거·비추천과 중복). 짧은 추천 이유는 솔루션 카드 안으로 옮기고,
+          여기는 '근거 자세히 보기'(도넛·심리신호·확신요소)만 남긴다. */}
+      <Section title="근거 자세히 보기">
+        <details className="rounded-2xl border border-zinc-200 bg-white px-6 py-5">
+          <summary className="text-[15px] font-bold text-zinc-700 cursor-pointer select-none">장기 방향 근거가 얼마나 모였는지 보기</summary>
+          <div className="mt-4 space-y-6">
+              {/* 도넛 + 의미 풀이(28% 같은 숫자를 사용자 언어로) */}
               <div>
                 <p className="text-[14px] font-bold text-zinc-700 mb-1.5">장기 방향 근거, 얼마나 모였나</p>
                 <ConfidenceDonut score={spine.evidence.confidenceScore} />
+                <p className="text-[14px] text-zinc-600 leading-[1.7] mt-2">
+                  아직 장기 방향을 확정하기엔 근거가 부족한 상태예요. 지금까지 모인 단서는 약 <span className="font-bold text-indigo-700">{spine.evidence.confidenceScore}%</span> 수준이고, 나머지는 30일 동안 실제 반응을 보며 채워가는 거예요.
+                </p>
                 <p className="text-[14px] text-zinc-600 mt-2">
                   <span className="font-semibold text-zinc-500 mr-1.5">실행 준비도</span>
                   <span className="font-bold text-zinc-800">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>
@@ -546,10 +539,9 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                 </div>
               )}
             </div>
-          </details>
 
-          {/* framework names live here only */}
-          <details className="border-t border-zinc-100 pt-3.5">
+          {/* framework names live here only — 중첩 details (전체 근거 안의 더 깊은 접힘) */}
+          <details className="border-t border-zinc-100 pt-3.5 mt-4">
             <summary className="text-[13px] font-semibold text-zinc-500 cursor-pointer select-none">이론적 근거 보기</summary>
             <p className="text-[13px] text-zinc-500 leading-[1.65] mt-2">{spine.evidence.theoryGroundedSummary}</p>
             {spine.evidence.constructSignals.length > 0 && (
@@ -560,7 +552,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               </ul>
             )}
           </details>
-        </div>
+        </details>
       </Section>
 
       {/* P3.18 — '추천하지 않는 선택지'를 Q&A로. "왜 지금 1순위가 아닌가"를 명시해
@@ -577,12 +569,12 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         add(spine.pauseOption, '지금은 보류');
         if (others.length === 0) return null;
 
-        // 태그 → 답변 도입부 (rationale 앞에 붙여 풍부화)
+        // 태그 → 답변 도입부 (rationale 앞에 붙여 풍부화). P3.20 — 자연스러운 문안.
         const lead: Record<string, string> = {
-          '검증 중': '방향 자체는 잘 맞아요. 다만 ',
-          '조건 충족 시': '방향은 좋지만, ',
-          '준비 후': '준비가 조금 더 필요해서, ',
-          '지금은 보류': '지금 여건에선, ',
+          '검증 중': '방향성은 잘 맞아요. 다만 ‘좋아요’나 관심보다 중요한 건, 사람들이 실제로 시간을 쓰거나 비용을 낼 만큼 그 문제를 느끼는지예요. 그 신호가 아직 충분히 확인되지 않았어요.',
+          '조건 충족 시': '방향은 좋지만, 아직 실제 반응이 충분히 확인되지 않았어요. ',
+          '준비 후': '준비가 조금 더 필요해서예요. ',
+          '지금은 보류': '에너지가 아주 낮은 상태라기보다, 방향을 정리해야 하는 신호가 더 강해요. 그래서 완전한 회복 모드보다 기준 정리와 작은 검증이 더 적합해요. ',
         };
         const SAFE_NOW = new Set(['stayRedesign', 'jobChange', 'restRecover']);
         const safeLed = SAFE_NOW.has(spine.currentBestMove.optionKey);
@@ -598,7 +590,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               {others.map((it, i) => (
                 <div key={i}>
                   <p className="text-[15px] font-bold text-zinc-900 mb-1">왜 {it.move.label}{topicParticle(it.move.label)} 지금 1순위가 아닐까?</p>
-                  <p className="text-[14px] text-zinc-600 leading-[1.7]">{lead[it.tag] ?? ''}{cleanRationale(it.move.rationale)}</p>
+                  <p className="text-[14px] text-zinc-600 leading-[1.7]">{lead[it.tag] ?? cleanRationale(it.move.rationale)}</p>
                 </div>
               ))}
             </div>

@@ -226,7 +226,7 @@ const REVERSAL_CONDITION_TEXT: Record<GateKey, string> = {
   energy: "번아웃을 회복해 에너지가 '보통' 이상으로 올라오면",
   runway: '6개월 이상 생활비 runway를 확보하면',
   risk: '3개월 실험 정도의 손실을 감당할 수 있게 되면',
-  marketValidation: '관심 있는 사람 10명 중 5명 이상이 돈·시간을 써서라도 해결하려 한다고 확인하면',
+  marketValidation: '사람들이 ‘좋아요’를 넘어 실제로 시간을 내 질문하거나 상담을 요청하거나 비용을 낼 의사를 보이면 (가령 10명 중 5명이 더 깊이 이야기하고 싶다고 하면)',
 };
 
 export function generateReversalConditions(optionKey: CareerOptionKey, gates: ReadinessGates): ReversalRule[] {
