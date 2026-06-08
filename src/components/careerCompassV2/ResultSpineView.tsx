@@ -3,8 +3,6 @@ import type { ResultSpine, ActionReadiness, MoveRecommendation, MainTypeKey } fr
 import { ARCHETYPE_LABELS, SUPPORT_TAG_LABELS } from '../../types/careerCompass.ts';
 import { MAIN_TYPE_NARRATIVES } from '../../data/mainTypeNarratives.ts';
 import { getExperimentJobHint } from '../../data/jobRoleExperimentHints.ts';
-import { CAREER_OPTION_LABELS } from '../../types/careerCompass.ts';
-
 // 파스텔 인포그래픽 토큰 — 색에 '단일 의미'를 부여 (design-critique 권장 2).
 //   progress(라벤더) = 강점·진행 / caution(피치) = 주의·부족 / done(민트) = 완료·안전 / neutral(회색)
 const TONE = {
@@ -231,17 +229,18 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         )}
       </header>
 
-      {/* 파스텔 스탯 카드 — 결과의 세 가지 핵심 사실을 한 줄에 (레퍼런스 대시보드 문법) */}
+      {/* 파스텔 스탯 카드 — P3.17: 결과 요약 3항목을 사용자가 가장 먼저 알고 싶은 순서로.
+          '이번 달 실험'은 아직 구체 과제 전이라 이르다 → '검증할 방향'(strategicDirection)이 자연스럽다. */}
       {(() => {
-        const expKey = spine.executionPlan.coreExperiment.sourceOptionKey;
         const dateMatch = spine.executionPlan.reevaluationDateLabel.match(/\((\d{4})-(\d{2})-(\d{2})\)/);
         const reevalShort = dateMatch ? `${Number(dateMatch[2])}월 ${Number(dateMatch[3])}일` : '30일 후';
+        const directionLabel = spine.strategicDirection?.label ?? spine.conditionalOption?.label;
         return (
           <div className="grid grid-cols-3 gap-3">
-            {/* 색 의미 통일: 결정난 선택=done(민트), 진행 중 실험=progress(라벤더), 날짜=neutral */}
-            <StatCard tone="done" label="지금의 선택" value={spine.currentBestMove.label} />
-            <StatCard tone="progress" label="이번 달 실험" value={CAREER_OPTION_LABELS[expKey] ?? spine.executionPlan.coreExperiment.label} />
-            <StatCard tone="neutral" label="다시 보는 날" value={reevalShort} />
+            {/* 색 의미: 현재 우선순위=done(민트), 검증할 방향=progress(라벤더), 판단 시점=neutral */}
+            <StatCard tone="done" label="현재 우선순위" value={spine.currentBestMove.label} />
+            <StatCard tone="progress" label={directionLabel ? '검증할 방향' : '이번 달 초점'} value={directionLabel ?? spine.solutionLayer.primaryModule.title} />
+            <StatCard tone="neutral" label="판단 시점" value={`${reevalShort} 재평가`} />
           </div>
         );
       })()}
@@ -290,92 +289,105 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           : ep.supportTagLabels;
         return (
           <section className="space-y-3">
-            {/* ①+② merged — P3.9 UI: the old indigo strategy card and green experiment
-                card said nearly the same thing back-to-back. One card now leads with the
-                experiment (the page's second-biggest type), with the strategy statement
-                as its supporting line. */}
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] font-extrabold tracking-wide text-emerald-800">이번 달 플랜 · 핵심 실험</p>
-                {/* display label may be softened (MAIN_TYPE_DISPLAY); ep.mainTypeLabel stays canonical */}
-                <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full" title={ep.mainTypeLabel}>{mainTypeDisplayLabel}</span>
-              </div>
-              {/* coreExperimentBridge는 결정-난도 유형에서 '플랜(기준 정리)'과 '실험(시장 반응)'이
-                  서로 다른 줄기일 때 엔진이 세우는 다리다. 그 경우 실험 라벨을 헤드라인으로 올리면
-                  주차별 행동과 충돌해 보이므로, 헤드라인은 전략 문장이 갖고 실험은 보조 블록으로 내린다. */}
-              {ep.coreExperimentBridge ? (
-                <>
-                  <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{ep.strategyStatement}</p>
-                  <div className="rounded-xl bg-white/80 border border-emerald-100 px-4 py-3 space-y-1.5">
-                    <p className="text-[13px] font-bold text-emerald-800">이번 달 핵심 실험 — 기준을 좁혀줄 데이터 수집</p>
-                    <p className="text-[15px] font-bold text-zinc-800 leading-[1.5]">{ep.coreExperiment.label}</p>
-                    <p className="text-[13px] text-zinc-600 leading-[1.65]">{ep.coreExperimentBridge}</p>
+            {/* P3.17 — 정보구조 재배열(왜→무엇→어떻게). '추천 솔루션'을 4요소로:
+                ① 무엇(currentBestMove) ② 왜 지금(primaryModule) + 오해 방지(안전판≠소극적)
+                ③ 이번 달엔 하지 말 것 ④ 성공하면 다음 선택지가 어떻게 바뀌나. */}
+            {(() => {
+              const mod = spine.solutionLayer.primaryModule;
+              // ③ '하지 말 것' — resultMode별. 검증/회복 모드는 큰 결정 유예가 핵심.
+              const dontDo = spine.resultMode === 'recovery_first'
+                ? '퇴사·이직·확장 같은 큰 결정을 지금 내리지 마세요. 에너지부터 회복하는 편이 다음 선택의 성공률을 높여요.'
+                : (ep.safetyBridge && ep.directionToValidate)
+                  ? '퇴사·전환·확장 같은 큰 결정을 이번 달에 내리지 마세요. 지금의 핵심은 ‘결정’이 아니라 ‘증거 수집’이에요.'
+                  : '조급하게 크게 벌이지 마세요. 작게 시작해 신호부터 확인하는 게 이번 달의 일이에요.';
+              const promo = ep.promotionConditions[0];
+              return (
+                <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] font-extrabold tracking-wide text-emerald-800">그래서, 지금 추천하는 솔루션</p>
+                    <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full" title={ep.mainTypeLabel}>{mainTypeDisplayLabel}</span>
                   </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{ep.coreExperiment.label}</p>
-                  <p className="text-[15px] text-zinc-600 leading-[1.7]">{ep.strategyStatement}</p>
-                </>
-              )}
-              {ep.mainTypeContextNote && (
-                <p className="text-[13px] text-zinc-600 leading-[1.65] bg-white/60 border border-slate-200/60 rounded-xl px-3.5 py-2.5">{ep.mainTypeContextNote}</p>
-              )}
-              {ep.safetyBridge && ep.directionToValidate && (
-                <div className="mt-1 space-y-2 border-t border-emerald-200/70 pt-3">
-                  <p className="text-[15px] text-zinc-700 leading-[1.6]"><span className="text-xs font-semibold text-zinc-500 mr-1.5">지금의 안전판</span><span className="text-base font-extrabold">{ep.safetyBridge.label}</span> — {ep.safetyBridge.why}</p>
-                  <p className="text-[15px] text-zinc-700 leading-[1.6]"><span className="text-xs font-semibold text-zinc-500 mr-1.5">이번 달 검증할 방향</span><span className="text-base font-extrabold">{ep.directionToValidate.label}</span> <span className="text-xs font-bold text-indigo-600">{ep.directionToValidate.readinessLabel}</span></p>
-                  <p className="text-[13px] text-zinc-500 leading-[1.65]">둘은 경쟁이 아니라 한 쌍이에요. 안전판으로 지금의 바닥을 지키면서, 이번 달 실험으로 방향을 검증합니다.</p>
+                  {/* ① 무엇 */}
+                  <p className="text-[21px] font-extrabold text-zinc-900 leading-[1.4] tracking-[-0.01em]">{spine.currentBestMove.label}</p>
+                  <p className="text-[15px] text-zinc-700 leading-[1.75]">{spine.currentBestMove.rationale}</p>
+
+                  {/* 오해 방지 — 안전판≠소극적 선택 */}
+                  {ep.safetyBridge && ep.directionToValidate && (
+                    <p className="text-[15px] text-zinc-700 leading-[1.75] bg-white/70 border border-emerald-100 rounded-xl px-4 py-3">
+                      즉, 지금의 선택은 <span className="font-bold">‘{ep.safetyBridge.label}에 머무르기’가 아니에요.</span> {ep.safetyBridge.label}을 안전판으로 두고, <span className="font-bold">{ep.directionToValidate.label}</span> 방향이 실제로 작동하는지 작게 검증하는 전략이에요.
+                    </p>
+                  )}
+
+                  {/* ② 왜 이 솔루션 — primaryModule */}
+                  <div className="border-t border-emerald-200/70 pt-3.5">
+                    <p className="text-[11px] font-bold tracking-wide text-emerald-700 mb-1">이 솔루션은</p>
+                    <p className="text-[16px] font-extrabold text-zinc-900 mb-1">{mod.title} — {mod.goal}</p>
+                    <p className="text-[14px] text-zinc-600 leading-[1.7]">{mod.why}</p>
+                  </div>
+
+                  {/* ③ 하지 말 것 */}
+                  <div className="border-t border-emerald-200/70 pt-3.5">
+                    <p className="text-[11px] font-bold tracking-wide text-amber-700 mb-1">이번 달엔 이건 하지 마세요</p>
+                    <p className="text-[14px] text-zinc-700 leading-[1.7]">{dontDo}</p>
+                  </div>
+
+                  {/* ④ 성공하면 다음 */}
+                  {promo && (
+                    <div className="border-t border-emerald-200/70 pt-3.5">
+                      <p className="text-[11px] font-bold tracking-wide text-indigo-600 mb-1">검증에 성공하면</p>
+                      <p className="text-[14px] text-zinc-700 leading-[1.7]">
+                        {promo.conditions[0].condition}{promo.conditions.length > 1 ? ' 등' : ''}, 그러면 <span className="font-bold text-indigo-700">{promo.promoteToLabel}</span>{subjectParticle(promo.promoteToLabel)} 다음 1순위로 올라가요.
+                      </p>
+                    </div>
+                  )}
+
+                  {visibleTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {visibleTags.map((t) => (
+                        <span key={t} className="text-xs font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">#{t}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              );
+            })()}
+
+            {/* ⑤ 이번 달 핵심 실험 — 앞에서 맥락(진단·솔루션)을 만든 뒤 마지막에 '어떻게'.
+                실험 라벨 + 목적 + 오늘 한 걸음 + 4주 흐름. */}
+            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-5 space-y-3">
+              <p className="text-[11px] font-bold tracking-wide text-indigo-600">이번 달 핵심 실험</p>
+              <p className="text-[18px] font-extrabold text-zinc-900 leading-[1.45]">{ep.coreExperiment.label}</p>
+              {/* strategyStatement = 이번 달 전략 한 문장. 실험의 '목적'으로 둔다. */}
+              <p className="text-[14px] text-zinc-600 leading-[1.7]">{ep.coreExperimentBridge ?? ep.strategyStatement}</p>
+              {ep.coreExperimentBridge && (
+                <p className="text-[13px] text-zinc-500 leading-[1.65]">{ep.strategyStatement}</p>
               )}
-              {/* 직무별 소재 변형 — 고정 플랜 카피를 사용자 직무의 언어로 구체화.
-                  직무 미상이면 일반론을 덧붙이지 않고 그냥 숨긴다. */}
               {(() => {
                 const hint = getExperimentJobHint(spine.profile, ep.coreExperiment.sourceOptionKey);
                 return hint ? (
-                  <p className="text-[15px] text-zinc-700 leading-[1.7] bg-white/70 border border-emerald-100 rounded-xl px-3.5 py-2.5">
+                  <p className="text-[15px] text-zinc-700 leading-[1.7] bg-zinc-50 border border-zinc-100 rounded-xl px-3.5 py-2.5">
                     <span className="text-[13px] font-bold text-emerald-800 mr-1.5">당신의 직무라면</span>{hint}
                   </p>
                 ) : null;
               })()}
-              {visibleTags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {visibleTags.map((t) => (
-                    <span key={t} className="text-xs font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">#{t}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ③ 솔루션 설명 + 주차별 행동 — P3.15: 진단(strategyStatement)에서 주차별로 갑자기
-                점프하던 단절을 메운다. solutionLayer.primaryModule(이미 생성되지만 화면엔 없던
-                데이터)의 title·why·goal을 헤더로 넣어 "이 솔루션을 이렇게 4주로 푼다"를 보여준다. */}
-            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-5">
-              <p className="text-[11px] font-bold tracking-wide text-indigo-600 mb-1">이렇게 풀어요</p>
-              <p className="text-[17px] font-extrabold text-zinc-900 mb-1.5">{spine.solutionLayer.primaryModule.title}</p>
-              <p className="text-[15px] text-zinc-700 leading-[1.7] mb-1">{spine.solutionLayer.primaryModule.goal}</p>
-              <p className="text-[14px] text-zinc-500 leading-[1.65]">{spine.solutionLayer.primaryModule.why}</p>
-            </div>
-
-            {/* P3.16 — 4주 계획표보다 '오늘 할 수 있는 한 걸음' 하나가 실행을 만든다.
-                firstStep을 주인공 카드로, 4주 전체는 접어 보조로 둔다. */}
-            <div className="rounded-2xl border-2 border-indigo-300 bg-indigo-50 px-5 py-5">
-              <p className="text-[12px] font-bold tracking-wide text-indigo-700 mb-1.5">👉 이번 주, 딱 이거 하나</p>
-              <p className="text-[18px] font-extrabold text-indigo-950 leading-[1.55]">{spine.solutionLayer.primaryModule.firstStep}</p>
-              <details className="mt-4 pt-3 border-t border-indigo-200/70">
-                <summary className="text-[13px] font-bold text-indigo-700 cursor-pointer select-none">한 달 전체 흐름 보기</summary>
-                <ol className="mt-3">
-                  {ep.weeklyActions.map((s, i) => (
-                    <li key={i} className="relative pl-14 py-2.5">
-                      <span className="absolute left-0 top-1.5 w-11 h-[26px] rounded-full bg-indigo-100 text-indigo-700 text-xs font-black flex items-center justify-center">{s.week}</span>
-                      {i < ep.weeklyActions.length - 1 && (
-                        <span aria-hidden className="absolute left-[21px] top-9 -bottom-1 w-0.5 bg-indigo-200" />
-                      )}
-                      <span className="text-[15px] text-zinc-800 leading-[1.7]">{s.action}</span>
-                    </li>
-                  ))}
-                </ol>
-              </details>
+              <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50 px-4 py-4 mt-1">
+                <p className="text-[12px] font-bold tracking-wide text-indigo-700 mb-1.5">👉 이번 주, 딱 이거 하나</p>
+                <p className="text-[17px] font-extrabold text-indigo-950 leading-[1.55]">{spine.solutionLayer.primaryModule.firstStep}</p>
+                <details className="mt-3.5 pt-3 border-t border-indigo-200/70">
+                  <summary className="text-[13px] font-bold text-indigo-700 cursor-pointer select-none">한 달 전체 흐름 보기</summary>
+                  <ol className="mt-3">
+                    {ep.weeklyActions.map((s, i) => (
+                      <li key={i} className="relative pl-14 py-2.5">
+                        <span className="absolute left-0 top-1.5 w-11 h-[26px] rounded-full bg-indigo-100 text-indigo-700 text-xs font-black flex items-center justify-center">{s.week}</span>
+                        {i < ep.weeklyActions.length - 1 && (
+                          <span aria-hidden className="absolute left-[21px] top-9 -bottom-1 w-0.5 bg-indigo-200" />
+                        )}
+                        <span className="text-[15px] text-zinc-800 leading-[1.7]">{s.action}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              </div>
             </div>
 
             {/* ④⑤ success / stop */}
