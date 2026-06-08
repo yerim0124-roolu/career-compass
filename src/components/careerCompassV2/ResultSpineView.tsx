@@ -347,9 +347,15 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               )}
             </div>
 
-            {/* ③ week-by-week actions — 타임라인 스테퍼 (알약 배지 + 연결선) */}
-            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
-              <p className="text-[13px] font-bold text-zinc-500 mb-2">주차별 행동</p>
+            {/* ③ 솔루션 설명 + 주차별 행동 — P3.15: 진단(strategyStatement)에서 주차별로 갑자기
+                점프하던 단절을 메운다. solutionLayer.primaryModule(이미 생성되지만 화면엔 없던
+                데이터)의 title·why·goal을 헤더로 넣어 "이 솔루션을 이렇게 4주로 푼다"를 보여준다. */}
+            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-5">
+              <p className="text-[11px] font-bold tracking-wide text-indigo-600 mb-1">이렇게 풀어요</p>
+              <p className="text-[17px] font-extrabold text-zinc-900 mb-1.5">{spine.solutionLayer.primaryModule.title}</p>
+              <p className="text-[15px] text-zinc-700 leading-[1.7] mb-1">{spine.solutionLayer.primaryModule.goal}</p>
+              <p className="text-[14px] text-zinc-500 leading-[1.65] mb-4 pb-4 border-b border-zinc-100">{spine.solutionLayer.primaryModule.why}</p>
+              <p className="text-[13px] font-bold text-zinc-500 mb-2">4주 실행 단계</p>
               <ol>
                 {ep.weeklyActions.map((s, i) => (
                   <li key={i} className="relative pl-14 py-2.5">
