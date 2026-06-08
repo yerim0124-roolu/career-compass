@@ -508,7 +508,7 @@ const unsureBase: FlowResponses = { ...baseResponses, ap_experiment: { selectedO
 }
 
 // ─── P2.0 — parsePersistedSession (localStorage backward-compat) ──────────────
-const FLOW_LEN = 19; // current CAREER_QUESTION_FLOW.length
+const FLOW_LEN = 20; // current CAREER_QUESTION_FLOW.length (cs_blocker 추가)
 
 // 1. null (no payload yet) → default state with empty profile.
 {

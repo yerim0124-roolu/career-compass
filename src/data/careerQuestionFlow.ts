@@ -309,6 +309,27 @@ const reactionInternal: QuestionStep = {
   ],
 };
 
+// ─── 결정 블로커 — 추론 전용 신호 (effect-free). 엔진(벡터·게이트·분류)은 이 답을 절대 읽지
+// 않는다(scoreEffects/constructEffects 비움). storyInsight가 다른 신호와 교차해 '무엇이 막고
+// 있는지'를 리프레임하는 데만 쓴다. 1클릭이라 답하기 쉽고, 거의 모든 답변과 교차 가능. ──
+const decisionBlocker: QuestionStep = {
+  id: 'cs_blocker',
+  stage: 'current_state', // 결정 상태(무엇이 막는지) — reaction 3종 카운트와 분리
+  inputType: 'single_select',
+  title: '결정을 막는 것',
+  assistantPrompt: '지금 결정을 가장 미루게 만드는 건 무엇에 가까운가요? 하나만 골라주세요.',
+  minSelect: 1,
+  maxSelect: 1,
+  options: [
+    { id: 'blk_unclear', label: '내가 뭘 원하는지 아직 또렷하지 않다', tags: ['blocker'], scoreEffects: {}, constructEffects: {} },
+    { id: 'blk_confidence', label: '잘 해낼 수 있을지 자신이 없다', tags: ['blocker'], scoreEffects: {}, constructEffects: {} },
+    { id: 'blk_money', label: '돈·생활 같은 현실 조건이 걸린다', tags: ['blocker'], scoreEffects: {}, constructEffects: {} },
+    { id: 'blk_eyes', label: '주변 시선이나 기대가 신경 쓰인다', tags: ['blocker'], scoreEffects: {}, constructEffects: {} },
+    { id: 'blk_fail', label: '잘못되면 되돌리기 어려울까 봐 두렵다', tags: ['blocker'], scoreEffects: {}, constructEffects: {} },
+    { id: 'blk_time', label: '시간·에너지가 없어 엄두가 안 난다', tags: ['blocker'], scoreEffects: {}, constructEffects: {} },
+  ],
+};
+
 // ─── Stage 7: action_preferences (pick a low-friction output format + optional memo) ──
 // Reframed around "결과물 형식" (output format) rather than startup-style experiments, so
 // general workers / professionals / researchers / org-based users relate to it too.
@@ -358,6 +379,7 @@ export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   reactionContent,
   reactionVenture,
   reactionInternal,
+  decisionBlocker,
   actionExperiment,
   actionMemo,
 ];

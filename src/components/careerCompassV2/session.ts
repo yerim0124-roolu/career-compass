@@ -8,6 +8,7 @@ import { buildResultSpine } from '../../lib/resultSpineEngine.ts';
 import { normalizeJobRole } from '../../lib/jobRoleNormalizer.ts';
 import { buildProfileContextSummary, personalizeNarrativeOpening } from '../../lib/profileContextSummary.ts';
 import { buildNarrativePayload } from '../../lib/narrativePayload.ts';
+import { buildStoryInsight } from '../../lib/storyInsight.ts';
 
 export interface StepResponse2 {
   selectedOptionIds?: string[];
@@ -335,7 +336,11 @@ export function buildResultFromResponses(
   // ADR-001 — additive LLM-layer seed. Same contract as profileContext:
   // engines never read it; P2.0 routing fingerprints exclude it.
   const narrativeSeed = buildNarrativePayload(decorated, profile, responses);
-  const seeded = { ...decorated, narrativeSeed };
+  // 신호-교차 추론 한 줄(표시 전용, 무비용). 적용 규칙 없으면 omit.
+  const storyInsight = buildStoryInsight(profile, responses) ?? undefined;
+  const seeded = storyInsight
+    ? { ...decorated, narrativeSeed, storyInsight }
+    : { ...decorated, narrativeSeed };
   return profileContext ? { ...seeded, profileContext } : seeded;
 }
 

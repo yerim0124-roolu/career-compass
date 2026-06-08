@@ -439,13 +439,13 @@ check('REQUIRED 20: P1.7 burnout invariant — primaryModule = recoveryFirst',
   // ADR-001 P0 — 11th profile step: pc_concernText free-text opener.
   check('Extra: script has 11 profile steps (incl. concern free-text opener)',
     script.filter((s) => s.phase === 'profile').length === 11);
-  check('Extra: script has 18 main steps (CAREER_QUESTION_FLOW minus ap_memo)',
-    script.filter((s) => s.phase === 'main').length === 18);
+  check('Extra: script has 19 main steps (CAREER_QUESTION_FLOW minus ap_memo)',
+    script.filter((s) => s.phase === 'main').length === 19);
   check('Extra: script has exactly 1 result_intro narration step',
     script.filter((s) => s.phase === 'result_intro').length === 1);
-  // 29 = 11 profile (incl. pc_concernText, ADR-001) + 18 main.
+  // 30 = 11 profile (incl. pc_concernText, ADR-001) + 19 main (cs_blocker 추가).
   check('Extra: countAnswerSteps excludes result_intro from the count',
-    countAnswerSteps(script) === 29);
+    countAnswerSteps(script) === 30);
 }
 {
   // PersistedSession round-trip parity — chat saves under its own key but the

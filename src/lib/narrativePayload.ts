@@ -60,6 +60,7 @@ const QUESTION_CONTEXT: Record<string, string> = {
   or_content: '콘텐츠 방향에 대한 반응',
   or_venture: '창업 방향에 대한 반응',
   or_internal: '사내 이동에 대한 반응',
+  cs_blocker: '결정을 미루게 만드는 가장 큰 것',
   ap_experiment: '직접 고른 30일 실험',
 };
 

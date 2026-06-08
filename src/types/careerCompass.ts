@@ -761,6 +761,9 @@ export interface ResultSpine {
   // P2.0 pass-through: 사용자가 랭킹한 우선순위(cv_priorities) 상위 라벨 (예: ['영향력','성장','돈']).
   // 엔진은 절대 읽지 않는다(라우팅·분류 무관). 솔루션 카드 개인화(표시 전용) 전용.
   topValueLabels?: string[];
+  // P2.0 pass-through: 신호-교차 추론 한 줄(buildStoryInsight) — 고른 답이 아니라 그 답들이
+  // 부딪히는 긴장을 짚는다. "당신의 이야기"에 표시(표시 전용). 적용 규칙 없으면 omit.
+  storyInsight?: string;
   // ─── ADR-001 ───────────────────────────────────────────────────────────────
   // Pre-assembled input for the LLM narrative layer (built by narrativePayload.ts
   // from spine + profile + responses). ADDITIVE metadata, same contract as
