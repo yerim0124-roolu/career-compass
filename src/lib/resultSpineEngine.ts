@@ -188,16 +188,18 @@ export function buildOptionTimingResults(vector: CareerVector, gates: ReadinessG
 const SAFE_FALLBACK: ReadonlySet<CareerOptionKey> = new Set<CareerOptionKey>(['restRecover', 'stayRedesign']);
 
 // "Why this, now + the first concrete nudge" — answers "그래서 뭘 하면 되나?".
-// Calm and non-overconfident (권해요/출발점), never deterministic or fortune-telling.
+// P3.12 — SAFE_DEFAULT_RESEARCH 적용: safe 옵션도 '존버'가 아니라 구체적 능동 행동으로.
+// 도전 옵션이 now라는 건 게이트를 다 통과했다는 뜻 → 소심한 '작은 검증부터'가 아니라
+// '지금이 움직이기 좋은 때'로. 단 과신·점쟁이 톤은 피하고 "~기 좋은 때/단계예요"로.
 const NOW_RATIONALE: Record<CareerOptionKey, string> = {
-  stayRedesign: '자리를 옮기기 전에, 지금 역할에서 바꾸고 싶은 1가지를 먼저 다시 설계해 보는 게 리스크가 가장 낮아요.',
-  jobChange: '수입을 지키면서 환경을 바꿀 수 있어, 지금 여건에서 변화를 만드는 가장 안전한 길이에요.',
-  startup: '지금 여건이 받쳐줄 때 작게 시작해 볼 수 있어요. 크게 걸기보다 작은 검증부터 권해요.',
-  independent: '쌓은 전문성을 바로 시장에서 시험해 볼 수 있는 단계예요. 작은 일감 한 건부터 시작해 보세요.',
-  contentBrand: '전문성을 바깥의 언어로 옮겨 반응을 확인하기 좋은 출발점이에요.',
-  advisoryTeaching: '쌓은 전문성을 가장 적은 리스크로 수익·신뢰로 바꿀 수 있는 출발점이에요.',
-  investAnalysis: '시장을 해석하는 강점을 바로 눈에 보이는 결과물로 만들 수 있는 단계예요.',
-  restRecover: '지금은 새 판을 벌이기보다 에너지를 먼저 회복하는 편이, 다음 선택의 성공률을 높여요.',
+  stayRedesign: '떠나기 전에 지금 자리에서 바꿀 수 있는 게 더 많아요. 못마땅한 1가지를 골라 상사에게 제안하거나 맡을 프로젝트를 바꿔, 수입을 지키며 변화를 만드는 것부터 시작해 보세요.',
+  jobChange: '수입을 지키면서 환경을 바꾸는 길이에요. 이번 달엔 성과 케이스 2~3개를 정리해 시장이 어떻게 반응하는지부터 떠보세요.',
+  startup: '여건이 받쳐주는 지금이 시작하기 좋은 때예요. 큰 베팅 전에 관심 있는 사람 10명과 대화로 문제·수요부터 확인해 보세요.',
+  independent: '쌓은 전문성을 지금 바로 시장에 내놓을 수 있는 단계예요. 완벽한 준비보다 첫 유료 일감 한 건으로 실제 반응을 받아보세요.',
+  contentBrand: '전문성을 바깥의 언어로 옮겨 반응을 확인하기 좋은 때예요. 만든 것 하나를 정리해 글로 내보내는 것부터.',
+  advisoryTeaching: '쌓은 전문성을 수익·신뢰로 바꿔볼 수 있는 단계예요. 작은 유료 세션이나 자문 1회로 수요부터 확인해 보세요.',
+  investAnalysis: '시장을 해석하는 강점을 눈에 보이는 결과물로 만들기 좋은 때예요. 분석 한 편을 공개해 반응을 받아보세요.',
+  restRecover: '지금은 새 판을 벌이기보다 에너지를 먼저 회복하는 편이, 다음 선택의 성공률을 높여요. 2주 회복 루틴부터 시작해요.',
 };
 
 function moveRationale(r: OptionTimingResult): string {

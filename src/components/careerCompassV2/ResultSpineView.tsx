@@ -511,25 +511,55 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         </div>
       </Section>
 
-      {/* 다른 선택지도 함께 본 이유 — option landscape, collapsed (no large repeat of the plan).
-          The now-move/direction already live in the execution plan; this is the "why we also looked". */}
+      {/* 다른 선택지 — option landscape. P3.12 (SAFE_DEFAULT_RESEARCH 적용):
+          safe 옵션이 1순위일 때 이 섹션을 접힘 밖으로 꺼내 '다음 단계로 열어둘 길'로
+          능동 제시한다. "이번 달은 안전하게, 끝" 이 아니라 "지금 X 하면서 이 방향들을
+          동시에 준비"로 — 무행동(존버)이 아닌 복수 경로를 눈앞에 둔다. */}
       {(() => {
         const stratKey = spine.strategicDirection?.optionKey;
         const seen = new Set<string>([spine.currentBestMove.optionKey, ...(stratKey ? [stratKey] : [])]);
-        const items: { tag: string; move: MoveRecommendation }[] = [{ tag: '지금의 선택', move: spine.currentBestMove }];
-        const add = (m: MoveRecommendation | null, tag: string) => { if (m && !seen.has(m.optionKey)) { items.push({ tag, move: m }); seen.add(m.optionKey); } };
-        add(spine.prepareAfterOption, '준비 후');
+        const others: { tag: string; move: MoveRecommendation }[] = [];
+        const add = (m: MoveRecommendation | null, tag: string) => { if (m && !seen.has(m.optionKey)) { others.push({ tag, move: m }); seen.add(m.optionKey); } };
+        // strategicDirection(검증 중인 방향)도 '다음 단계' 후보로 포함
+        if (spine.strategicDirection) others.push({ tag: '검증 중', move: spine.strategicDirection });
         add(spine.conditionalOption, '조건 충족 시');
+        add(spine.prepareAfterOption, '준비 후');
         add(spine.pauseOption, '지금은 보류');
+
+        const SAFE_NOW = new Set(['stayRedesign', 'jobChange', 'restRecover']);
+        const safeLed = SAFE_NOW.has(spine.currentBestMove.optionKey) && others.length > 0;
+
+        if (safeLed) {
+          return (
+            <Section title="다음 단계로 열어둘 길">
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-5 py-4 space-y-3">
+                <p className="text-[15px] text-zinc-700 leading-[1.7]">
+                  이번 달은 <span className="font-bold text-zinc-900">{spine.currentBestMove.label}</span>로 안전하게 시작하되, 여기서 멈추는 게 아니에요. 같은 기간에 아래 방향들을 함께 준비해 두면 다음 결정이 훨씬 가벼워져요.
+                </p>
+                <ul className="space-y-2.5">
+                  {others.map((it, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span className="shrink-0 text-[12px] font-bold text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-full mt-0.5">{it.tag}</span>
+                      <span className="text-[15px] text-zinc-700 leading-[1.65]"><span className="font-bold text-zinc-900">{it.move.label}</span> — {cleanRationale(it.move.rationale)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Section>
+          );
+        }
+
+        // 도전 옵션이 1순위면 기존처럼 접힘 (이미 플랜이 도전 행동을 담고 있으므로)
+        const items = [{ tag: '지금의 선택', move: spine.currentBestMove }, ...others];
         return (
-          <details className="rounded-2xl border border-slate-200 bg-white p-4">
-            <summary className="text-sm font-bold text-slate-700 cursor-pointer select-none">다른 선택지도 함께 본 이유</summary>
-            <p className="text-xs text-slate-500 mt-2 leading-relaxed">이번 달 계획은 위 한 가지예요. 아래는 함께 검토한 선택지와 지금의 타이밍입니다.</p>
+          <details className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <summary className="text-sm font-bold text-zinc-700 cursor-pointer select-none">다른 선택지도 함께 본 이유</summary>
+            <p className="text-[13px] text-zinc-500 mt-2 leading-relaxed">이번 달 계획은 위 한 가지예요. 아래는 함께 검토한 선택지와 지금의 타이밍입니다.</p>
             <ul className="mt-2 space-y-2">
               {items.map((it, i) => (
-                <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
-                  <span className="shrink-0 text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full mt-0.5">{it.tag}</span>
-                  <span><span className="font-semibold text-slate-800">{it.move.label}</span> — {cleanRationale(it.move.rationale)}</span>
+                <li key={i} className="text-[14px] text-zinc-600 flex items-start gap-2 leading-[1.6]">
+                  <span className="shrink-0 text-[11px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full mt-0.5">{it.tag}</span>
+                  <span><span className="font-semibold text-zinc-800">{it.move.label}</span> — {cleanRationale(it.move.rationale)}</span>
                 </li>
               ))}
             </ul>
