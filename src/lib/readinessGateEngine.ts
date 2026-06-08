@@ -46,8 +46,10 @@ export const RISK_PROFILES = {
   independent:      { executionLoad: 'high',   financialRisk: 'high',   marketValidationRequired: 'high',   reversibility: 'medium', timeToFeedback: 'medium' },
   // expert_content
   contentBrand:     { executionLoad: 'medium', financialRisk: 'low',    marketValidationRequired: 'high',   reversibility: 'high',   timeToFeedback: 'slow' },
-  // advisory
-  advisoryTeaching: { executionLoad: 'medium', financialRisk: 'low',    marketValidationRequired: 'medium', reversibility: 'high',   timeToFeedback: 'medium' },
+  // advisory — P3.11: marketValidation medium→high. 자문/강의는 '내 전문성에 돈·시간을
+  // 쓸 사람이 있나'가 본질이라 검증 의존도가 contentBrand(high)와 같다. medium이던 탓에
+  // 검증 안 된 전문직에게 즉시 1순위로 튀어나오던 과잉 편향을 교정 — 검증 전엔 conditional.
+  advisoryTeaching: { executionLoad: 'medium', financialRisk: 'low',    marketValidationRequired: 'high',   reversibility: 'high',   timeToFeedback: 'medium' },
   // investAnalysis (added; not in the original 7 — content/advisory-shaped)
   investAnalysis:   { executionLoad: 'medium', financialRisk: 'low',    marketValidationRequired: 'high',   reversibility: 'high',   timeToFeedback: 'slow' },
   // recovery_reset
@@ -171,11 +173,10 @@ export function classifyDecisionTiming(
     }
   }
 
-  // P4 — market validation need. Founding/independent/content monetization that needs
-  // validation, when not yet validated, is "conditional" (not "now").
+  // P4 — market validation need. Founding/independent/content/advisory monetization that
+  // needs validation, when not yet validated, is "conditional" (not "now").
+  // (P3.11: no option carries 'medium' anymore — advisory moved to 'high'.)
   if (profile.marketValidationRequired === 'high' && (gates.marketValidation === 'unvalidated' || gates.marketValidation === 'early')) {
-    ceilings.push({ gate: 'marketValidation', cap: 'conditional' });
-  } else if (profile.marketValidationRequired === 'medium' && gates.marketValidation === 'unvalidated') {
     ceilings.push({ gate: 'marketValidation', cap: 'conditional' });
   }
 

@@ -573,11 +573,22 @@ export function generateConstructBasedExplanation(
       sentences.push(`'${opts.strategicLabel}' 방향이 끌리지만, 지금은 준비가 더 필요해 '${practical}'${euroJosa(practical)} 발판을 먼저 다지는 편이 안전해요.`);
     }
   } else {
-    // direct_now / recovery_first → readiness framing + blocker/difficulty
-    if (readiness === 'ready') sentences.push(`지금은 '${move}'${objJosa(move)} 작게 실행할 준비는 되어 있어요.`);
-    // P1.3 — softer than "구조 있게 시작하기 좋은 때예요"
-    else if (readiness === 'explore-with-structure') sentences.push(`지금은 '${move}'${objJosa(move)} 기한과 범위를 정해놓고 작게 시도해보기 좋은 때예요.`);
-    else sentences.push(`지금은 새로 벌이기보다 기반을 먼저 다지며 '${move}'에 무게를 둘 때예요.`);
+    // direct_now / recovery_first → readiness framing + blocker/difficulty.
+    // P3.11 버그 수정: mainTypeKey가 overloadedBurnout이면 readiness(adaptability 기반,
+    // 별도 채널)가 explore/ready여도 '작게 시도해보기 좋은 때' 같은 활동 권유 문장을 쓰면
+    // 뒤의 번아웃 꼬리말('에너지 돌아온 뒤에')과 한 문단에서 모순된다. 번아웃이면 readiness와
+    // 무관하게 회복 톤으로 통일한다.
+    const burnoutDominant = opts.mainTypeKey === 'overloadedBurnout';
+    if (burnoutDominant) {
+      sentences.push(`지금은 새로 벌이기보다 '${move}'${objJosa(move)} 중심에 두고, 무리하지 않는 선에서 가볍게 풀어갈 때예요.`);
+    } else if (readiness === 'ready') {
+      sentences.push(`지금은 '${move}'${objJosa(move)} 작게 실행할 준비는 되어 있어요.`);
+    } else if (readiness === 'explore-with-structure') {
+      // P1.3 — softer than "구조 있게 시작하기 좋은 때예요"
+      sentences.push(`지금은 '${move}'${objJosa(move)} 기한과 범위를 정해놓고 작게 시도해보기 좋은 때예요.`);
+    } else {
+      sentences.push(`지금은 새로 벌이기보다 기반을 먼저 다지며 '${move}'에 무게를 둘 때예요.`);
+    }
 
     if (seHi && runwayBarrier) {
       const bp = ['재정 런웨이'];
