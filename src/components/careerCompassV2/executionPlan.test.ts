@@ -44,7 +44,8 @@ const hasDup = (xs: string[]) => new Set(xs).size !== xs.length;
 // ─── creator/low-validation: safetyBridge + directionToValidate ──────────────────
 {
   const p = ep('creator');
-  check('creator: shows safety bridge (이직)', !!p.safetyBridge && p.safetyBridge.label === '이직');
+  // P3.14 — 검증 방향이 현직 병행 가능형(콘텐츠)이면 안전판은 이직이 아니라 현직 유지.
+  check('creator: shows safety bridge (현 직무 유지·재설계, not 이직)', !!p.safetyBridge && p.safetyBridge.label === '현 직무 유지·재설계');
   check('creator: shows direction to validate (콘텐츠/퍼스널 브랜드, 조건부)', !!p.directionToValidate && p.directionToValidate.label.includes('콘텐츠') && p.directionToValidate.readinessLabel === '조건부');
   check('creator: planModule follows chosen content experiment (콘텐츠 발행)', p.coreExperiment.sourceOptionKey === 'contentBrand' && p.weeklyActions.some((w) => w.action.includes('콘텐츠') || w.action.includes('발행')));
   check('creator: diagnosed market-test preserved as a hint (not a 2nd plan)', !!p.secondaryModuleHint && (p.secondaryModuleHint.includes('30일 실제 반응 확인') || p.secondaryModuleHint.includes('실제 반응 확인')));

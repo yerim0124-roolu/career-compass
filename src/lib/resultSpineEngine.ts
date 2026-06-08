@@ -382,8 +382,7 @@ export function buildResultSpine(
   const archetypes = inferCareerArchetypes(vector);
   const results = buildOptionTimingResults(vector, gates);
 
-  const currentBestMove = selectCurrentBestMove(results);
-  const bestKey = currentBestMove.optionKey;
+  let currentBestMove = selectCurrentBestMove(results);
 
   // Strategic direction = the identity pull (highest-fit option), even if gated.
   // The user's chosen 30-day experiment marks their intended direction, so prefer it
@@ -391,9 +390,21 @@ export function buildResultSpine(
   const topFit = results[0];
   const prefKey = opts.preferredExperimentOptionKey;
   const prefResult = prefKey ? results.find((r) => r.optionKey === prefKey) : undefined;
-  const directionResult = (prefResult && prefResult.optionKey !== bestKey && prefResult.timing !== 'now' && prefResult.fit >= topFit.fit - 15)
+  const directionResult = (prefResult && prefResult.optionKey !== currentBestMove.optionKey && prefResult.timing !== 'now' && prefResult.fit >= topFit.fit - 15)
     ? prefResult
     : topFit;
+
+  // P3.14 — 안전판이 검증 방향과 시너지 나게 보정. 검증 중인 방향이 '현직 병행 가능형'
+  // (콘텐츠·자문·분석 — 직장을 유지한 채 부업처럼 검증 가능)인데 안전판으로 이직이 뽑히면
+  // 비논리적이다: 이직은 새 환경 적응으로 그 방향에 쓸 시간·에너지를 뺏는다. 현직 유지가
+  // now로 가능하면 그걸 안전판으로 삼는다. (현직 불만이 큰 사용자는 stayRedesign fit이
+  // 더 낮게 나와 애초에 이 분기에 들어오지 않거나, 이직이 게이트로도 살아남는다.)
+  const SIDE_HUSTLE_DIRECTIONS: ReadonlySet<CareerOptionKey> = new Set<CareerOptionKey>(['contentBrand', 'advisoryTeaching', 'investAnalysis']);
+  if (currentBestMove.optionKey === 'jobChange' && SIDE_HUSTLE_DIRECTIONS.has(directionResult.optionKey)) {
+    const stayNow = results.find((r) => r.optionKey === 'stayRedesign' && r.timing === 'now');
+    if (stayNow) currentBestMove = toMove(stayNow);
+  }
+  const bestKey = currentBestMove.optionKey;
 
   let strategicDirection: MoveRecommendation | null = null;
   let resultMode: ResultMode;
