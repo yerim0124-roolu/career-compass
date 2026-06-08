@@ -160,6 +160,40 @@ function topicParticle(word: string): string {
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '은' : '는';
   return '은(는)';
 }
+function andParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '과' : '와';
+  return '와(과)';
+}
+// 서술격 조사 '이에요/예요' — 받침 있으면 '이에요', 없으면 '예요'.
+function copula(word: string): string {
+  const code = word.charCodeAt(word.length - 1);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '이에요' : '예요';
+  return '이에요';
+}
+
+// 무료 개인화 — "당신의 이야기"는 유형별 고정 에세이라 같은 유형끼리 글자까지 똑같다.
+// 직무·경력은 위 프로필 박스가 이미 보여주므로, 여기선 *유저 고유의 끌림(archetype 태그)과
+// 기우는 방향*을 이름으로 불러주는 한 줄을 thesis 아래에 끼워, 같은 유형이라도 사람마다
+// 다르게 읽히게 한다. 데이터가 부족하면 null → 정적 에세이 그대로(폴백). 표시 전용.
+const STATE_TYPES_NO_LEAD: ReadonlySet<MainTypeKey> = new Set<MainTypeKey>([
+  'overloadedBurnout', 'realityLocked', 'lowOptionVisibility', // '상태' 유형 — 끌림·방향 호명이 톤에 안 맞아 정적 에세이가 낫다
+]);
+function personalizedStoryLead(spine: ResultSpine): string | null {
+  const type = spine.solutionLayer.mainTypeKey;
+  if (STATE_TYPES_NO_LEAD.has(type)) return null;
+  const tags = spine.identityAxis.archetypeTags.slice(0, 2).map((t) => ARCHETYPE_LABELS[t]).filter(Boolean);
+  if (tags.length === 0) return null;
+  // 끌리는 방향이 따로 있으면 그걸, 없으면(직접 추천형) 지금의 한 수를 방향으로.
+  const dir = spine.strategicDirection?.label ?? spine.currentBestMove.label;
+  // 다중 끌림형(갈림길·탐색 과잉): 두 결의 공존을 이름으로.
+  if ((type === 'conflictedAtFork' || type === 'scatteredExplorer') && tags.length >= 2) {
+    const dirClause = spine.strategicDirection ? ` 요즘 마음은 '${dir}' 쪽으로 더 기울어 있고요.` : '';
+    return `당신 안에는 '${tags[0]}'${andParticle(tags[0])} '${tags[1]}'의 결이 함께 있어요.${dirClause}`;
+  }
+  // 단일 방향형: 가장 또렷한 끌림 + 방향.
+  return `당신에게선 '${tags[0]}'의 성향이 특히 또렷하고, 지금 떠오른 방향은 '${dir}'${copula(dir)}.`;
+}
 
 interface Props {
   spine: ResultSpine;
@@ -265,6 +299,15 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                 아이콘으로. 위계 점프(thesis 19 / 본문 16 / 함정 14)와 본문 대비 강화. */}
             <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-7 space-y-5">
               <p className="text-[19px] font-bold text-indigo-900 leading-[1.45] tracking-[-0.01em]">{story.thesis}</p>
+              {(() => {
+                const lead = personalizedStoryLead(spine);
+                if (!lead) return null;
+                return (
+                  <p className="text-[15px] text-indigo-700 leading-[1.7] bg-indigo-50/60 border border-indigo-100 rounded-xl px-4 py-3">
+                    {lead}
+                  </p>
+                );
+              })()}
               <p className="text-base text-zinc-800 leading-[1.8]">{story.arrival}</p>
               <div className="border-t border-zinc-100 pt-5 space-y-4">
                 {story.traps.map((t) => (
