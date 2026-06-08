@@ -251,9 +251,23 @@ export function classifyMainType(inp: SolutionInputs): MainTypeKey {
     return 'lowOptionVisibility';
   }
 
-  // P4 — conflicted at a fork: value conflict + competing MCDA priorities.
+  // P4 — conflicted at a fork: the user can't set decision criteria between paths.
+  // A *high* valueConflict (≥C_HIGH) is itself a direct, sufficient signal of a fork
+  // conflict ("기준이 안 선다" + "의미 vs 돈" 류 반응이 쌓인 상태). The MCDA tradeoff is a
+  // corroborator, not a hard gate: requiring it caused valueConflict=80 users whose
+  // money/impact priorities weren't ranked top to fall through to unvalidatedAspirant,
+  // skipping the "선택 기준 정리" solution they most need. So: high valueConflict alone,
+  // OR a moderate valueConflict backed by a real MCDA tradeoff → conflictedAtFork.
   const mcdaConflict = c.mcda.financialSafety >= C_PRESENT && (c.mcda.impact >= C_PRESENT || c.mcda.autonomy >= C_PRESENT);
-  if (c.difficulty.valueConflict >= C_HIGH && mcdaConflict) {
+  // A strong, converged venture pull (ventureOrientation ≥ V_HIGH) is the unvalidatedAspirant
+  // signature — they know WHAT they want to build, they just haven't validated it. That is
+  // NOT a fork conflict even when valueConflict is high, so it must not capture the
+  // high-valueConflict-alone branch (let it fall through to unvalidatedAspirant below).
+  const convergedMakerPull = v.ventureOrientation >= V_HIGH;
+  if (
+    (c.difficulty.valueConflict >= C_HIGH && !convergedMakerPull) ||
+    (c.difficulty.valueConflict >= C_PRESENT && mcdaConflict)
+  ) {
     return 'conflictedAtFork';
   }
 
