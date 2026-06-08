@@ -326,7 +326,9 @@ const CAREER_PATTERN_SENTENCE: Record<NonNullable<UserProfile['careerPattern']>,
 // ─── workMode example themes (user spec — keywords woven into copy) ─────────
 const WORK_MODE_THEME: Record<NonNullable<UserProfile['workMode']>, string> = {
   organization: '내부 조정과 역할 재설계',
-  professional: '전문성과 케이스 정리, 자문/강의 가능성',
+  // 진로 중립: '자문/강의'처럼 특정 방향을 박지 않는다 — 추천 방향(콘텐츠·재설계 등)과
+  // 충돌해 "내용과 안 맞는다"는 인상을 줬다(전문직이라는 이유만으로 자문/강의를 명시).
+  professional: '전문성과 케이스 정리',
   freelance:    '포트폴리오와 고객 반응, 제안서',
   founder:      '고객 문제와 시장 반응, 런웨이',
   student:      '탐색과 경험 축적, 작은 시도',
