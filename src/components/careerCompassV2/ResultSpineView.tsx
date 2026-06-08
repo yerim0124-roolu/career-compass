@@ -160,6 +160,11 @@ function objectParticle(word: string): string {
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '을' : '를';
   return '을(를)';
 }
+function topicParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0 ? '은' : '는';
+  return '은(는)';
+}
 
 interface Props {
   spine: ResultSpine;
@@ -544,59 +549,46 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         </div>
       </Section>
 
-      {/* 다른 선택지 — option landscape. P3.12 (SAFE_DEFAULT_RESEARCH 적용):
-          safe 옵션이 1순위일 때 이 섹션을 접힘 밖으로 꺼내 '다음 단계로 열어둘 길'로
-          능동 제시한다. "이번 달은 안전하게, 끝" 이 아니라 "지금 X 하면서 이 방향들을
-          동시에 준비"로 — 무행동(존버)이 아닌 복수 경로를 눈앞에 둔다. */}
+      {/* P3.18 — '추천하지 않는 선택지'를 Q&A로. "왜 지금 1순위가 아닌가"를 명시해
+          "내 선택지가 무시됐다"가 아니라 "비교 평가됐다"로 느끼게 한다. 태그별 도입
+          문구로 rationale을 풍부화하고, safe 1순위면 '함께 준비' 능동 프레임을 덧댄다. */}
       {(() => {
         const stratKey = spine.strategicDirection?.optionKey;
         const seen = new Set<string>([spine.currentBestMove.optionKey, ...(stratKey ? [stratKey] : [])]);
         const others: { tag: string; move: MoveRecommendation }[] = [];
         const add = (m: MoveRecommendation | null, tag: string) => { if (m && !seen.has(m.optionKey)) { others.push({ tag, move: m }); seen.add(m.optionKey); } };
-        // strategicDirection(검증 중인 방향)도 '다음 단계' 후보로 포함
         if (spine.strategicDirection) others.push({ tag: '검증 중', move: spine.strategicDirection });
         add(spine.conditionalOption, '조건 충족 시');
         add(spine.prepareAfterOption, '준비 후');
         add(spine.pauseOption, '지금은 보류');
+        if (others.length === 0) return null;
 
+        // 태그 → 답변 도입부 (rationale 앞에 붙여 풍부화)
+        const lead: Record<string, string> = {
+          '검증 중': '방향 자체는 잘 맞아요. 다만 ',
+          '조건 충족 시': '방향은 좋지만, ',
+          '준비 후': '준비가 조금 더 필요해서, ',
+          '지금은 보류': '지금 여건에선, ',
+        };
         const SAFE_NOW = new Set(['stayRedesign', 'jobChange', 'restRecover']);
-        const safeLed = SAFE_NOW.has(spine.currentBestMove.optionKey) && others.length > 0;
+        const safeLed = SAFE_NOW.has(spine.currentBestMove.optionKey);
 
-        if (safeLed) {
-          return (
-            <Section title="다음 단계로 열어둘 길">
-              <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 px-5 py-4 space-y-3">
-                <p className="text-[15px] text-zinc-700 leading-[1.7]">
-                  이번 달은 <span className="font-bold text-zinc-900">{spine.currentBestMove.label}</span>로 안전하게 시작하되, 여기서 멈추는 게 아니에요. 같은 기간에 아래 방향들을 함께 준비해 두면 다음 결정이 훨씬 가벼워져요.
-                </p>
-                <ul className="space-y-2.5">
-                  {others.map((it, i) => (
-                    <li key={i} className="flex items-start gap-2.5">
-                      <span className="shrink-0 text-[12px] font-bold text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-full mt-0.5">{it.tag}</span>
-                      <span className="text-[15px] text-zinc-700 leading-[1.65]"><span className="font-bold text-zinc-900">{it.move.label}</span> — {cleanRationale(it.move.rationale)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </Section>
-          );
-        }
-
-        // 도전 옵션이 1순위면 기존처럼 접힘 (이미 플랜이 도전 행동을 담고 있으므로)
-        const items = [{ tag: '지금의 선택', move: spine.currentBestMove }, ...others];
         return (
-          <details className="rounded-2xl border border-zinc-200 bg-white p-4">
-            <summary className="text-sm font-bold text-zinc-700 cursor-pointer select-none">다른 선택지도 함께 본 이유</summary>
-            <p className="text-[13px] text-zinc-500 mt-2 leading-relaxed">이번 달 계획은 위 한 가지예요. 아래는 함께 검토한 선택지와 지금의 타이밍입니다.</p>
-            <ul className="mt-2 space-y-2">
-              {items.map((it, i) => (
-                <li key={i} className="text-[14px] text-zinc-600 flex items-start gap-2 leading-[1.6]">
-                  <span className="shrink-0 text-[11px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full mt-0.5">{it.tag}</span>
-                  <span><span className="font-semibold text-zinc-800">{it.move.label}</span> — {cleanRationale(it.move.rationale)}</span>
-                </li>
+          <Section title="왜 다른 선택지는 지금이 아닐까?">
+            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 space-y-4">
+              {safeLed && (
+                <p className="text-[14px] text-zinc-600 leading-[1.7] pb-3 border-b border-zinc-100">
+                  이번 달은 <span className="font-bold text-zinc-800">{spine.currentBestMove.label}</span>로 시작하지만, 아래 방향들도 무시한 게 아니라 함께 저울에 올린 거예요. 같은 기간에 조금씩 준비해 두면 다음 결정이 가벼워져요.
+                </p>
+              )}
+              {others.map((it, i) => (
+                <div key={i}>
+                  <p className="text-[15px] font-bold text-zinc-900 mb-1">왜 {it.move.label}{topicParticle(it.move.label)} 지금 1순위가 아닐까?</p>
+                  <p className="text-[14px] text-zinc-600 leading-[1.7]">{lead[it.tag] ?? ''}{cleanRationale(it.move.rationale)}</p>
+                </div>
               ))}
-            </ul>
-          </details>
+            </div>
+          </Section>
         );
       })()}
 
