@@ -354,19 +354,28 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               <p className="text-[11px] font-bold tracking-wide text-indigo-600 mb-1">이렇게 풀어요</p>
               <p className="text-[17px] font-extrabold text-zinc-900 mb-1.5">{spine.solutionLayer.primaryModule.title}</p>
               <p className="text-[15px] text-zinc-700 leading-[1.7] mb-1">{spine.solutionLayer.primaryModule.goal}</p>
-              <p className="text-[14px] text-zinc-500 leading-[1.65] mb-4 pb-4 border-b border-zinc-100">{spine.solutionLayer.primaryModule.why}</p>
-              <p className="text-[13px] font-bold text-zinc-500 mb-2">4주 실행 단계</p>
-              <ol>
-                {ep.weeklyActions.map((s, i) => (
-                  <li key={i} className="relative pl-14 py-2.5">
-                    <span className="absolute left-0 top-1.5 w-11 h-[26px] rounded-full bg-indigo-100 text-indigo-700 text-xs font-black flex items-center justify-center">{s.week}</span>
-                    {i < ep.weeklyActions.length - 1 && (
-                      <span aria-hidden className="absolute left-[21px] top-9 -bottom-1 w-0.5 bg-zinc-200" />
-                    )}
-                    <span className="text-[15px] text-zinc-800 leading-[1.7]">{s.action}</span>
-                  </li>
-                ))}
-              </ol>
+              <p className="text-[14px] text-zinc-500 leading-[1.65]">{spine.solutionLayer.primaryModule.why}</p>
+            </div>
+
+            {/* P3.16 — 4주 계획표보다 '오늘 할 수 있는 한 걸음' 하나가 실행을 만든다.
+                firstStep을 주인공 카드로, 4주 전체는 접어 보조로 둔다. */}
+            <div className="rounded-2xl border-2 border-indigo-300 bg-indigo-50 px-5 py-5">
+              <p className="text-[12px] font-bold tracking-wide text-indigo-700 mb-1.5">👉 이번 주, 딱 이거 하나</p>
+              <p className="text-[18px] font-extrabold text-indigo-950 leading-[1.55]">{spine.solutionLayer.primaryModule.firstStep}</p>
+              <details className="mt-4 pt-3 border-t border-indigo-200/70">
+                <summary className="text-[13px] font-bold text-indigo-700 cursor-pointer select-none">한 달 전체 흐름 보기</summary>
+                <ol className="mt-3">
+                  {ep.weeklyActions.map((s, i) => (
+                    <li key={i} className="relative pl-14 py-2.5">
+                      <span className="absolute left-0 top-1.5 w-11 h-[26px] rounded-full bg-indigo-100 text-indigo-700 text-xs font-black flex items-center justify-center">{s.week}</span>
+                      {i < ep.weeklyActions.length - 1 && (
+                        <span aria-hidden className="absolute left-[21px] top-9 -bottom-1 w-0.5 bg-indigo-200" />
+                      )}
+                      <span className="text-[15px] text-zinc-800 leading-[1.7]">{s.action}</span>
+                    </li>
+                  ))}
+                </ol>
+              </details>
             </div>
 
             {/* ④⑤ success / stop */}

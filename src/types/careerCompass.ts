@@ -451,6 +451,10 @@ export interface SolutionModule {
   title: string;              // 전문성 자산화
   goal: string;               // one-line objective
   why: string;                // why this intervention works for the state
+  // P3.16 — the single smallest next action. 행동과학(implementation intention,
+  // tiny-habit): 4주 계획표보다 '오늘 부담 없이 할 수 있는 한 걸음' 하나가 실행을
+  // 만든다. 결과지의 주인공으로 노출하고, plan(4주)은 접어 보조로 둔다.
+  firstStep: string;
   plan: SolutionWeekStep[];   // the 30-day action plan
   successSignals: string[];   // what "it's working" looks like
   stopPivot: string[];        // when to stop or switch modules

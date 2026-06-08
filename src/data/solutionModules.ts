@@ -36,6 +36,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '전문성 자산화',
     goal: '쌓아온 전문성을 밖이 읽을 수 있는 자산(케이스·포지셔닝)으로 전환',
     why: '능력은 이미 충분한데 병목은 ‘증거화’예요. 자산화해 두면 이직·자문·콘텐츠 어디로 가든 그대로 레버리지가 됩니다.',
+    firstStep: '오늘 10분, 지난 3년 중 ‘이건 내가 잘 풀었다’ 싶은 일을 아무거나 5개만 메모장에 적어보세요. 정리·선별은 나중에 해도 돼요.',
     plan: [
       { week: '1주', action: '지난 3년 성과 10개를 쏟아낸 뒤, 임팩트·숫자 기준으로 3개를 추립니다.' },
       { week: '2주', action: '3개를 문제-개입-결과 케이스로 정리하고, 한 줄 포지셔닝 문장을 씁니다.' },
@@ -50,6 +51,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '30일 실제 반응 확인',
     goal: '커밋 전에 실제 수요 신호를 30일 안에 확보',
     why: '가장 비싼 실수는 확인 없이 올인하는 거예요. 30일이면 싸게 진실을 확인할 수 있습니다.',
+    firstStep: '오늘, 검증하려는 걸 ‘누가 이걸 돈·시간 써서 해결하려 할까?’ 한 문장으로 적어보세요. 그 문장이 30일 실험의 출발점이에요.',
     plan: [
       { week: '1주', action: '가설을 한 문장으로 정의하고, 관심 있을 만한 사람 20명 리스트를 만듭니다.' },
       { week: '2주', action: '10명과 대화/인터뷰하거나 랜딩+사전등록으로 반응을 받습니다.' },
@@ -64,6 +66,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '회복 우선',
     goal: '에너지 기준선을 회복하고 큰 결정을 잠시 유예',
     why: '번아웃 상태의 결정은 회피 동기에 오염돼요. 회복이 다음 선택의 성공률을 높입니다.',
+    firstStep: '오늘 밤, 알람을 평소보다 30분 일찍 맞춰 두세요. 커리어 결정은 잠시 미루고, 회복은 잠에서 시작돼요.',
     plan: [
       { week: '1-2주', action: '회복 루틴(수면·운동·업무 경계)을 세우고, 의도적으로 커리어 결정을 멈춥니다.' },
       { week: '3주', action: '에너지를 자가 점검하고, 가볍게 떠오르는 관심 주제 1개만 메모합니다.' },
@@ -77,6 +80,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '선택지 좁히기',
     goal: '여러 옵션을 검증 가능한 2~3개 후보로 축소',
     why: '선택지 과잉은 실행이 아니라 인지의 병목이에요. 좁히면 다른 모든 실험이 비로소 작동합니다.',
+    firstStep: '지금, 머릿속 고민 중인 선택지를 빠짐없이 한 줄씩 적어보세요. 머리에서 종이로 꺼내는 것만으로 절반은 정리돼요.',
     plan: [
       { week: '1주', action: '고려 중인 옵션을 모두 나열하고, 이미 정한 우선순위 기준으로 점수화합니다.' },
       { week: '2주', action: '하위 옵션을 덜어내 상위 3개만 남기고, 각각 ‘가장 싼 검증법’을 정합니다.' },
@@ -94,6 +98,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '선택 기준 정리',
     goal: '여러 우선순위 사이에서 “지금 무엇을 먼저 지킬지” 결정 기준 만들기',
     why: '여러 방향이 모두 가능해 보일수록, 정보를 더 모아도 결정이 잘 안 돼요. 무엇을 지키고 무엇을 내려놓을지 정리하면 길이 좁혀집니다.',
+    firstStep: '오늘, ‘이건 절대 못 내려놓겠다’ 싶은 것 딱 1개만 적어보세요. 모든 기준은 거기서 시작돼요.',
     plan: [
       { week: '1주', action: '지키고 싶은 것 2~3개를 적어보고, 각각의 최소 만족선을 정합니다.' },
       { week: '2주', action: '“앞으로 1년간 무엇을 내려놓을 수 있는가” 시나리오 3개를 써봅니다.' },
@@ -108,6 +113,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '현직 재설계',
     goal: '수입을 유지하면서 현재 역할에서 바꾸고 싶은 1가지를 재설계',
     why: '가장 낮은 리스크로 변화를 만드는 길이에요. 안정이라는 자산을 안 버리고 눌린 축을 채웁니다.',
+    firstStep: '오늘, 지금 일에서 가장 바꾸고 싶은 1가지를 한 문장으로 적어보세요. 역할? 사람? 성장? 무엇이든.',
     plan: [
       { week: '1주', action: '현 역할의 불만·지루함 원인 1개를 특정합니다(역할? 사람? 성장?).' },
       { week: '2주', action: '바꾸고 싶은 1가지의 재설계안(맡을 프로젝트·줄일 업무)과 상사 제안 초안을 만듭니다.' },
@@ -122,6 +128,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '독립 파일럿',
     goal: '작은 유료 독립 일감 1건으로 독립을 저커밋으로 테스트',
     why: '퇴사 없이 독립 적합성과 시장성을 확인해요. 한 건이 단가·수요·체질을 동시에 검증합니다.',
+    firstStep: '오늘, 내가 돈 받고 할 수 있는 일 1개를 ‘○○를 ○○원에’ 형태로 적어보세요. 독립의 첫 줄이에요.',
     plan: [
       { week: '1주', action: '제공 가능한 서비스 1개와 단가를 정의합니다.' },
       { week: '2주', action: '기존 네트워크 5명에게 조용히 제안합니다.' },
@@ -136,6 +143,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '콘텐츠 엔진',
     goal: '일관된 소량 콘텐츠로 표현·시장·가시성을 동시에 테스트',
     why: '가장 싼 영향력·시장 실험이에요. 인정 욕구와 창작 욕구를 저리스크로 채우며 데이터를 쌓습니다.',
+    firstStep: '오늘, 사람들이 나한테 자주 묻는 질문 1개를 적어보세요. 그게 첫 콘텐츠 주제예요.',
     plan: [
       { week: '1주', action: '주제 1개를 고정하고 4개 발행 계획을 세웁니다.' },
       { week: '2-3주', action: '콘텐츠 4개를 발행합니다.' },
@@ -149,6 +157,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '런웨이 안정화',
     goal: '수입 발판·런웨이를 확보해 진짜 방향을 실행 가능하게 만들기',
     why: '막은 건 의욕이 아니라 현실이에요. 런웨이가 6개월 이상이 되면 막혀 있던 옵션이 1순위로 올라옵니다.',
+    firstStep: '오늘 10분, 지금 모아둔 돈으로 수입 없이 몇 개월 버틸 수 있는지 숫자로 계산해보세요. 막연함이 사라져요.',
     plan: [
       { week: '1주', action: '정확한 런웨이(개월 수)를 계산하고 목표 런웨이를 설정합니다.' },
       { week: '2주', action: '수입 안정 옵션 1개(현직 유지·단기 계약·이직)를 결정합니다.' },
@@ -163,6 +172,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '작은 성공 쌓기',
     goal: '2~3개의 작은 성공으로 자기효능감을 회복한 뒤 큰 수로',
     why: '자기효능감은 ‘숙달 경험’으로 가장 잘 올라가요. 확신이 낮을 때의 큰 결정은 회피로 흐르기 쉽습니다.',
+    firstStep: '오늘, 이번 주 안에 확실히 끝낼 수 있는 작은 일 1개를 정해보세요. 작을수록 좋아요 — 완수가 핵심이에요.',
     plan: [
       { week: '1주', action: '2주 안에 끝낼 수 있는 작은 과제 3개를 정의합니다(완수 가능한 크기로).' },
       { week: '2-3주', action: '3개를 실행·완수하고 각각을 기록합니다.' },
@@ -176,6 +186,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '선택지 발굴',
     goal: '30일 안에 해볼 만한 선택지 후보 2~3개를 만드는 것',
     why: '선택지가 안 보이는 것은 의지 부족이 아니라, 아직 충분한 접점과 경로가 만들어지지 않은 상태일 수 있어요.',
+    firstStep: '오늘, 살짝이라도 궁금한 주제 3개를 적어보세요. 잘 몰라도 돼요 — 끌리기만 하면 후보예요.',
     plan: [
       { week: '1주', action: '관심이 살짝 가는 주제 5개와 인접 분야 1개를 적습니다.' },
       { week: '2주', action: '그중 2~3개에 대해 관련 사람이나 자료를 가볍게 접해봅니다.' },
@@ -190,6 +201,7 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     title: '강점 회고',
     goal: '이미 해온 일에서 다음 선택지의 단서를 찾는 것',
     why: '하고 싶은 일이 바로 떠오르지 않을 때는, 욕망보다 증거에서 출발하는 편이 더 정확해요.',
+    firstStep: '오늘, 지난 1년 중 ‘이건 남들보다 덜 힘들게 잘했다’ 싶은 일 1개를 적어보세요. 거기에 단서가 있어요.',
     plan: [
       { week: '1주', action: '지난 1년간 덜 힘들게 잘했던 일 5개를 적습니다.' },
       { week: '2주', action: '주변에서 자주 부탁받은 일 3개를 찾습니다.' },
