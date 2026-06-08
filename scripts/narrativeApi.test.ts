@@ -3,7 +3,7 @@
 // call → output validation → status codes) runs without spending a won.
 // Run: node --experimental-strip-types api/narrative.test.ts
 
-import handler, { validateOutput, extractJson } from './narrative.ts';
+import handler, { validateOutput, extractJson } from '../api/narrative.ts';
 
 let passed = 0;
 let failed = 0;

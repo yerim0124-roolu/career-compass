@@ -557,9 +557,13 @@ export function generateConstructBasedExplanation(
   const sentences: string[] = [];
 
   if (opts.mode === 'conditional_led' && opts.strategicLabel) {
-    // direction is valid; current conditions require validation first → safe bridge + experiment
+    // direction is valid; current conditions require validation first → safe bridge + experiment.
+    // '수입 안전판' only fits income-preserving practical moves (이직·현직 유지) — calling
+    // 자문/강의 같은 미검증 수입원을 '수입 안전판'이라 부르면 어색하다 → 중립 표현으로.
     const valReason = d.marketInformationGap >= PRESENT ? signal.narrativeReason : '아직 조건이 다 갖춰지지 않아서';
-    sentences.push(`'${opts.strategicLabel}' 방향은 맞지만, ${valReason} 지금은 '${practical}'${euroJosa(practical)} 수입 안전판을 두고 30일 실험으로 먼저 검증하는 편이 안전해요.`);
+    const incomeSafe = practical === '이직' || practical === '현 직무 유지·재설계';
+    const bridgePhrase = incomeSafe ? '수입 안전판을 두고' : '발판으로 삼아';
+    sentences.push(`'${opts.strategicLabel}' 방향은 맞지만, ${valReason} 지금은 '${practical}'${euroJosa(practical)} ${bridgePhrase} 30일 실험으로 먼저 검증하는 편이 안전해요.`);
   } else if (opts.mode === 'safety_bridge' && opts.strategicLabel) {
     if (seHi && runwayBarrier) {
       const bp = ['재정 런웨이'];

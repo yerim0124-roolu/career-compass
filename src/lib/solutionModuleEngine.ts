@@ -483,8 +483,10 @@ function reframeAsReevalQuestion(signal: string): string {
   if (t.endsWith('체감')) return t + '했는지';
   if (t.endsWith('점검')) return t + '했는지';
   if (t.endsWith('상승')) return t + '했는지';
+  if (t.endsWith('진술')) return t + '했는지';
   // Sino-Korean verbal nouns (suffix '됐는지')
   if (t.endsWith('완성') || t.endsWith('확보') || t.endsWith('도출') || t.endsWith('확인')) return t + '됐는지';
+  if (t.endsWith('축소') || t.endsWith('정리') || t.endsWith('확장')) return t + '됐는지';
   // Quantified phrases ("1건 이상", "3개 이상") → soft "인지"
   if (t.endsWith('이상')) return t + '인지';
   // Generic fallback

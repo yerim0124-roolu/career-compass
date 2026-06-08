@@ -217,13 +217,26 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                 {/* display label may be softened (MAIN_TYPE_DISPLAY); ep.mainTypeLabel stays canonical */}
                 <span className="text-[11px] font-medium text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full" title={ep.mainTypeLabel}>{mainTypeDisplayLabel}</span>
               </div>
-              <p className="text-[21px] font-extrabold text-slate-900 leading-snug">{ep.coreExperiment.label}</p>
-              <p className="text-sm text-slate-600 leading-relaxed">{ep.strategyStatement}</p>
+              {/* coreExperimentBridge는 결정-난도 유형에서 '플랜(기준 정리)'과 '실험(시장 반응)'이
+                  서로 다른 줄기일 때 엔진이 세우는 다리다. 그 경우 실험 라벨을 헤드라인으로 올리면
+                  주차별 행동과 충돌해 보이므로, 헤드라인은 전략 문장이 갖고 실험은 보조 블록으로 내린다. */}
+              {ep.coreExperimentBridge ? (
+                <>
+                  <p className="text-[21px] font-extrabold text-slate-900 leading-snug">{ep.strategyStatement}</p>
+                  <div className="rounded-xl bg-white/80 border border-emerald-100 px-3.5 py-2.5 space-y-1">
+                    <p className="text-xs font-bold text-emerald-700">이번 달 핵심 실험 — 기준을 좁혀줄 데이터 수집</p>
+                    <p className="text-[15px] font-bold text-slate-800 leading-snug">{ep.coreExperiment.label}</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">{ep.coreExperimentBridge}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[21px] font-extrabold text-slate-900 leading-snug">{ep.coreExperiment.label}</p>
+                  <p className="text-sm text-slate-600 leading-relaxed">{ep.strategyStatement}</p>
+                </>
+              )}
               {ep.mainTypeContextNote && (
                 <p className="text-xs text-slate-600 leading-relaxed bg-white/60 border border-slate-200/60 rounded-xl px-3 py-2">{ep.mainTypeContextNote}</p>
-              )}
-              {ep.coreExperimentBridge && (
-                <p className="text-xs text-emerald-800/80 leading-relaxed">{ep.coreExperimentBridge}</p>
               )}
               {ep.safetyBridge && ep.directionToValidate && (
                 <div className="mt-1 space-y-1.5 border-t border-emerald-200/70 pt-2.5">
