@@ -1,8 +1,64 @@
 import { useEffect, useState } from 'react';
-import type { ResultSpine, ActionReadiness, ConfidenceBand, MoveRecommendation, MainTypeKey } from '../../types/careerCompass.ts';
+import type { ResultSpine, ActionReadiness, MoveRecommendation, MainTypeKey } from '../../types/careerCompass.ts';
 import { ARCHETYPE_LABELS, SUPPORT_TAG_LABELS } from '../../types/careerCompass.ts';
 import { MAIN_TYPE_NARRATIVES } from '../../data/mainTypeNarratives.ts';
 import { getExperimentJobHint } from '../../data/jobRoleExperimentHints.ts';
+import { CAREER_OPTION_LABELS } from '../../types/careerCompass.ts';
+
+// 파스텔 인포그래픽 토큰 (레퍼런스: 소프트 파스텔 대시보드)
+const PASTEL = {
+  lavender: { bg: '#EEEBFE', fg: '#4338ca' },
+  mint: { bg: '#E4F5EC', fg: '#047857' },
+  peach: { bg: '#FBEEE3', fg: '#b45309' },
+} as const;
+
+function StatCard({ tone, icon, label, value }: { tone: keyof typeof PASTEL; icon: string; label: string; value: string }) {
+  const t = PASTEL[tone];
+  return (
+    <div className="rounded-3xl px-3 py-4 text-center" style={{ background: t.bg }}>
+      <div className="w-10 h-10 rounded-xl bg-white mx-auto mb-2 flex items-center justify-center text-lg" style={{ color: t.fg }} aria-hidden>
+        {icon}
+      </div>
+      <p className="text-[11px] font-semibold opacity-75" style={{ color: t.fg }}>{label}</p>
+      <p className="text-[15px] font-extrabold mt-0.5 leading-snug" style={{ color: t.fg }}>{value}</p>
+    </div>
+  );
+}
+
+// 확신성 도넛 — 모인 근거(라벤더) + 30일 실험이 채울 몫(피치) + 남는 부분(회색)
+function ConfidenceDonut({ score }: { score: number }) {
+  const r = 40;
+  const c = 2 * Math.PI * r;
+  const filled = Math.max(Math.min(score, 100), 8);
+  const expFill = Math.min(40, 100 - filled);
+  const seg = (pct: number, offsetPct: number, color: string) => (
+    <circle
+      r={r} cx={60} cy={60} fill="none" stroke={color} strokeWidth={16}
+      strokeDasharray={`${(c * pct) / 100} ${c}`} strokeDashoffset={-(c * offsetPct) / 100}
+      transform="rotate(-90 60 60)"
+    />
+  );
+  return (
+    <div className="flex gap-4 items-center py-1">
+      <div className="relative w-[112px] h-[112px] shrink-0" role="img" aria-label={`장기 방향 근거가 ${score}% 모였어요`}>
+        <svg viewBox="0 0 120 120" width="112" height="112">
+          {seg(100, 0, '#f1f5f9')}
+          {seg(filled, 0, '#AFA9EC')}
+          {seg(expFill, filled, '#F5CDB3')}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[22px] font-black text-slate-800">{score}%</span>
+          <span className="text-[10px] text-slate-500">근거 모임</span>
+        </div>
+      </div>
+      <div className="text-[13px] text-slate-600 leading-relaxed space-y-0.5">
+        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5" style={{ background: '#AFA9EC' }} />지금까지 모인 근거</p>
+        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5" style={{ background: '#F5CDB3' }} />30일 실험이 채울 몫</p>
+        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5 border border-slate-200" style={{ background: '#f1f5f9' }} />장기 확정에 남는 부분</p>
+      </div>
+    </div>
+  );
+}
 
 // P3.9 UI — display-only softening of judgment-flavored mainType labels.
 // The canonical MAIN_TYPE_LABELS stay untouched (engine copy, analytics payloads,
@@ -79,13 +135,6 @@ const ACTION_READINESS_KO: Record<ActionReadiness, string> = {
   ready: '실행 준비됨',
   'explore-with-structure': '구조 있는 탐색',
   'stabilize-first': '기반 다지기 먼저',
-};
-
-const BAND_COLOR: Record<ConfidenceBand, string> = {
-  '낮음': 'text-slate-500',
-  '중간': 'text-amber-600',
-  '높음': 'text-indigo-600',
-  '매우 높음': 'text-emerald-600',
 };
 
 // Natural Korean subject particle (이/가) based on whether the last syllable has a 받침.
@@ -168,6 +217,20 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         )}
       </header>
 
+      {/* 파스텔 스탯 카드 — 결과의 세 가지 핵심 사실을 한 줄에 (레퍼런스 대시보드 문법) */}
+      {(() => {
+        const expKey = spine.executionPlan.coreExperiment.sourceOptionKey;
+        const dateMatch = spine.executionPlan.reevaluationDateLabel.match(/\((\d{4})-(\d{2})-(\d{2})\)/);
+        const reevalShort = dateMatch ? `${Number(dateMatch[2])}월 ${Number(dateMatch[3])}일` : '30일 후';
+        return (
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard tone="lavender" icon="◉" label="지금의 선택" value={spine.currentBestMove.label} />
+            <StatCard tone="mint" icon="⚑" label="이번 달 실험" value={CAREER_OPTION_LABELS[expKey] ?? spine.executionPlan.coreExperiment.label} />
+            <StatCard tone="peach" icon="◔" label="다시 보는 날" value={reevalShort} />
+          </div>
+        );
+      })()}
+
       {/* 당신의 이야기 — mainType 딥 서사 (정적 콘텐츠). 스토리 아크의 1막:
           유형 배지만 있고 해설이 없던 '분석 얇음'을 채우는 층. 플랜(그래서)보다
           먼저 와서 "왜 내 플랜이 이런 모양인지"의 복선이 된다. */}
@@ -178,17 +241,17 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           <section className="space-y-2.5">
             <h2 className="text-[17px] font-extrabold text-slate-900">당신의 이야기</h2>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-              <p className="text-[15px] font-bold text-indigo-700 leading-relaxed">{story.thesis}</p>
-              <p className="text-[15px] text-slate-700 leading-relaxed">{story.arrival}</p>
+              <p className="text-base font-bold text-indigo-700 leading-relaxed">{story.thesis}</p>
+              <p className="text-base text-slate-700 leading-[1.75]">{story.arrival}</p>
               <div className="grid sm:grid-cols-2 gap-2.5">
                 {story.traps.map((t) => (
                   <div key={t.title} className="rounded-xl bg-slate-50 border border-slate-100 p-3.5">
-                    <p className="text-[13px] font-bold text-slate-800 mb-1">{t.title}</p>
-                    <p className="text-[13px] text-slate-600 leading-relaxed">{t.body}</p>
+                    <p className="text-sm font-bold text-slate-800 mb-1">{t.title}</p>
+                    <p className="text-sm text-slate-600 leading-[1.65]">{t.body}</p>
                   </div>
                 ))}
               </div>
-              <p className="text-[15px] text-slate-700 leading-relaxed">{story.meaning}</p>
+              <p className="text-base text-slate-700 leading-[1.75]">{story.meaning}</p>
             </div>
           </section>
         );
@@ -264,14 +327,17 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               )}
             </div>
 
-            {/* ③ week-by-week actions (module is the spine) */}
+            {/* ③ week-by-week actions — 타임라인 스테퍼 (알약 배지 + 연결선) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-semibold text-slate-400 mb-2">주차별 행동</p>
-              <ol className="space-y-1.5">
+              <p className="text-xs font-semibold text-slate-500 mb-1">주차별 행동</p>
+              <ol>
                 {ep.weeklyActions.map((s, i) => (
-                  <li key={i} className="text-sm text-slate-700 flex gap-2">
-                    <span className="shrink-0 text-[13px] font-black text-indigo-600 mt-0.5 w-11">{s.week}</span>
-                    <span className="leading-relaxed">{s.action}</span>
+                  <li key={i} className="relative pl-14 py-2.5">
+                    <span className="absolute left-0 top-2 w-11 h-[26px] rounded-full bg-indigo-50 text-indigo-700 text-xs font-black flex items-center justify-center">{s.week}</span>
+                    {i < ep.weeklyActions.length - 1 && (
+                      <span aria-hidden className="absolute left-[21px] top-9 -bottom-1 w-0.5 bg-slate-200" />
+                    )}
+                    <span className="text-sm text-slate-700 leading-relaxed">{s.action}</span>
                   </li>
                 ))}
               </ol>
@@ -318,41 +384,10 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         );
       })()}
 
-      <Section title="왜 이 추천인가 · 판단 확실성">
+      {/* P3.10 — 사용자 피드백: 본문 위의 확실성·준비도 메타 지표가 흐름을 끊는다.
+          본문은 상담 문단만 남기고, 지표(도넛·준비도·노트)는 '근거 자세히 보기'로 접어 넣는다. */}
+      <Section title="왜 이 추천인가">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3.5">
-          {/* two distinct metrics: 실행 준비도 vs 판단 확실성.
-              P3.9 UI — the "N점" score read like a report-card grade and contradicted the
-              goal-gradient copy ("30일 실험이 채워 줍니다"). It now renders as an
-              evidence-fill gauge: partially full, with the experiment as what fills the rest. */}
-          <div className="flex flex-wrap gap-x-6 gap-y-1.5">
-            <span className="text-sm">
-              <span className="text-xs font-semibold text-slate-500 mr-1.5">실행 준비도</span>
-              <span className="font-bold text-slate-700">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500">장기 방향 근거 모임 (판단 확실성)</span>
-              <span className={`text-xs font-bold ${BAND_COLOR[spine.evidence.confidenceBand]}`}>{spine.evidence.confidenceBand}</span>
-            </div>
-            <div
-              className="h-2 w-full rounded-full bg-slate-100 overflow-hidden"
-              role="progressbar"
-              aria-valuenow={spine.evidence.confidenceScore}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="장기 방향 근거 수집 정도"
-            >
-              <div
-                className="h-full rounded-full bg-indigo-500 transition-all duration-500"
-                style={{ width: `${Math.max(spine.evidence.confidenceScore, 6)}%` }}
-              />
-            </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">남은 칸은 이번 달 30일 실험이 채워요.</p>
-          </div>
-          {/* what '판단 확실성' means (not capability, not safety) */}
-          <p className="text-[11px] text-slate-500 leading-relaxed">{spine.evidence.confidenceNote}</p>
-
           {/* hero: counseling paragraph. Template renders first; the validated
               LLM rewrite (insight box + reinterpreted narrative) fades in over it. */}
           {llm && (
@@ -361,7 +396,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
               <p className="text-[15px] font-bold text-indigo-950 leading-relaxed">{llm.coreInsight}</p>
             </div>
           )}
-          <p key={llm ? 'llm' : 'template'} className="text-[15px] text-slate-800 leading-relaxed whitespace-pre-line animate-[fadeIn_0.5s_ease]">
+          <p key={llm ? 'llm' : 'template'} className="text-base text-slate-800 leading-[1.75] whitespace-pre-line animate-[fadeIn_0.5s_ease]">
             {llm ? llm.narrative : spine.evidence.narrative}
           </p>
 
@@ -377,42 +412,68 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
             </div>
           )}
 
-          {/* details kept below the main explanation */}
+          {/* details kept below the main explanation — P3.10 재설계: 도넛 + 소프트 바 차트 */}
           <details className="border-t border-slate-100 pt-3">
-            <summary className="text-xs font-semibold text-slate-400 cursor-pointer select-none">근거 자세히 보기</summary>
-            <div className="mt-3 space-y-3">
+            <summary className="text-sm font-bold text-slate-600 cursor-pointer select-none">근거 자세히 보기</summary>
+            <div className="mt-3 space-y-5">
+              {/* 판단 확실성 (본문에서 이동) — 도넛: 모인 근거 vs 실험이 채울 몫 */}
+              <div>
+                <p className="text-xs font-bold text-slate-500 mb-1">장기 방향 근거, 얼마나 모였나</p>
+                <ConfidenceDonut score={spine.evidence.confidenceScore} />
+                <p className="text-[11px] text-slate-500 leading-relaxed mt-1">{spine.evidence.confidenceNote}</p>
+                <p className="text-xs text-slate-600 mt-1.5">
+                  <span className="font-semibold text-slate-500 mr-1.5">실행 준비도</span>
+                  <span className="font-bold text-slate-700">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>
+                </p>
+              </div>
+
+              {/* 심리 신호 — 소프트 가로 바 (높음=라벤더 길게, 낮음=피치 짧게) */}
               {spine.evidence.constructSignals.length > 0 && (
-                <div className="space-y-2">
-                  {spine.evidence.constructSignals.map((s, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${s.level === 'high' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {s.humanLabel} {s.level === 'high' ? '↑' : '↓'}
-                      </span>
-                      <span className="text-sm text-slate-600 leading-relaxed">{s.note}</span>
-                    </div>
-                  ))}
+                <div>
+                  <p className="text-xs font-bold text-slate-500 mb-2">심리 신호</p>
+                  <div className="space-y-2.5">
+                    {spine.evidence.constructSignals.map((s, i) => (
+                      <div key={i}>
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-36 shrink-0 text-xs font-semibold text-slate-700">{s.humanLabel}</span>
+                          <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: s.level === 'high' ? '78%' : '32%', background: s.level === 'high' ? '#AFA9EC' : '#F5CDB3' }}
+                            />
+                          </div>
+                          <span className="w-8 shrink-0 text-right text-[11px] font-bold" style={{ color: s.level === 'high' ? '#4338ca' : '#b45309' }}>
+                            {s.level === 'high' ? '높음' : '낮음'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5 ml-[9.625rem]">{s.note}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+
+              {/* 확신을 움직인 것 — +/− 통합 리스트 */}
+              {(spine.evidence.confidenceDrivers.raised.length > 0 || spine.evidence.confidenceDrivers.lowered.length > 0) && (
                 <div>
-                  <p className="text-xs font-semibold text-emerald-600 mb-1">확신을 높인 것</p>
-                  {spine.evidence.confidenceDrivers.raised.length > 0
-                    ? <ul className="space-y-1">{spine.evidence.confidenceDrivers.raised.map((r, i) => <li key={i} className="text-xs text-slate-600">+ {r}</li>)}</ul>
-                    : <p className="text-xs text-slate-300">—</p>}
+                  <p className="text-xs font-bold text-slate-500 mb-1.5">확신을 움직인 것</p>
+                  <ul className="space-y-1">
+                    {spine.evidence.confidenceDrivers.raised.map((r, i) => (
+                      <li key={`r${i}`} className="text-xs text-slate-600 flex gap-1.5"><span className="font-black text-emerald-500">+</span>{r}</li>
+                    ))}
+                    {spine.evidence.confidenceDrivers.lowered.map((r, i) => (
+                      <li key={`l${i}`} className="text-xs text-slate-600 flex gap-1.5"><span className="font-black text-amber-500">−</span>{r}</li>
+                    ))}
+                  </ul>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-amber-600 mb-1">확신을 낮춘 것</p>
-                  {spine.evidence.confidenceDrivers.lowered.length > 0
-                    ? <ul className="space-y-1">{spine.evidence.confidenceDrivers.lowered.map((r, i) => <li key={i} className="text-xs text-slate-600">− {r}</li>)}</ul>
-                    : <p className="text-xs text-slate-300">—</p>}
-                </div>
-              </div>
+              )}
+
               {spine.evidence.contextualBarriers.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-400 mb-1.5">현실 장벽</p>
+                  <p className="text-xs font-bold text-slate-500 mb-1.5">현실 장벽</p>
                   <div className="flex flex-wrap gap-1.5">
                     {spine.evidence.contextualBarriers.map((b, i) => (
-                      <span key={i} className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full">{b}</span>
+                      <span key={i} className="text-xs font-medium text-amber-800 px-2.5 py-1 rounded-full" style={{ background: '#FBEEE3' }}>{b}</span>
                     ))}
                   </div>
                 </div>
