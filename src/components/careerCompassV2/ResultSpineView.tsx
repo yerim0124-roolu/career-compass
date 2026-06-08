@@ -5,23 +5,35 @@ import { MAIN_TYPE_NARRATIVES } from '../../data/mainTypeNarratives.ts';
 import { getExperimentJobHint } from '../../data/jobRoleExperimentHints.ts';
 import { CAREER_OPTION_LABELS } from '../../types/careerCompass.ts';
 
-// 파스텔 인포그래픽 토큰 (레퍼런스: 소프트 파스텔 대시보드)
-const PASTEL = {
-  lavender: { bg: '#EEEBFE', fg: '#4338ca' },
-  mint: { bg: '#E4F5EC', fg: '#047857' },
-  peach: { bg: '#FBEEE3', fg: '#b45309' },
+// 파스텔 인포그래픽 토큰 — 색에 '단일 의미'를 부여 (design-critique 권장 2).
+//   progress(라벤더) = 강점·진행 / caution(피치) = 주의·부족 / done(민트) = 완료·안전 / neutral(회색)
+const TONE = {
+  progress: { bg: '#EEEBFE', fg: '#4338ca', bar: '#AFA9EC' },
+  caution: { bg: '#FBEEE3', fg: '#b45309', bar: '#F5CDB3' },
+  done: { bg: '#E4F5EC', fg: '#047857', bar: '#7FD0A8' },
+  neutral: { bg: '#F1F5F9', fg: '#475569', bar: '#CBD5E1' },
 } as const;
 
-function StatCard({ tone, icon, label, value }: { tone: keyof typeof PASTEL; icon: string; label: string; value: string }) {
-  const t = PASTEL[tone];
+function StatCard({ tone, label, value }: { tone: keyof typeof TONE; label: string; value: string }) {
+  const t = TONE[tone];
   return (
-    <div className="rounded-3xl px-3 py-4 text-center" style={{ background: t.bg }}>
-      <div className="w-10 h-10 rounded-xl bg-white mx-auto mb-2 flex items-center justify-center text-lg" style={{ color: t.fg }} aria-hidden>
-        {icon}
-      </div>
-      <p className="text-[11px] font-semibold opacity-75" style={{ color: t.fg }}>{label}</p>
-      <p className="text-[15px] font-extrabold mt-0.5 leading-snug" style={{ color: t.fg }}>{value}</p>
+    <div className="rounded-2xl px-3.5 py-4" style={{ background: t.bg }}>
+      <p className="text-[11px] font-semibold opacity-80" style={{ color: t.fg }}>{label}</p>
+      <p className="text-[15px] font-extrabold mt-1 leading-snug" style={{ color: t.fg }}>{value}</p>
     </div>
+  );
+}
+
+// 단계 표시 (●●○) — high=3칸 채움(강점색), low=1칸(주의색). 가짜 % 대신 정직한 3단계.
+function SignalDots({ level }: { level: 'high' | 'low' }) {
+  const filled = level === 'high' ? 3 : 1;
+  const color = level === 'high' ? TONE.progress.bar : TONE.caution.bar;
+  return (
+    <span className="inline-flex gap-1" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="w-2 h-2 rounded-full" style={{ background: i < filled ? color : '#E2E8F0' }} />
+      ))}
+    </span>
   );
 }
 
@@ -31,6 +43,8 @@ function ConfidenceDonut({ score }: { score: number }) {
   const c = 2 * Math.PI * r;
   const filled = Math.max(Math.min(score, 100), 8);
   const expFill = Math.min(40, 100 - filled);
+  // 색 의미 통일: 모인 근거=progress(라벤더), 실험이 채울 몫=done(민트, '채워질' 안전),
+  // 남는 부분=neutral(회색). caution(피치)은 여기서 쓰지 않는다 — 부족/주의 전용이므로.
   const seg = (pct: number, offsetPct: number, color: string) => (
     <circle
       r={r} cx={60} cy={60} fill="none" stroke={color} strokeWidth={16}
@@ -42,9 +56,9 @@ function ConfidenceDonut({ score }: { score: number }) {
     <div className="flex gap-4 items-center py-1">
       <div className="relative w-[112px] h-[112px] shrink-0" role="img" aria-label={`장기 방향 근거가 ${score}% 모였어요`}>
         <svg viewBox="0 0 120 120" width="112" height="112">
-          {seg(100, 0, '#f1f5f9')}
-          {seg(filled, 0, '#AFA9EC')}
-          {seg(expFill, filled, '#F5CDB3')}
+          {seg(100, 0, TONE.neutral.bg)}
+          {seg(filled, 0, TONE.progress.bar)}
+          {seg(expFill, filled, TONE.done.bar)}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-[22px] font-black text-slate-800">{score}%</span>
@@ -52,9 +66,9 @@ function ConfidenceDonut({ score }: { score: number }) {
         </div>
       </div>
       <div className="text-[13px] text-slate-600 leading-relaxed space-y-0.5">
-        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5" style={{ background: '#AFA9EC' }} />지금까지 모인 근거</p>
-        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5" style={{ background: '#F5CDB3' }} />30일 실험이 채울 몫</p>
-        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5 border border-slate-200" style={{ background: '#f1f5f9' }} />장기 확정에 남는 부분</p>
+        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5 align-middle" style={{ background: TONE.progress.bar }} />지금까지 모인 근거 <b>{score}%</b></p>
+        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5 align-middle" style={{ background: TONE.done.bar }} />30일 실험이 채울 몫</p>
+        <p><span className="inline-block w-2.5 h-2.5 rounded mr-1.5 align-middle border border-slate-200" style={{ background: TONE.neutral.bg }} />장기 확정에 남는 부분</p>
       </div>
     </div>
   );
@@ -224,9 +238,10 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         const reevalShort = dateMatch ? `${Number(dateMatch[2])}월 ${Number(dateMatch[3])}일` : '30일 후';
         return (
           <div className="grid grid-cols-3 gap-3">
-            <StatCard tone="lavender" icon="◉" label="지금의 선택" value={spine.currentBestMove.label} />
-            <StatCard tone="mint" icon="⚑" label="이번 달 실험" value={CAREER_OPTION_LABELS[expKey] ?? spine.executionPlan.coreExperiment.label} />
-            <StatCard tone="peach" icon="◔" label="다시 보는 날" value={reevalShort} />
+            {/* 색 의미 통일: 결정난 선택=done(민트), 진행 중 실험=progress(라벤더), 날짜=neutral */}
+            <StatCard tone="done" label="지금의 선택" value={spine.currentBestMove.label} />
+            <StatCard tone="progress" label="이번 달 실험" value={CAREER_OPTION_LABELS[expKey] ?? spine.executionPlan.coreExperiment.label} />
+            <StatCard tone="neutral" label="다시 보는 날" value={reevalShort} />
           </div>
         );
       })()}
@@ -427,7 +442,8 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                 </p>
               </div>
 
-              {/* 심리 신호 — 소프트 가로 바 (높음=라벤더 길게, 낮음=피치 짧게) */}
+              {/* 심리 신호 — 정직한 3단계 점 표시(●●○). 엔진은 high/low 두 값만 주므로
+                  연속 막대(78%/32%)는 없는 정밀도를 지어내는 셈 → 단계 표시로 교체. */}
               {spine.evidence.constructSignals.length > 0 && (
                 <div>
                   <p className="text-xs font-bold text-slate-500 mb-2">심리 신호</p>
@@ -435,18 +451,13 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                     {spine.evidence.constructSignals.map((s, i) => (
                       <div key={i}>
                         <div className="flex items-center gap-2.5">
-                          <span className="w-36 shrink-0 text-xs font-semibold text-slate-700">{s.humanLabel}</span>
-                          <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: s.level === 'high' ? '78%' : '32%', background: s.level === 'high' ? '#AFA9EC' : '#F5CDB3' }}
-                            />
-                          </div>
-                          <span className="w-8 shrink-0 text-right text-[11px] font-bold" style={{ color: s.level === 'high' ? '#4338ca' : '#b45309' }}>
+                          <span className="flex-1 text-xs font-semibold text-slate-700">{s.humanLabel}</span>
+                          <SignalDots level={s.level === 'high' ? 'high' : 'low'} />
+                          <span className="w-8 shrink-0 text-right text-[11px] font-bold" style={{ color: s.level === 'high' ? TONE.progress.fg : TONE.caution.fg }}>
                             {s.level === 'high' ? '높음' : '낮음'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5 ml-[9.625rem]">{s.note}</p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{s.note}</p>
                       </div>
                     ))}
                   </div>
@@ -473,7 +484,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
                   <p className="text-xs font-bold text-slate-500 mb-1.5">현실 장벽</p>
                   <div className="flex flex-wrap gap-1.5">
                     {spine.evidence.contextualBarriers.map((b, i) => (
-                      <span key={i} className="text-xs font-medium text-amber-800 px-2.5 py-1 rounded-full" style={{ background: '#FBEEE3' }}>{b}</span>
+                      <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: TONE.caution.bg, color: TONE.caution.fg }}>{b}</span>
                     ))}
                   </div>
                 </div>
