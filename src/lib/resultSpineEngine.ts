@@ -436,6 +436,8 @@ export function buildResultSpine(
     // P1.2 — explicit-direction signals for the lowOpt classifier guards.
     preferredExperimentOptionKey: opts.preferredExperimentOptionKey,
     noOptionsExplicit: opts.noOptionsExplicit ?? false,
+    // emergingLeader classifier: the actual gated now-move drives the leadership headline.
+    bestMoveKey: bestKey,
   });
 
   const identityAxis = buildIdentityAxis(vector, archetypes, {

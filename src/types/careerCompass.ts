@@ -387,6 +387,7 @@ export type MainTypeKey =
   | 'unvalidatedAspirant' // 시장 미검증 도전형 — validate first
   | 'plateauedPerformer'  // 정체된 성실형 — asset conversion
   | 'restlessStabilizer'  // 안정 속 권태형 — low-risk redesign
+  | 'emergingLeader'      // 조직 리더 성장형 — grow leadership within the org
   | 'leverageReady';      // 전문성 레버리지형 — ready to act (default fallback)
 
 export const MAIN_TYPE_LABELS = {
@@ -398,6 +399,7 @@ export const MAIN_TYPE_LABELS = {
   unvalidatedAspirant: '시장 미검증 도전형',
   plateauedPerformer: '정체된 성실형',
   restlessStabilizer: '안정 속 권태형',
+  emergingLeader: '조직 리더 성장형',
   leverageReady: '전문성 레버리지형',
 } as const satisfies Record<MainTypeKey, string>;
 
@@ -441,7 +443,8 @@ export type SolutionModuleKey =
   | 'runwayStabilizer'    // 런웨이 안정화
   | 'confidenceBuilder'   // 작은 성공 쌓기
   | 'opportunityGeneration' // 선택지 발굴 — Planned Happenstance
-  | 'strengthsReflection';  // 강점 회고 — Strengths-based
+  | 'strengthsReflection'   // 강점 회고 — Strengths-based
+  | 'leadershipGrowth';     // 리더십 확장 — grow scope/influence within the org
 
 export interface SolutionWeekStep {
   week: string;    // e.g. "1주", "2-3주"

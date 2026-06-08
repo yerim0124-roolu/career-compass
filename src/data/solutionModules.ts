@@ -16,6 +16,7 @@ export const MAIN_TYPE_STRATEGY: Record<MainTypeKey, string> = {
   unvalidatedAspirant: '만들고 싶은 방향은 있지만, 시장 반응부터 확인할 때예요.',
   plateauedPerformer: '실력은 쌓였지만, 그걸 밖이 읽을 수 있는 자산으로 정리할 때예요.',
   restlessStabilizer: '지금 자리가 잘못된 게 아니라, 채워지지 않는 축을 작게 실험할 때예요.',
+  emergingLeader: '새 판을 벌일 때가 아니라, 지금 자리에서 리드하는 범위를 넓힐 때예요.',
   leverageReady: '지금은 더 분석할 때가 아니라, 작게 실행해 신호를 만들 때예요.',
 };
 
@@ -122,6 +123,21 @@ export const SOLUTION_MODULES: Record<SolutionModuleKey, SolutionModule> = {
     ],
     successSignals: ['재설계 1건이 실제로 적용됨', '업무 만족의 변화를 체감', '팀·상사와 합의 가능성 확인'],
     stopPivot: ['구조적으로 불가능하면 → 이직 준비로 전환'],
+  },
+  leadershipGrowth: {
+    key: 'leadershipGrowth',
+    title: '리더십 확장',
+    goal: '수입을 지키면서 지금 조직에서 맡는 범위·영향력을 한 단계 키우기',
+    why: '이미 주도력과 조직에 대한 신뢰가 쌓였어요. 가장 낮은 리스크로 성장하는 길은 새 판을 벌이는 게 아니라, 지금 자리에서 리드하는 범위를 넓히는 거예요.',
+    firstStep: '오늘, 지금 팀에서 \'내가 방향을 잡아보고 싶은\' 일 1개를 골라 적어보세요. 프로젝트든, 개선이든, 사람을 키우는 일이든.',
+    plan: [
+      { week: '1주', action: '주도해보고 싶은 일 1개를 정하고, 그 일의 현재 병목·기회를 정리합니다.' },
+      { week: '2주', action: '그 일의 방향안을 만들어 팀/상사에게 \'내가 끌어보겠다\'고 제안합니다.' },
+      { week: '3주', action: '작게 주도하며 팀의 반응·성과를 모읍니다.' },
+      { week: '4주', action: '리드·매니지먼트 역할 확대 가능성을 상사와 한 번 이야기해봅니다.' },
+    ],
+    successSignals: ['주도한 일에서 눈에 보이는 성과·신뢰가 생김', '팀이 내 방향 제안에 따라옴', '리드·매니지먼트 역할 확대 논의가 시작됨'],
+    stopPivot: ['조직에 확대 여지가 구조적으로 없으면 → 더 큰 역할이 가능한 곳으로 이직 준비'],
   },
   independentPilot: {
     key: 'independentPilot',

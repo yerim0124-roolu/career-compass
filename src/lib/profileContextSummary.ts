@@ -400,6 +400,7 @@ function frameCategoryFor(moduleKey: SolutionModuleKey): FrameCategory {
     case 'portfolioConvert':
     case 'roleRedesign':
     case 'confidenceBuilder':
+    case 'leadershipGrowth':
       return 'action';
   }
 }
@@ -422,6 +423,7 @@ const PRIORITY_BY_MODULE: Record<SolutionModuleKey, string> = {
   marketTest:            '이번 달에는 시장 반응을 작은 단위로 확인해보는 것이 우선입니다.',
   independentPilot:      '이번 달에는 독립 파일럿을 작게 돌려 수익·고객 가능성을 확인해보는 것이 우선입니다.',
   confidenceBuilder:     '이번 달에는 작은 성공을 한두 번 쌓아 다음 단계의 확신을 만드는 것이 우선입니다.',
+  leadershipGrowth:      '이번 달에는 새 자리를 찾기보다 지금 조직에서 주도하는 범위를 한 단계 넓혀보는 것이 우선입니다.',
 };
 
 // Action-urgent phrases in the composed tone. These get dropped under

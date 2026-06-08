@@ -317,7 +317,9 @@ for (const k of Object.keys(SCN) as (keyof typeof SCN)[]) {
 }
 {
   const stable = buildResultFromResponses(SCN.stable).executionPlan;
-  check('P1 stable (restlessStabilizer): jobCrafting ON', stable.activeLenses.jobCrafting === true);
+  // SCN.stable picks ar_leader + cs_stay + high stability → now classifies as emergingLeader
+  // (조직 리더 성장형), which still carries the jobCrafting lens (leadership growth = role crafting).
+  check('P1 stable (emergingLeader): jobCrafting ON', stable.activeLenses.jobCrafting === true);
   check('P1 stable: closingLine NOT optionGeneration', stable.closingLine !== CLOSING_OPT);
 }
 

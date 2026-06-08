@@ -62,6 +62,10 @@ export interface SolutionInputs {
   // "not present" so older callers (tests with crafted construct profiles) keep working.
   preferredExperimentOptionKey?: CareerOptionKey; // user's chosen 30-day experiment (ap_* → option)
   noOptionsExplicit?: boolean;                    // true iff the user picked rc_opt_few on rc_options
+  // The engine-selected now-move (post-gating + safety-bridge), not optionFits[0]. Used by the
+  // emergingLeader classifier so the headline solution matches the leadership recommendation.
+  // Optional so older test callers without it keep working (they fall through to construct types).
+  bestMoveKey?: CareerOptionKey;
 }
 
 // gate-level helpers
@@ -129,7 +133,8 @@ export function deriveActiveLenses(inp: DeriveActiveLensesInputs): ActiveLenses 
   const jobCrafting =
     inp.mainTypeKey === 'restlessStabilizer' ||
     inp.mainTypeKey === 'plateauedPerformer' ||
-    (energyForRedesign && v.stability >= 55 && inp.bestMoveKey === 'stayRedesign');
+    inp.mainTypeKey === 'emergingLeader' || // 리더십 확장도 현직 역할 재구성(Job Crafting)의 일종
+    (energyForRedesign && v.stability >= 55 && (inp.bestMoveKey === 'stayRedesign' || inp.bestMoveKey === 'orgLeadership'));
 
   return { essentialism, range, plannedHappenstance, jobCrafting };
 }
@@ -202,6 +207,17 @@ export function classifyMainType(inp: SolutionInputs): MainTypeKey {
     return 'overloadedBurnout';
   }
 
+  // P1.5 — emerging leader. When the recommended now-move is organizational leadership, the
+  // headline solution should be leadership growth, not a generic construct type. The fit engine
+  // already enforced the conjunctive leader signal (stability + executionDrive + leader identity,
+  // anti-autonomy) and the readiness gate, so orgLeadership surfacing as bestMove is a reliable,
+  // earned signal. Placed right after burnout (a burned-out leader still recovers first) and
+  // before the value-conflict / option-visibility types so a clear leader doesn't get a
+  // "선택 기준 정리" or "기회 탐색" headline that contradicts the leadership recommendation.
+  if (inp.bestMoveKey === 'orgLeadership') {
+    return 'emergingLeader';
+  }
+
   // P2 — reality-locked: a real desire to build/independent, blocked by runway/risk.
   const highDesire = topOption === 'startup' || topOption === 'independent' || v.ventureOrientation >= V_HIGH || v.autonomy >= V_HIGH;
   if ((runwayLow(g) || riskLow(g)) && c.scct.contextualBarrier >= C_HIGH && highDesire) {
@@ -264,9 +280,15 @@ export function classifyMainType(inp: SolutionInputs): MainTypeKey {
   // NOT a fork conflict even when valueConflict is high, so it must not capture the
   // high-valueConflict-alone branch (let it fall through to unvalidatedAspirant below).
   const convergedMakerPull = v.ventureOrientation >= V_HIGH;
+  // conflictedAtFork = decision *paralysis* (못 고르는 상태). 자기효능감과 결과기대가 둘 다
+  // 높은 사람은 마비가 아니라 확신이 있는 상태라, '의미 vs 돈' 류 반응으로 valueConflict가
+  // 높아져도 "선택 기준부터 정해" 솔루션이 어긋난다(방향이 또렷한 리더·안정형 전문가에게
+  // 갈림길 진단이 붙던 비일관성). 확신이 높으면 high-valueConflict-단독 분기를 막아, 이들이
+  // 자기 방향(리더십·전문성 자산화 등)으로 흐르게 한다. (진짜 갈등형은 sc_unsure → 확신 낮음.)
+  const decisionConfident = c.scct.selfEfficacy >= C_HIGH && c.scct.outcomeExpectation >= C_HIGH;
   if (
-    (c.difficulty.valueConflict >= C_HIGH && !convergedMakerPull) ||
-    (c.difficulty.valueConflict >= C_PRESENT && mcdaConflict)
+    (c.difficulty.valueConflict >= C_HIGH && !convergedMakerPull && !decisionConfident) ||
+    (c.difficulty.valueConflict >= C_PRESENT && mcdaConflict && !decisionConfident)
   ) {
     return 'conflictedAtFork';
   }
@@ -391,12 +413,13 @@ const TYPE_MODULES: Record<MainTypeKey, [SolutionModuleKey, SolutionModuleKey]> 
   unvalidatedAspirant: ['marketTest', 'contentEngine'],
   plateauedPerformer: ['portfolioConvert', 'contentEngine'],
   restlessStabilizer: ['roleRedesign', 'contentEngine'],
+  emergingLeader: ['leadershipGrowth', 'roleRedesign'],
   leverageReady: ['independentPilot', 'marketTest'],
 };
 
 // Action-oriented types where a confidence gap warrants a small-wins secondary.
 const ACTION_TYPES: ReadonlySet<MainTypeKey> = new Set<MainTypeKey>([
-  'leverageReady', 'restlessStabilizer', 'unvalidatedAspirant', 'scatteredExplorer',
+  'leverageReady', 'restlessStabilizer', 'emergingLeader', 'unvalidatedAspirant', 'scatteredExplorer',
 ]);
 
 export function selectSolutionModules(mainType: MainTypeKey, tags: SupportTagKey[]): SolutionModuleKey[] {
@@ -461,9 +484,9 @@ const EXPERIMENT_HOME_MODULE: Record<CareerOptionKey, SolutionModuleKey | null> 
   // user gets writing-aligned weekly steps (성과 추리기 → 케이스 정리 → 외부 공개)
   // instead of the interview-heavy marketTest fallback.
   investAnalysis: 'portfolioConvert',
-  // 조직 내 리더십 — 현직에서 역할을 키우는 길이라 roleRedesign(현직 재설계) 모듈로 흡수.
-  // 별도 모듈을 만들지 않고 진단된 모듈이 주도하되 주간 스텝은 역할 재설계 계열로 정렬된다.
-  orgLeadership: 'roleRedesign',
+  // 조직 내 리더십 — 전용 모듈(leadershipGrowth)로 매핑. emergingLeader 유형의 primaryModule과
+  // 일치해 헤드라인·주간 스텝이 모두 리더십 확장으로 정렬된다.
+  orgLeadership: 'leadershipGrowth',
 };
 
 const SAFETY_BRIDGE_KEYS: ReadonlySet<CareerOptionKey> = new Set<CareerOptionKey>(['stayRedesign', 'jobChange', 'restRecover']);
