@@ -267,41 +267,41 @@ export function classifyMainType(inp: SolutionInputs): MainTypeKey {
     return 'lowOptionVisibility';
   }
 
-  // P4 — conflicted at a fork: the user can't set decision criteria between paths.
-  // A *high* valueConflict (≥C_HIGH) is itself a direct, sufficient signal of a fork
-  // conflict ("기준이 안 선다" + "의미 vs 돈" 류 반응이 쌓인 상태). The MCDA tradeoff is a
-  // corroborator, not a hard gate: requiring it caused valueConflict=80 users whose
-  // money/impact priorities weren't ranked top to fall through to unvalidatedAspirant,
-  // skipping the "선택 기준 정리" solution they most need. So: high valueConflict alone,
-  // OR a moderate valueConflict backed by a real MCDA tradeoff → conflictedAtFork.
-  const mcdaConflict = c.mcda.financialSafety >= C_PRESENT && (c.mcda.impact >= C_PRESENT || c.mcda.autonomy >= C_PRESENT);
-  // A strong, converged venture pull (ventureOrientation ≥ V_HIGH) is the unvalidatedAspirant
-  // signature — they know WHAT they want to build, they just haven't validated it. That is
-  // NOT a fork conflict even when valueConflict is high, so it must not capture the
-  // high-valueConflict-alone branch (let it fall through to unvalidatedAspirant below).
-  const convergedMakerPull = v.ventureOrientation >= V_HIGH;
-  // conflictedAtFork = decision *paralysis* (못 고르는 상태). 자기효능감과 결과기대가 둘 다
-  // 높은 사람은 마비가 아니라 확신이 있는 상태라, '의미 vs 돈' 류 반응으로 valueConflict가
-  // 높아져도 "선택 기준부터 정해" 솔루션이 어긋난다(방향이 또렷한 리더·안정형 전문가에게
-  // 갈림길 진단이 붙던 비일관성). 확신이 높으면 high-valueConflict-단독 분기를 막아, 이들이
-  // 자기 방향(리더십·전문성 자산화 등)으로 흐르게 한다. (진짜 갈등형은 sc_unsure → 확신 낮음.)
+  // ── 결정-난도 3종 reorder (스펙 핵심). conflictedAtFork("선택 기준 정리")가 catch-all이 되던
+  // 문제는 *순서*에서 왔다: 갈림길이 탐색·미검증보다 먼저 검사돼, 방향 또렷한 미검증자·다중 관심자가
+  // 흔한 가치 충돌 반응만 있어도 갈림길로 빨려 들어갔다. 조건 자체는 (대체로) 유지하되 순서를
+  // directionNeedsValidation → scatteredExplorer → conflictedAtFork 로 바꿔, 앞 두 유형을 먼저
+  // 걸러낸 뒤 *남은* 가치 충돌자만 갈림길로 보낸다. (정밀 loss-aversion 신호는 Phase 2 문항 몫.)
   const decisionConfident = c.scct.selfEfficacy >= C_HIGH && c.scct.outcomeExpectation >= C_HIGH;
+
+  // (a) directionNeedsValidation (= unvalidatedAspirant): 만들고/내놓고 싶은 방향은 있으나 검증 부족.
+  // 단, 관심 후보가 *과잉*인 사람(cs_many·rc_opt_many)은 "방향 또렷"이 아니므로 제외 → 그들은
+  // 아래 scatteredExplorer로 간다. 이 가드가 '과잉 메이커'를 검증형이 가로채는 걸 막는다.
+  const makerPull = v.ventureOrientation >= V_HIGH || v.creativity >= 55 || v.marketOrientation >= V_HIGH;
+  if (makerPull && validationLow(g) && c.difficulty.marketInformationGap >= C_PRESENT && c.difficulty.optionOverload < C_HIGH) {
+    return 'unvalidatedAspirant';
+  }
+
+  // (b) scatteredExplorer: 관심 후보 *과잉* + 한 방향으로 못 좁힘.
+  //   • optionOverload 임계를 C_HIGH(66)→C_PRESENT(50)로 낮춤: cs_many는 valueConflict 등에
+  //     눌려 정규화 optionOverload가 ~50까지만 올라 C_HIGH엔 못 닿았다(통조림의 직접 원인).
+  //   • 단, cs_between(기준이 안 섬)도 정규화로 optionOverload가 ~50까지 오르므로 그것만으론 못
+  //     가른다. 진짜 separator는 *curiosity* — cs_many는 호기심을 올리고(+3→60) cs_between은 안
+  //     올린다. 그래서 curiosity≥60을 유지해 다중 관심(cs_many)만 잡고, 가치 충돌(cs_between)은
+  //     아래 conflicted로 보낸다.
+  if (c.difficulty.optionOverload >= C_PRESENT && c.adaptability.curiosity >= 60 && c.scct.goalClarity <= C_LOW) {
+    return 'scatteredExplorer';
+  }
+
+  // (c) conflictedAtFork: 가치 충돌이 높고 확신이 낮으며 수렴된 창업 정체성이 아닐 때. 위 두 유형을
+  // 먼저 통과시킨 덕에, 다중 관심·미검증 방향은 더 이상 여기로 새지 않는다(catch-all 해소).
+  const mcdaConflict = c.mcda.financialSafety >= C_PRESENT && (c.mcda.impact >= C_PRESENT || c.mcda.autonomy >= C_PRESENT);
+  const convergedMakerPull = v.ventureOrientation >= V_HIGH;
   if (
     (c.difficulty.valueConflict >= C_HIGH && !convergedMakerPull && !decisionConfident) ||
     (c.difficulty.valueConflict >= C_PRESENT && mcdaConflict && !decisionConfident)
   ) {
     return 'conflictedAtFork';
-  }
-
-  // P4 — scattered explorer: too many options + high curiosity + unclear goal.
-  if (c.difficulty.optionOverload >= C_HIGH && c.adaptability.curiosity >= 60 && c.scct.goalClarity <= C_LOW) {
-    return 'scatteredExplorer';
-  }
-
-  // P5 — unvalidated aspirant: venture/creative/market pull but no market signal yet.
-  const makerPull = v.ventureOrientation >= V_HIGH || v.creativity >= 55 || v.marketOrientation >= V_HIGH;
-  if (makerPull && validationLow(g) && c.difficulty.marketInformationGap >= C_PRESENT) {
-    return 'unvalidatedAspirant';
   }
 
   // P6 — plateaued performer: deep expertise + high self-efficacy, but low clarity / no option B.
