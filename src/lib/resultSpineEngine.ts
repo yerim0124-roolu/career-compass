@@ -380,6 +380,7 @@ export function buildResultSpine(
     profile?: UserProfile;
     userSelectedExperimentKey?: CareerOptionKey;
     topValueLabels?: string[]; // 표시 전용 pass-through — 솔루션 카드 개인화용 (엔진 미소비)
+    narrowingReason?: string;  // ar_narrow — 분류 타이브레이커 (buildSolutionLayer로 전달)
   } = {},
 ): ResultSpine {
   const archetypes = inferCareerArchetypes(vector);
@@ -439,6 +440,7 @@ export function buildResultSpine(
     noOptionsExplicit: opts.noOptionsExplicit ?? false,
     // emergingLeader classifier: the actual gated now-move drives the leadership headline.
     bestMoveKey: bestKey,
+    narrowingReason: opts.narrowingReason,
   });
 
   const identityAxis = buildIdentityAxis(vector, archetypes, {

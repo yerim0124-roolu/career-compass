@@ -48,6 +48,7 @@ const LICENSED_CATEGORIES = new Set([
 const QUESTION_CONTEXT: Record<string, string> = {
   cs_main: '현재 상태',
   ar_roles: '끌리는 역할',
+  ar_narrow: '하나로 좁히기 어려운 이유',
   cv_values: '중요하게 느낀 가치',
   cv_priorities: '우선순위 랭킹(1위부터)',
   fc_1: '양자택일', fc_2: '양자택일', fc_3: '양자택일', fc_4: '양자택일',

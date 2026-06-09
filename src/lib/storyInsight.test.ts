@@ -57,6 +57,12 @@ check('R10 blocker reframe fires (현실 조건)', !!r10 && r10.includes('런웨
 const r10x = buildStoryInsight({}, r({ cv_priorities: { ranking: ['pr_growth', 'pr_influence'] }, or_content: { selectedOptionIds: ['orc_energized'] }, or_venture: { selectedOptionIds: ['orv_energized'] }, or_internal: { selectedOptionIds: ['ori_energized'] }, sc_outlook: { selectedOptionIds: ['sc_both'] }, ap_experiment: { selectedOptionIds: ['ap_redesign'] }, cs_blocker: { selectedOptionIds: ['blk_unclear'] } }));
 check('R10 blk_unclear + clear pull → 책임 reframe', !!r10x && r10x.includes('책임'));
 
+// R-narrow — '하나로 못 좁히는 이유'(ar_narrow, Phase 2) 이유별 리프레임
+const nrEx = buildStoryInsight({}, r({ cv_priorities: { ranking: ['pr_growth', 'pr_meaning'] }, ar_narrow: { selectedOptionIds: ['nr_explore'] }, ap_experiment: { selectedOptionIds: ['ap_redesign'] } }));
+check('R-narrow nr_explore → 좁히기 reframe', !!nrEx && nrEx.includes('2~3개만'));
+const nrLoss = buildStoryInsight({}, r({ cv_priorities: { ranking: ['pr_growth', 'pr_meaning'] }, ar_narrow: { selectedOptionIds: ['nr_loss'] }, ap_experiment: { selectedOptionIds: ['ap_redesign'] } }));
+check('R-narrow nr_loss → 기준 reframe', !!nrLoss && nrLoss.includes('기준'));
+
 // 인사이트는 절대 고른 옵션 라벨을 그대로 나열하지 않는다(앵무새 금지) — 최소 길이·서술형 확인
 check('insight is a sentence, not a list', !!r2 && r2.length > 30 && r2.includes('.'));
 

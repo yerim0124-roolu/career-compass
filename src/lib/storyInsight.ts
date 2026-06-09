@@ -77,6 +77,22 @@ export function buildStoryInsight(profile: UserProfile, responses: InsightRespon
     if (TENSION_PAIRS[key]) return TENSION_PAIRS[key];
   }
 
+  // R-narrow — '하나로 못 좁히는 이유'(ar_narrow, Phase 2). 사용자가 직접 말한 병목을 *되돌려
+  // 말하지 않고* 리프레임한다. (nr_decided는 인사이트 생략 — 다른 규칙이나 정적 에세이로.)
+  const narrow = first(responses, 'ar_narrow');
+  switch (narrow) {
+    case 'nr_explore':
+      return '여러 개를 다 해보고 싶어 아직 가능성을 못 닫는 상태예요. 관심이 부족한 게 아니라 너무 넓게 열려 있는 것 — 그래서 이번 달은 ‘고르기’가 아니라 ‘실제로 확인할 2~3개만 남기기’예요.';
+    case 'nr_loss':
+      return '어느 쪽을 골라도 중요한 걸 하나 잃는 느낌 — 그래서 비교를 아무리 더 해도 답이 안 나와요. 필요한 건 더 비교가 아니라, 무엇을 먼저 지킬지 ‘기준’을 정하는 거예요.';
+    case 'nr_safety':
+      return '돈·안정이 쉽게 못 놓게 잡고 있어요. 방향이 틀려서가 아니라 안전판 문제라서, ‘얼마가 있으면 움직일 수 있는지’ 숫자부터 정하면 의외로 가벼워져요.';
+    case 'nr_continuity':
+      return '지금까지 쌓아온 경험과 연결돼 못 놓는 거예요. 그 경험은 버릴 게 아니라 다음 방향으로 *잇는* 자산 — 진짜 질문은 ‘무엇을 고를까’가 아니라 ‘어떻게 연결할까’예요.';
+    case 'nr_unsure':
+      return '한 방향은 보이는데 ‘실제로 될까’가 걸리는 상태예요. 더 고민해서 풀릴 문제가 아니라, 작게 한 번 내보내 반응을 받아봐야 풀려요.';
+  }
+
   // R6 — 자신감 비대칭 (SCCT: 자기효능 vs 결과기대). 어느 쪽이 병목인지 정확히 짚는다.
   const sc = first(responses, 'sc_outlook');
   if (sc === 'sc_self_only') {

@@ -66,6 +66,9 @@ export interface SolutionInputs {
   // emergingLeader classifier so the headline solution matches the leadership recommendation.
   // Optional so older test callers without it keep working (they fall through to construct types).
   bestMoveKey?: CareerOptionKey;
+  // Phase 2 — '하나로 못 좁히는 이유'(ar_narrow). 결정-난도 3종의 경계를 가르는 타이브레이커.
+  // nr_explore→scattered, nr_loss/safety/continuity→conflicted, nr_unsure→validation.
+  narrowingReason?: string;
 }
 
 // gate-level helpers
@@ -274,11 +277,19 @@ export function classifyMainType(inp: SolutionInputs): MainTypeKey {
   // 걸러낸 뒤 *남은* 가치 충돌자만 갈림길로 보낸다. (정밀 loss-aversion 신호는 Phase 2 문항 몫.)
   const decisionConfident = c.scct.selfEfficacy >= C_HIGH && c.scct.outcomeExpectation >= C_HIGH;
 
+  // Phase 2 — '하나로 못 좁히는 이유'(ar_narrow) 타이브레이커. 사용자가 *직접 말한* 병목이라
+  // 신뢰도가 높아, 임계 부근에서 세 유형의 경계를 가른다.
+  const nr = inp.narrowingReason;
+  const nrExplore = nr === 'nr_explore';                                  // 다 해보고 싶음 → scattered
+  const nrLossAversion = nr === 'nr_loss' || nr === 'nr_safety' || nr === 'nr_continuity'; // 포기 비용 → conflicted
+  const nrValidate = nr === 'nr_unsure';                                  // 될지 모름 → validation
+
   // (a) directionNeedsValidation (= unvalidatedAspirant): 만들고/내놓고 싶은 방향은 있으나 검증 부족.
   // 단, 관심 후보가 *과잉*인 사람(cs_many·rc_opt_many)은 "방향 또렷"이 아니므로 제외 → 그들은
   // 아래 scatteredExplorer로 간다. 이 가드가 '과잉 메이커'를 검증형이 가로채는 걸 막는다.
+  // (nr_unsure는 '한 방향은 보이는데 될지 모름' = 검증 신호라, marketGap이 약해도 보강.)
   const makerPull = v.ventureOrientation >= V_HIGH || v.creativity >= 55 || v.marketOrientation >= V_HIGH;
-  if (makerPull && validationLow(g) && c.difficulty.marketInformationGap >= C_PRESENT && c.difficulty.optionOverload < C_HIGH) {
+  if (makerPull && validationLow(g) && (c.difficulty.marketInformationGap >= C_PRESENT || nrValidate) && c.difficulty.optionOverload < C_HIGH && !nrExplore && !nrLossAversion) {
     return 'unvalidatedAspirant';
   }
 
@@ -289,7 +300,12 @@ export function classifyMainType(inp: SolutionInputs): MainTypeKey {
   //     가른다. 진짜 separator는 *curiosity* — cs_many는 호기심을 올리고(+3→60) cs_between은 안
   //     올린다. 그래서 curiosity≥60을 유지해 다중 관심(cs_many)만 잡고, 가치 충돌(cs_between)은
   //     아래 conflicted로 보낸다.
-  if (c.difficulty.optionOverload >= C_PRESENT && c.adaptability.curiosity >= 60 && c.scct.goalClarity <= C_LOW) {
+  // nrExplore('여러 개 다 해보고 싶음')는 명시적 탐색 신호라 curiosity 문턱을 면제해준다.
+  if (
+    (c.difficulty.optionOverload >= C_PRESENT && c.adaptability.curiosity >= 60 && c.scct.goalClarity <= C_LOW) ||
+    (nrExplore && c.difficulty.optionOverload >= C_PRESENT && c.scct.goalClarity <= C_LOW) ||
+    (nrExplore && !nrLossAversion && c.scct.goalClarity <= C_LOW && c.adaptability.curiosity >= 50)
+  ) {
     return 'scatteredExplorer';
   }
 
@@ -297,9 +313,12 @@ export function classifyMainType(inp: SolutionInputs): MainTypeKey {
   // 먼저 통과시킨 덕에, 다중 관심·미검증 방향은 더 이상 여기로 새지 않는다(catch-all 해소).
   const mcdaConflict = c.mcda.financialSafety >= C_PRESENT && (c.mcda.impact >= C_PRESENT || c.mcda.autonomy >= C_PRESENT);
   const convergedMakerPull = v.ventureOrientation >= V_HIGH;
+  // nrLossAversion('어느 쪽 골라도 잃음 / 돈·안정 / 경험 연결')은 스펙이 요구하는 포기 비용의
+  // *직접* 신호라, valueConflict가 보통(C_PRESENT)이어도 갈림길을 보강한다.
   if (
     (c.difficulty.valueConflict >= C_HIGH && !convergedMakerPull && !decisionConfident) ||
-    (c.difficulty.valueConflict >= C_PRESENT && mcdaConflict && !decisionConfident)
+    (c.difficulty.valueConflict >= C_PRESENT && mcdaConflict && !decisionConfident) ||
+    (c.difficulty.valueConflict >= C_PRESENT && nrLossAversion && !convergedMakerPull && !decisionConfident)
   ) {
     return 'conflictedAtFork';
   }

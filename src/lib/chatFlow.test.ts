@@ -439,13 +439,13 @@ check('REQUIRED 20: P1.7 burnout invariant — primaryModule = recoveryFirst',
   // pc_concernText 제거로 프로필 스텝 11→10 (LLM 연결 시 복원).
   check('Extra: script has 10 profile steps',
     script.filter((s) => s.phase === 'profile').length === 10);
-  check('Extra: script has 19 main steps (CAREER_QUESTION_FLOW minus ap_memo)',
-    script.filter((s) => s.phase === 'main').length === 19);
+  check('Extra: script has 20 main steps (CAREER_QUESTION_FLOW minus ap_memo)',
+    script.filter((s) => s.phase === 'main').length === 20);
   check('Extra: script has exactly 1 result_intro narration step',
     script.filter((s) => s.phase === 'result_intro').length === 1);
-  // 29 = 10 profile + 19 main (cs_blocker 추가, pc_concernText 제거).
+  // 30 = 10 profile + 20 main (cs_blocker·ar_narrow 추가, pc_concernText 제거).
   check('Extra: countAnswerSteps excludes result_intro from the count',
-    countAnswerSteps(script) === 29);
+    countAnswerSteps(script) === 30);
 }
 {
   // PersistedSession round-trip parity — chat saves under its own key but the

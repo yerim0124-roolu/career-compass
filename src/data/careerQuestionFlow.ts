@@ -45,9 +45,11 @@ const attractiveRoles: QuestionStep = {
   stage: 'attractive_roles',
   inputType: 'multi_select',
   title: '끌리는 역할',
-  assistantPrompt: '지금 끌리는 역할을 2~4개 골라주세요. 직함이 아니라 일하는 방식에 가깝게 보면 됩니다.',
-  minSelect: 2,
-  maxSelect: 4,
+  // P2 — '2~4개' 앵커링이 다중 관심을 유도하고(최대 4) 단일 집중형도 억지로 2번째를 고르게(최소 2)
+  // 만들어 breadth 신호를 왜곡했다. min1·max3 + '실제로 시간 써서 확인하고 싶은 것만'으로 낮게 앵커링.
+  assistantPrompt: '이번 달에 실제로 시간을 써서 알아보고 싶은 역할만 골라주세요. 가볍게 흥미로운 건 빼고요. 하나여도 괜찮아요. (직함이 아니라 일하는 방식에 가깝게)',
+  minSelect: 1,
+  maxSelect: 3,
   liveInsightTrigger: true,
   options: [
     { id: 'ar_expert', label: '전문가', description: '깊은 지식과 신뢰로 일하는 사람', tags: ['role'], scoreEffects: { expertise: 5, stability: 2, impactOrientation: 2 }, constructEffects: { scct: { selfEfficacy: 2 } } },
@@ -62,6 +64,28 @@ const attractiveRoles: QuestionStep = {
     { id: 'ar_helper', label: '협업·조력자', description: '사람들을 돕고 연결하는 사람', tags: ['role'], scoreEffects: { impactOrientation: 4, stability: 2, executionDrive: 1 }, constructEffects: { adaptability: { concern: 2, control: 1 } } },
     { id: 'ar_freelancer', label: '프리랜서', description: '내 방식대로 일을 꾸리는 사람', tags: ['role'], scoreEffects: { autonomy: 5, marketOrientation: 2, riskTolerance: 2 }, constructEffects: { adaptability: { control: 2, curiosity: 1 } } },
     { id: 'ar_reset', label: '재정비하는 사람', description: '잠시 멈추고 정비하는 시기', tags: ['role'], scoreEffects: { recoveryNeed: 4 }, constructEffects: { difficulty: { readinessGap: 2 } } },
+  ],
+};
+
+// ─── 좁히지 못하는 이유 (Phase 2, 스펙 6·7 병합) — 추론 전용 신호 (effect-free). 엔진의 벡터·
+// 게이트·construct는 이 답을 읽지 않는다(scoreEffects/constructEffects 비움). storyInsight가
+// '왜 못 좁히는지'를 짚는 데, 그리고 분류에서 scattered/conflicted/validation 경계를 가르는
+// 타이브레이커로만 쓴다. 자기 유형을 직접 고르게 하지 않고 *이유*로 간접 추론한다. ──
+const narrowingReason: QuestionStep = {
+  id: 'ar_narrow',
+  stage: 'attractive_roles',
+  inputType: 'single_select',
+  title: '좁히기 어려운 이유',
+  assistantPrompt: '여러 방향을 두고 고민 중이라면, 아직 하나로 좁히지 못하는 가장 큰 이유는 무엇에 가깝나요?',
+  minSelect: 1,
+  maxSelect: 1,
+  options: [
+    { id: 'nr_explore', label: '여러 개를 실제로 해보고 싶어서, 아직 가능성을 닫기 싫다', tags: ['narrow'], scoreEffects: {}, constructEffects: {} },
+    { id: 'nr_loss', label: '어느 쪽을 골라도 중요한 걸 하나 잃는 느낌이라', tags: ['narrow'], scoreEffects: {}, constructEffects: {} },
+    { id: 'nr_safety', label: '돈·안정 때문에 쉽게 못 버려서', tags: ['narrow'], scoreEffects: {}, constructEffects: {} },
+    { id: 'nr_continuity', label: '지금까지 쌓아온 경험과 연결돼 있어서', tags: ['narrow'], scoreEffects: {}, constructEffects: {} },
+    { id: 'nr_unsure', label: '한 방향은 보이는데, 실제로 될지 확신이 없어서', tags: ['narrow'], scoreEffects: {}, constructEffects: {} },
+    { id: 'nr_decided', label: '사실 거의 하나로 정해졌다', tags: ['narrow'], scoreEffects: {}, constructEffects: {} },
   ],
 };
 
@@ -367,6 +391,7 @@ const actionMemo: QuestionStep = {
 export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   currentState,
   attractiveRoles,
+  narrowingReason,
   coreValues,
   corePriorities,
   ...forcedChoices,

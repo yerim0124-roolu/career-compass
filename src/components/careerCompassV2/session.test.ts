@@ -15,7 +15,7 @@ const stepById = (id: string) => CAREER_QUESTION_FLOW.find((s) => s.id === id)!;
 
 // ─── isStepComplete validation ─────────────────────────────────────────────────
 check('single_select needs a selection', !isStepComplete(stepById('cs_main'), undefined) && isStepComplete(stepById('cs_main'), { selectedOptionIds: ['cs_between'] }));
-check('multi_select honors minSelect (2)', !isStepComplete(stepById('ar_roles'), { selectedOptionIds: ['ar_founder'] }) && isStepComplete(stepById('ar_roles'), { selectedOptionIds: ['ar_founder', 'ar_freelancer'] }));
+check('multi_select honors minSelect (ar_roles now 1)', !isStepComplete(stepById('ar_roles'), { selectedOptionIds: [] }) && isStepComplete(stepById('ar_roles'), { selectedOptionIds: ['ar_founder'] }));
 check('multi_select honors maxSelect (5)', !isStepComplete(stepById('cv_values'), { selectedOptionIds: ['cv_autonomy', 'cv_money', 'cv_problem', 'cv_bigmarket', 'cv_growth', 'cv_impact'] }));
 check('ranking honors minSelect (3)', !isStepComplete(stepById('cv_priorities'), { ranking: ['pr_money', 'pr_freedom'] }) && isStepComplete(stepById('cv_priorities'), { ranking: ['pr_money', 'pr_freedom', 'pr_growth'] }));
 check('optional_short_text is always complete (skippable)', isStepComplete(stepById('ap_memo'), undefined));
