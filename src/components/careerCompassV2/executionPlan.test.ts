@@ -32,11 +32,15 @@ const hasDup = (xs: string[]) => new Set(xs).size !== xs.length;
   check('recovery: no safety bridge (recovery is the move, not a bridge)', p.safetyBridge === undefined && p.directionToValidate === undefined);
 }
 
-// ─── stable-but-bored: redesign module + redesign experiment merge ───────────────
+// ─── stable leader (emergingLeader): leadership-growth module dominates the plan ──
+// P1.8 — this persona is ar_leader → emergingLeader. Even though the user picked the
+// ap_redesign experiment (stayRedesign home → roleRedesign), the weekly plan must stay on
+// the diagnosed leadershipGrowth module so it matches the "조직 내 리더십 확장" headline.
+// The chosen experiment is still preserved as the coreExperiment label/sourceOptionKey.
 {
   const p = ep('stable');
   check('stable: coreExperiment from chosen stayRedesign experiment', p.coreExperiment.sourceOptionKey === 'stayRedesign');
-  check('stable: weekly actions are the role-redesign module plan', p.weeklyActions[0].action.includes('불만') || p.weeklyActions[0].action.includes('지루함'));
+  check('stable (emergingLeader): weekly actions are the leadership-growth module plan (주도/끌어)', p.weeklyActions[0].action.includes('주도') || p.weeklyActions[0].action.includes('끌어'));
   check('stable: experiment + module collapse (no safety bridge)', p.safetyBridge === undefined);
   check('stable: no duplicated success signals', !hasDup(p.successSignals));
 }
@@ -97,8 +101,9 @@ const jobCount = (xs: string[]) => xs.filter((c) => /공고|면접|이직/.test(
 }
 {
   const st = ep('stable');
-  check('P1 stable: reeval focuses on role redesign', st.reevaluationChecklist.some((c) => /재설계|역할/.test(c)));
-  check('P1 stable: reeval includes satisfaction/feasibility', st.reevaluationChecklist.some((c) => /업무|만족|조정/.test(c)));
+  // P1.8 — emergingLeader: reeval tracks leadership traction, not generic role-redesign.
+  check('P1 stable (emergingLeader): reeval focuses on leadership scope (역할 확대/방향)', st.reevaluationChecklist.some((c) => /역할 확대|방향|주도/.test(c)));
+  check('P1 stable (emergingLeader): reeval includes leadership signal (성과·신뢰)', st.reevaluationChecklist.some((c) => /성과|신뢰/.test(c)));
 }
 {
   const ex = ep('expert');
@@ -177,14 +182,16 @@ check('reframe: expert(글/리포트) coreExperiment is general (not "시장 리
   check('profile/resume: now-move not forced to 이직 (stable context stays redesign)', pr.currentBestMove.optionKey !== 'jobChange');
 }
 
-// ─── or_internal regression + roleRedesign tight alignment ───────────────────────
+// ─── or_internal regression + emergingLeader leadership-growth alignment ─────────
 check('or_internal regression: all 5 SCN with ori_unsure remain stable (mainType + bestMove + sourceOptionKey present)',
   (Object.keys(SCN) as (keyof typeof SCN)[]).every((k) => {
     const sp = buildResultFromResponses(SCN[k]);
     return !!sp.solutionLayer.mainTypeKey && !!sp.currentBestMove.optionKey && !!sp.executionPlan.coreExperiment.sourceOptionKey;
   }));
 {
-  // stable + ori_energized + ap_redesign → role-redesign tight alignment (coreExperiment + module plan)
+  // P1.8 — stable leader (emergingLeader) + ori_energized + ap_redesign: the chosen
+  // experiment is preserved as the coreExperiment, but the weekly plan stays on the
+  // diagnosed leadershipGrowth module (not the experiment's roleRedesign home).
   const stableEnergized: FlowResponses = {
     ...SCN.stable,
     or_internal: { selectedOptionIds: ['ori_energized'] },
@@ -193,8 +200,8 @@ check('or_internal regression: all 5 SCN with ori_unsure remain stable (mainType
   const sp = buildResultFromResponses(stableEnergized);
   check('stable + ori_energized + ap_redesign → coreExperiment uses internal-proposal general label',
     sp.executionPlan.coreExperiment.label === '지금 자리에서 역할·방식을 바꿀 내부 제안서 한 건 만들기');
-  check('stable + ori_energized + ap_redesign → weeklyActions[0] is the role-redesign module step (불만/지루함)',
-    /불만|지루함/.test(sp.executionPlan.weeklyActions[0].action));
+  check('stable + ori_energized + ap_redesign (emergingLeader) → weeklyActions[0] is the leadership-growth module step (주도/끌어)',
+    /주도|끌어/.test(sp.executionPlan.weeklyActions[0].action));
   check('stable + ori_energized + ap_redesign → sourceOptionKey routes via stayRedesign',
     sp.executionPlan.coreExperiment.sourceOptionKey === 'stayRedesign');
 }
@@ -233,7 +240,7 @@ const lowOptionResponses: FlowResponses = {
   check('rc_options reachability: opportunityGeneration is the primary module',
     sp.solutionLayer.primaryModule.key === 'opportunityGeneration');
   check('rc_options reachability: closingLine uses option-generation framing (not "narrow down")',
-    sp.executionPlan.closingLine.includes('후보가 2개만 생겨도') && !sp.executionPlan.closingLine.includes('여기까지면'));
+    sp.executionPlan.closingLine.includes('두 개만 생겨도') && !sp.executionPlan.closingLine.includes('여기까지면'));
   check('rc_options reachability: Hope-Theory mainTypeContextNote present',
     !!sp.executionPlan.mainTypeContextNote && sp.executionPlan.mainTypeContextNote.includes('능력이나 의지가 부족하다는 뜻이 아닙니다'));
 }
@@ -274,11 +281,11 @@ const apUnsureVentureResponses: FlowResponses = { ...SCN.venture, ap_experiment:
 
 // ─── P1: activeLenses + closing-line + supportTag context resolution (full flow) ───
 // Closing line variants are mutually exclusive per result.
-const CLOSING_OPT = '이번 달은 결론을 내리지 않아도 됩니다. 해볼 만한 후보가 2개만 생겨도 충분합니다.';
-const CLOSING_ESS = '이번 달은 더 늘리기보다, 중요한 후보를 2~3개로 정리하는 것만으로 충분합니다.';
-const CLOSING_ACT = '이번 달은 완성보다, 작은 실험으로 한 줄의 신호를 남기면 충분합니다.';
+const CLOSING_OPT = '지금 답을 내지 않아도 괜찮아요. 해보고 싶은 길이 두 개만 생겨도, 이번 달은 충분히 의미 있어요.';
+const CLOSING_ESS = '다 붙잡으려 애쓰지 않아도 괜찮아요. 이번 달은 마음이 가는 두세 개만 곁에 남겨도, 충분히 잘 가고 있는 거예요.';
+const CLOSING_ACT = '완벽하지 않아도 괜찮아요. 이번 달은 작게 한 번 부딪혀 신호 한 줄만 남겨도, 그걸로 충분합니다.';
 // P1.5 — burnout/recovery variant added.
-const CLOSING_REC = '이번 달은 새 판을 벌이지 않고, 에너지·생활 리듬부터 돌려놓으면 충분합니다.';
+const CLOSING_REC = '지금은 잠시 멈춰도 괜찮아요. 새 일을 벌이기보다 흐트러진 리듬을 되찾는 것만으로, 이번 달은 충분합니다.';
 const isOneOf3 = (s: string) => s === CLOSING_OPT || s === CLOSING_ESS || s === CLOSING_ACT || s === CLOSING_REC;
 
 for (const k of Object.keys(SCN) as (keyof typeof SCN)[]) {
@@ -442,7 +449,7 @@ const P12_A1_lowOpt: FlowResponses = {
   check('P1.2 A1 (true no-options + ap_unsure): remains lowOptionVisibility',
     sp.solutionLayer.mainTypeKey === 'lowOptionVisibility');
   check('P1.2 A1: closing is optionGeneration variant',
-    sp.executionPlan.closingLine.includes('결론을 내리지 않아도'));
+    sp.executionPlan.closingLine.includes('답을 내지 않아도'));
 }
 
 // B4 internal growth: ori_energized + ap_redesign + stable base → must NOT be lowOpt.
@@ -743,21 +750,21 @@ const P14_A6: FlowResponses = {
 {
   const sp = buildResultFromResponses(P14_A6);
   check('P1.4 Fix3 A6 (unvalidated venture): closing is actionType (validation > subtraction)',
-    sp.executionPlan.closingLine.includes('작은 실험으로 한 줄의 신호') &&
-    !sp.executionPlan.closingLine.includes('더 늘리기보다'));
+    sp.executionPlan.closingLine.includes('신호 한 줄만') &&
+    !sp.executionPlan.closingLine.includes('붙잡으려'));
 }
 {
   const sp = buildResultFromResponses(SCN.creator);
   check('P1.4 Fix3 creator (unvalidated): closing is actionType, not essentialist',
-    sp.executionPlan.closingLine.includes('작은 실험으로 한 줄의 신호') &&
-    !sp.executionPlan.closingLine.includes('더 늘리기보다'));
+    sp.executionPlan.closingLine.includes('신호 한 줄만') &&
+    !sp.executionPlan.closingLine.includes('붙잡으려'));
 }
 
 // Regression: scatteredExplorer (A2) should KEEP essentialist closing (essentialism IS its strategy)
 {
   const sp = buildResultFromResponses(P14_A2);
   check('P1.4 regression A2 (scattered): essentialist closing preserved (subtraction IS the strategy)',
-    sp.executionPlan.closingLine.includes('2~3개로 정리'));
+    sp.executionPlan.closingLine.includes('두세 개만 곁에'));
 }
 
 // Regression: lowOpt (A1) keeps optionGeneration closing
@@ -773,7 +780,7 @@ const P14_A1: FlowResponses = {
 {
   const sp = buildResultFromResponses(P14_A1);
   check('P1.4 regression A1 (lowOpt): closing stays optionGeneration',
-    sp.executionPlan.closingLine.includes('결론을 내리지 않아도'));
+    sp.executionPlan.closingLine.includes('답을 내지 않아도'));
   check('P1.4 regression A1: lowOpt-specific hardcoded reeval preserved',
     sp.executionPlan.reevaluationChecklist.some((c) => c.includes('해볼 만한 후보가 2개 이상')));
 }

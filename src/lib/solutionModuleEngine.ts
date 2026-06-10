@@ -146,14 +146,14 @@ export function deriveActiveLenses(inp: DeriveActiveLensesInputs): ActiveLenses 
 // Replaces the previously mainType-keyed MAIN_TYPE_CLOSING_LINE map. Variant pick
 // order: plannedHappenstance → essentialist → actionType (default).
 export const CLOSING_LINES = {
-  essentialist: '이번 달은 더 늘리기보다, 중요한 후보를 2~3개로 정리하는 것만으로 충분합니다.',
-  actionType: '이번 달은 완성보다, 작은 실험으로 한 줄의 신호를 남기면 충분합니다.',
-  optionGeneration: '이번 달은 결론을 내리지 않아도 됩니다. 해볼 만한 후보가 2개만 생겨도 충분합니다.',
+  essentialist: '다 붙잡으려 애쓰지 않아도 괜찮아요. 이번 달은 마음이 가는 두세 개만 곁에 남겨도, 충분히 잘 가고 있는 거예요.',
+  actionType: '완벽하지 않아도 괜찮아요. 이번 달은 작게 한 번 부딪혀 신호 한 줄만 남겨도, 그걸로 충분합니다.',
+  optionGeneration: '지금 답을 내지 않아도 괜찮아요. 해보고 싶은 길이 두 개만 생겨도, 이번 달은 충분히 의미 있어요.',
   // P1.5 — recovery variant. Used whenever the user's binding constraint is energy:
   // mainTypeKey === 'overloadedBurnout' OR planModule === 'recoveryFirst'. Takes priority
   // over essentialism lens (an option-overloaded burnt-out user gets the recovery closing,
   // not the "정리" closing).
-  recovery: '이번 달은 새 판을 벌이지 않고, 에너지·생활 리듬부터 돌려놓으면 충분합니다.',
+  recovery: '지금은 잠시 멈춰도 괜찮아요. 새 일을 벌이기보다 흐트러진 리듬을 되찾는 것만으로, 이번 달은 충분합니다.',
 } as const;
 
 // P1.4 — when the user is on a validation-strategy mainType (unvalidatedAspirant),
@@ -686,11 +686,25 @@ export function buildExecutionPlan(inp: ExecutionPlanInputs): ExecutionPlan {
   // said "no visible options" → forcing the type's primary (opportunityGeneration) prevents
   // a bestMove fallback (e.g. ap_unsure → stayRedesign → roleRedesign) from hijacking the
   // weekly plan with an irrelevant module.
+  //
   const DECISION_DIFFICULTY_TYPES: ReadonlySet<MainTypeKey> = new Set<MainTypeKey>([
     'scatteredExplorer', 'conflictedAtFork', 'lowOptionVisibility',
   ]);
+  // P1.8 — emergingLeader is ALSO a STRONG-HEADLINE type whose primary must dominate the
+  // weekly plan. The diagnosis ("조직 내 리더십 확장") is an earned, conjunctive signal and
+  // the page-2 narrative promises a leadership month, so the plan must stay on
+  // leadershipGrowth regardless of which experiment the user happened to pick. Without this,
+  // the experiment's home module hijacked the plan and contradicted the headline — e.g. a
+  // leader who picked ap_profile (jobChange → runwayStabilizer) got a 런웨이/수입/지출 plan,
+  // and ap_redesign (stayRedesign → roleRedesign) got a generic 역할 재설계 plan. (roleRedesign
+  // stays available as the diagnosed secondary module, so the job-crafting angle still
+  // surfaces — just not as the primary weekly plan.) Kept separate from
+  // DECISION_DIFFICULTY_TYPES because the strategy-statement preservation below (P1.4) is
+  // specific to the decision-difficulty self-narrative and shouldn't absorb the leader type.
+  const planModulePrimaryDominates =
+    DECISION_DIFFICULTY_TYPES.has(sl.mainTypeKey) || sl.mainTypeKey === 'emergingLeader';
   const planModuleKey: SolutionModuleKey =
-    DECISION_DIFFICULTY_TYPES.has(sl.mainTypeKey)
+    planModulePrimaryDominates
       ? primaryModule.key
       : home
         ? home
