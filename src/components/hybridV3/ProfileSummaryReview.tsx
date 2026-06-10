@@ -66,33 +66,31 @@ export default function ProfileSummaryReview({
     <main className="w-full max-w-2xl mx-auto px-4 pt-5 pb-10">
       {/* Header — light, conversational tone */}
       <div className="mb-4">
-        <p className="text-[11px] font-semibold tracking-widest text-slate-400 uppercase">
+        <p className="text-[11px] font-semibold tracking-widest uppercase" style={{ color: '#9488B8' }}>
           입력한 정보
         </p>
-        <h1 className="mt-1 text-xl font-bold text-slate-900 leading-snug">
+        <h1 className="mt-1 text-xl font-bold leading-snug" style={{ color: '#3F3F46' }}>
           이대로 진행할까요?
         </h1>
-        <p className="mt-1 text-sm text-slate-500 leading-relaxed">
+        <p className="mt-1 text-sm leading-relaxed" style={{ color: '#8C7EB4' }}>
           본 질문으로 넘어가기 전에, 답해주신 내용을 한 번 확인해주세요. 고치고 싶은 항목이 있으면 옆의 "수정"을 눌러주세요.
         </p>
       </div>
 
-      {/* Review rows */}
-      <section className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
+      {/* Review rows — 결과지 손그림 카드(cc-sketch-q)와 동일한 디자인 언어 */}
+      <section className="cc-sketch-q bg-white overflow-hidden">
         {rows.map(({ step, idx }) => {
           const answer = renderAnswerFor(step, profile);
           const isSkipped = answer === '건너뜀';
           return (
-            <div key={step.id} className="flex items-start gap-3 px-4 py-3">
+            <div key={step.id} className="flex items-start gap-3 px-4 py-3" style={idx > 0 ? { borderTop: '1px solid rgba(120,100,160,0.14)' } : undefined}>
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-slate-400">
+                <p className="text-[11px] font-semibold" style={{ color: '#9488B8' }}>
                   {FIELD_TITLE[step.targetField] ?? step.targetField}
                 </p>
                 <p
-                  className={[
-                    'mt-0.5 text-[15px] leading-snug break-words',
-                    isSkipped ? 'text-slate-400 italic' : 'text-slate-900',
-                  ].join(' ')}
+                  className={['mt-0.5 text-[15px] leading-snug break-words', isSkipped ? 'italic' : ''].join(' ')}
+                  style={{ color: isSkipped ? '#A8A2BC' : '#3F3F46' }}
                 >
                   {answer}
                 </p>
@@ -100,7 +98,8 @@ export default function ProfileSummaryReview({
               <button
                 type="button"
                 onClick={() => onEditStep(idx)}
-                className="shrink-0 text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                className="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg transition-colors hover:bg-[#F3EEFC]"
+                style={{ color: '#8C6FD6' }}
               >
                 수정
               </button>
@@ -114,14 +113,16 @@ export default function ProfileSummaryReview({
         <button
           type="button"
           onClick={onConfirm}
-          className="w-full py-3.5 rounded-2xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors shadow-[0_1px_0_rgba(15,23,42,0.02)]"
+          className="w-full py-3.5 rounded-2xl text-white font-bold transition-colors hover:bg-[#7C5FCC]"
+          style={{ background: '#8C6FD6', boxShadow: '0 2px 8px rgba(140,111,214,0.25)' }}
         >
           이대로 진행하기
         </button>
         <button
           type="button"
           onClick={onRestartProfile}
-          className="w-full py-3 rounded-2xl border border-slate-200 bg-white text-sm text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
+          className="w-full py-3 rounded-2xl bg-white text-sm transition-colors hover:bg-[#FAF7FF]"
+          style={{ border: '1.5px solid rgba(120,100,160,0.25)', color: '#8C7EB4' }}
         >
           처음부터 다시 입력하기
         </button>
