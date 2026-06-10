@@ -27,7 +27,7 @@ const roles = (...ids: string[]) => ids.map((id) => o('ar_roles', id));
 const values = (...ids: string[]) => ids.map((id) => o('cv_values', id));
 const rank = (...ids: string[]) => ids.map((id) => o('cv_priorities', id));
 
-const P: Persona[] = [
+export const P: Persona[] = [
   {
     name: '1. 번아웃 수의사 (현직 불만·소진)',
     expect: '회복/현직 재설계 우선. 자문·강의 곧장 추천이면 안 됨',
@@ -268,7 +268,7 @@ const P: Persona[] = [
   },
 ];
 
-function run(p: Persona) {
+export function run(p: Persona) {
   let v = applyMultipleChoiceEffects(createEmptyCareerVector(), p.cards);
   v = applyRankingEffects(v, p.ranked);
   const vector = normalizeCareerVector(v);

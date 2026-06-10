@@ -9,11 +9,14 @@
   }
   body {
     margin: 0;
+    /* 깔끔한 고딕 본문 — 전체 Pretendard. 손그림 느낌은 얇은 테두리 + 물결 밑줄 + 일러스트로만. */
     font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #f8fafc;
-    color: #18181b;
+    background-color: #FFFFFF;
+    color: #3F3F46;
+    font-size: 15px;
+    line-height: 1.7;
     letter-spacing: -0.011em;
   }
   #root {
@@ -75,3 +78,74 @@
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   손그림(sketch) 무드 테마 — 결과지 전체를 따뜻한 크림 배경 + 손그림 테두리 카드 +
+   파스텔 + 두들 무드로. 마무리 카드(ClosingQuoteCard)의 손그림 톤을 결과지 전반으로 확장.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* 페이지 바탕 — 흰색 */
+.cc-page { background-color: #FFFFFF; }
+
+/* 손그림 테두리 — border-image 9-slice. 거의 반듯하고 살짝만 떨리는 선(곡률 최소).
+   선 회색 #7a7a7a, 얇게(약 1.5px). 모서리 고정, 변만 늘어남. */
+.cc-sketch {
+  background-color: #FFFFFF;
+  border: 13px solid transparent;
+  border-image-source: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300' fill='none' preserveAspectRatio='none'%3E%3Cpath d='M28,10 C120,8 280,12 372,10 C384,11 390,18 391,30 C393,110 392,190 391,270 C390,283 384,290 372,290 C280,292 120,288 28,290 C16,291 10,284 9,272 C7,190 8,110 9,30 C10,18 16,9 28,10 Z' stroke='%23464150' stroke-opacity='0.42' stroke-width='3.0' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  border-image-slice: 30 fill;
+  border-image-width: 13px;
+  border-image-repeat: stretch;
+  border-radius: 18px;
+  /* 회색 그림자 대신 옅은 컬러 그림자 — 무겁지 않고 산뜻하게 */
+  box-shadow: 0 2px 8px rgba(180, 150, 220, 0.15);
+}
+
+/* 딱딱함 제거 — 카드마다 아주 살짝 비뚤게, 방향 교차 */
+.cc-tl { transform: rotate(-0.25deg); }
+.cc-tr { transform: rotate(0.25deg); }
+
+/* 문항(테스트) 화면용 손그림 테두리 — 결과지보다 얇고 연한 보라-회색 선. 배경은 컴포넌트가 지정. */
+.cc-sketch-q {
+  border: 9px solid transparent;
+  border-image-source: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300' fill='none' preserveAspectRatio='none'%3E%3Cpath d='M28,10 C120,8 280,12 372,10 C384,11 390,18 391,30 C393,110 392,190 391,270 C390,283 384,290 372,290 C280,292 120,288 28,290 C16,291 10,284 9,272 C7,190 8,110 9,30 C10,18 16,9 28,10 Z' stroke='%237a6fa0' stroke-opacity='0.5' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  border-image-slice: 30 fill;
+  border-image-width: 9px;
+  border-image-repeat: stretch;
+  border-radius: 16px;
+}
+
+/* ── 모바일 밀도 축소 — 모바일 페이저(.cc-mobile) 안에서만 적용(데스크톱 인스턴스엔 영향 없음).
+   줄간격·카드 패딩·테두리·장식을 줄여 독해 피로를 낮춘다. ── */
+/* ── 모바일 compact reading mode — 위계: 페이지 제목 > 카드 소제목 > 본문 ──
+   본문은 '카드 안 p/li'에만 14px로 고정(작은 글자를 키우지 않게 .cc-sketch 스코프).
+   카드는 넓게(좁히면 줄바꿈이 늘어 더 커 보임). */
+.cc-mobile h2 { font-size: 20px !important; line-height: 1.25; font-weight: 700; }            /* 페이지 제목 */
+.cc-mobile .cc-sketch .cc-cardtitle { font-size: 16px !important; line-height: 1.35; }        /* 카드 소제목 */
+.cc-mobile .cc-sketch .cc-minilabel { font-size: 11.5px !important; }                         /* 작은 라벨(muted) */
+.cc-mobile .cc-sketch p { font-size: 14px !important; line-height: 1.55; }                     /* 카드 본문 */
+.cc-mobile .cc-sketch li { font-size: 14px !important; line-height: 1.5; }
+.cc-mobile .space-y-6 > * + * { margin-top: 16px !important; }                       /* 카드 내부 섹션 간격 ↓ */
+.cc-mobile section.space-y-3 > * + * { margin-top: 20px !important; }                /* 큰 제목(밑줄) → 카드 간격 */
+.cc-mobile .cc-closing-gap { margin-top: 40px !important; }                          /* 요약 카드 묶음 → 마무리 일러스트 여백 */
+.cc-mobile .cc-sketch {
+  border-width: 7px;
+  border-image-width: 7px;
+  border-image-source: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300' fill='none' preserveAspectRatio='none'%3E%3Cpath d='M28,10 C120,8 280,12 372,10 C384,11 390,18 391,30 C393,110 392,190 391,270 C390,283 384,290 372,290 C280,292 120,288 28,290 C16,291 10,284 9,272 C7,190 8,110 9,30 C10,18 16,9 28,10 Z' stroke='%23464150' stroke-opacity='0.26' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  padding: 14px 15px;
+  border-radius: 16px;
+  box-shadow: none;
+}
+.cc-mobile .deco-opt { display: none; }
+.cc-mobile .cc-wave { width: 60px !important; }                              /* 잔물결 밑줄 더 짧게 */
+.cc-mobile .pt-5 { padding-top: 0.7rem; }                                    /* divider 여백 ↓ */
+.cc-mobile .deco-vase { width: 30px !important; opacity: 0.55; }
+
+/* focus 링 — 기본 파란 브라우저 아웃라인 대신 디자인 시스템 보라 링. 키보드 포커스에만 노출. */
+button:focus-visible, summary:focus-visible, [role="button"]:focus-visible, a:focus-visible {
+  outline: 2px solid #8B6EDC;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+button:focus:not(:focus-visible), summary:focus:not(:focus-visible) { outline: none; }
+summary { outline: none; }

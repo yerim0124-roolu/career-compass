@@ -18,14 +18,12 @@ export default function ForcedChoiceCard({ options, selectedId, onSelect }: Prop
             onClick={() => onSelect(o.id)}
             aria-pressed={selected}
             className={[
-              'rounded-2xl border p-5 text-left transition-all duration-150 min-h-[112px] flex flex-col gap-2',
-              selected
-                ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
-                : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50',
+              'cc-sketch-q p-4 text-left transition-colors duration-150 min-h-[112px] flex flex-col gap-2',
+              selected ? 'bg-[#EFEAFB]' : 'bg-white hover:bg-[#FAF7FF]',
             ].join(' ')}
           >
-            <span className={`text-xs font-bold ${selected ? 'text-indigo-600' : 'text-slate-400'}`}>{i === 0 ? 'A' : 'B'}</span>
-            <span className={`font-semibold text-[15px] leading-snug ${selected ? 'text-indigo-700' : 'text-slate-800'}`}>{o.label}</span>
+            <span className="text-xs font-bold" style={{ color: selected ? '#8C6FD6' : '#A8A2BC' }}>{i === 0 ? 'A' : 'B'}</span>
+            <span className="font-semibold text-[15px] leading-snug" style={{ color: selected ? '#5B3FB2' : '#3F3F46' }}>{o.label}</span>
           </button>
         );
       })}

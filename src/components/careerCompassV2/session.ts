@@ -3,8 +3,9 @@
 
 import type { QuestionStep, ChoiceOption, CareerOptionKey, CareerVector, ConstructProfile, ResultSpine, MeasuredSignals, UserProfile } from '../../types/careerCompass.ts';
 import { CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CARD, assembleGatesFromSelections, assembleConstructProfile } from '../../data/careerQuestionFlow.ts';
-import { createEmptyCareerVector, applyMultipleChoiceEffects, applyRankingEffects, normalizeCareerVector } from '../../lib/careerVectorEngine.ts';
+import { createEmptyCareerVector, applyMultipleChoiceEffects, applyRankingEffects, normalizeCareerVector, rankCareerOptions } from '../../lib/careerVectorEngine.ts';
 import { buildResultSpine } from '../../lib/resultSpineEngine.ts';
+import { buildResultContext } from '../../lib/resultContextEngine.ts';
 import { normalizeJobRole } from '../../lib/jobRoleNormalizer.ts';
 import { buildProfileContextSummary, personalizeNarrativeOpening } from '../../lib/profileContextSummary.ts';
 import { buildNarrativePayload } from '../../lib/narrativePayload.ts';
@@ -302,11 +303,12 @@ export function buildResultFromResponses(
   const profile = normalizeProfile(opts?.profile ?? {});
   const vector = buildPartialVector(responses);
   const gates = assembleGatesFromSelections(collectSelectedCards(responses));
+  const construct = buildConstructProfile(responses);
   const userSelectedExperimentKey = getPreferredExperiment(responses);
   const spine = buildResultSpine(vector, gates, {
     preferredExperimentOptionKey: userSelectedExperimentKey,
     preferredExperimentLabel: getPreferredExperimentLabel(responses),
-    constructProfile: buildConstructProfile(responses),
+    constructProfile: construct,
     inputCompleteness: computeInputCompleteness(responses),
     measured: computeMeasuredSignals(responses),
     noOptionsExplicit: computeNoOptionsExplicit(responses),
@@ -343,7 +345,24 @@ export function buildResultFromResponses(
   const seeded = storyInsight
     ? { ...decorated, narrativeSeed, storyInsight }
     : { ...decorated, narrativeSeed };
-  return profileContext ? { ...seeded, profileContext } : seeded;
+  const withProfileCtx = profileContext ? { ...seeded, profileContext } : seeded;
+  // v2 — subtype 기반 결과지 4섹션. ADDITIVE: 엔진/라우팅과 무관, 이미 산출된 spine 신호로만 조립.
+  // narrowingReason은 분류 타이브레이커로도 쓰이지만, 여기선 결과지 서사 개인화 입력일 뿐.
+  const resultContext = buildResultContext({
+    mainType: withProfileCtx.solutionLayer.mainTypeKey,
+    vector,
+    gates,
+    construct,
+    optionFits: rankCareerOptions(vector),
+    narrowingReason: responses.ar_narrow?.selectedOptionIds?.[0],
+    selectedRoleCount: responses.ar_roles?.selectedOptionIds?.length ?? 0,
+    cvValueCount: responses.cv_values?.selectedOptionIds?.length ?? 0,
+    scOutlook: responses.sc_outlook?.selectedOptionIds?.[0],
+    csBlocker: responses.cs_blocker?.selectedOptionIds?.[0],
+    pullDirectionKey: withProfileCtx.strategicDirection?.optionKey ?? withProfileCtx.currentBestMove.optionKey,
+    pullConfident: withProfileCtx.resultMode === 'direct_now' || !!withProfileCtx.strategicDirection,
+  });
+  return { ...withProfileCtx, resultContext };
 }
 
 // P2.0 — thin SessionState adapter. Equivalent to

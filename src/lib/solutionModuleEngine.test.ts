@@ -196,7 +196,7 @@ check('lowOptionVisibility: label = 기회 탐색 부족형', noOptions.solution
 check('lowOptionVisibility: primary = Opportunity Generation', noOptions.solutionLayer.primaryModule.key === 'opportunityGeneration');
 check('lowOptionVisibility: secondary = Strengths Reflection', noOptions.solutionLayer.secondaryModule?.key === 'strengthsReflection');
 check('lowOptionVisibility: closingLine uses option-generation wording (not narrow-down)',
-  noOptions.executionPlan.closingLine.includes('결론을 내리지 않아도') && noOptions.executionPlan.closingLine.includes('2개만 생겨도 충분'));
+  noOptions.executionPlan.closingLine.includes('답을 내지 않아도') && noOptions.executionPlan.closingLine.includes('두 개만 생겨도'));
 check('lowOptionVisibility: Hope-Theory context note present (pathways not deficiency)',
   !!noOptions.executionPlan.mainTypeContextNote && noOptions.executionPlan.mainTypeContextNote.includes('경로가 충분히 만들어지지 않은 상태'));
 check('lowOptionVisibility: reeval is module-aligned (후보·감각 변화)',
@@ -224,9 +224,9 @@ check('regression: depleted-energy + low goal clarity still maps to overloadedBu
 // P1: non-lowOptionVisibility scenarios use the actionType OR essentialist closing,
 // never the optionGeneration variant; no Hope-Theory context note either way.
 check('non-low-option: S1 closing is NOT optionGeneration + no context note',
-  !s1.executionPlan.closingLine.includes('결론을 내리지 않아도') && s1.executionPlan.mainTypeContextNote === undefined);
+  !s1.executionPlan.closingLine.includes('답을 내지 않아도') && s1.executionPlan.mainTypeContextNote === undefined);
 check('non-low-option: S5 (stable) closing is NOT optionGeneration + no context note',
-  !s5.executionPlan.closingLine.includes('결론을 내리지 않아도') && s5.executionPlan.mainTypeContextNote === undefined);
+  !s5.executionPlan.closingLine.includes('답을 내지 않아도') && s5.executionPlan.mainTypeContextNote === undefined);
 
 // ─── P1: ActiveLenses activation ──────────────────────────────────────────────
 // S1 plateaued (single-axis expertise=75, second axis impact=65 → range may toggle
@@ -242,7 +242,7 @@ check('P1 S3 (scattered): plannedHappenstance OFF (has options)', s3.executionPl
 check('P1 S3 (scattered): supportTagLabels resolve marketInsightGap → "외부 정보 보강 필요"',
   s3.executionPlan.supportTagLabels.includes('외부 정보 보강 필요') && !s3.executionPlan.supportTagLabels.includes('시장 반응 확인 필요'));
 check('P1 S3 (scattered): closingLine is essentialist variant',
-  s3.executionPlan.closingLine.includes('더 늘리기보다') && s3.executionPlan.closingLine.includes('2~3개로 정리'));
+  s3.executionPlan.closingLine.includes('붙잡으려') && s3.executionPlan.closingLine.includes('두세 개만 곁에'));
 
 // S4 creator (creativity=75, impact=60) — two top identity axes close + both ≥50 → range ON.
 check('P1 S4 (creator): range ON (creativity + impact both ≥50, close)', s4.executionPlan.activeLenses.range === true);
@@ -265,13 +265,13 @@ check('P1 burnout: supportTagLabels never include "시장 반응 확인 필요"'
 // ─── P1: Closing-line variants ────────────────────────────────────────────────
 // S3 scatteredExplorer → essentialist closing
 check('P1 closing variant: scattered (overload) → essentialist',
-  s3.executionPlan.closingLine === '이번 달은 더 늘리기보다, 중요한 후보를 2~3개로 정리하는 것만으로 충분합니다.');
+  s3.executionPlan.closingLine === '다 붙잡으려 애쓰지 않아도 괜찮아요. 이번 달은 마음이 가는 두세 개만 곁에 남겨도, 충분히 잘 가고 있는 거예요.');
 // S1 plateaued (no overload, has identity pull, no lowOpt) → actionType closing
 check('P1 closing variant: plateaued → actionType',
-  s1.executionPlan.closingLine === '이번 달은 완성보다, 작은 실험으로 한 줄의 신호를 남기면 충분합니다.');
+  s1.executionPlan.closingLine === '완벽하지 않아도 괜찮아요. 이번 달은 작게 한 번 부딪혀 신호 한 줄만 남겨도, 그걸로 충분합니다.');
 // noOptions (lowOptionVisibility) → optionGeneration closing (already asserted earlier; here we restate)
 check('P1 closing variant: lowOptionVisibility → optionGeneration',
-  noOptions.executionPlan.closingLine === '이번 달은 결론을 내리지 않아도 됩니다. 해볼 만한 후보가 2개만 생겨도 충분합니다.');
+  noOptions.executionPlan.closingLine === '지금 답을 내지 않아도 괜찮아요. 해보고 싶은 길이 두 개만 생겨도, 이번 달은 충분히 의미 있어요.');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

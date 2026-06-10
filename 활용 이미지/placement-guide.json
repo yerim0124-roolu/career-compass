@@ -1,0 +1,37 @@
+{
+  "cloud-dotted.png": {
+    "left": "6.2%",
+    "top": "8.7%",
+    "width": "10.8%"
+  },
+  "cloud-blue.png": {
+    "left": "3.9%",
+    "top": "39.6%",
+    "width": "9.5%"
+  },
+  "heart-coral.png": {
+    "left": "6.9%",
+    "top": "70.5%",
+    "width": "10.5%"
+  },
+  "star-yellow.png": {
+    "right": "4.6%",
+    "top": "11.1%",
+    "width": "9.0%"
+  },
+  "star-purple.png": {
+    "right": "1.5%",
+    "top": "30.9%",
+    "width": "6.2%"
+  },
+  "sparkle.png": {
+    "left": "19.0%",
+    "top": "14.8%",
+    "width": "3.6%"
+  },
+  "swirl.png": {
+    "right": "2.3%",
+    "bottom": "13.5%",
+    "width": "20.1%"
+  }
+}

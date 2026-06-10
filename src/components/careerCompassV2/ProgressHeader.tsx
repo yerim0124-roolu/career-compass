@@ -19,10 +19,10 @@ export default function ProgressHeader({ current, total, stageLabel, canBack, on
         >
           <span aria-hidden>←</span> 이전
         </button>
-        <span className="text-xs font-medium text-slate-400">{stageLabel} · {current}/{total}</span>
+        <span className="text-xs font-medium" style={{ color: '#8C7EB4' }}>{stageLabel} · {current}/{total}</span>
       </div>
-      <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-        <div className="h-full bg-indigo-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+      <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: '#ECE6FB' }}>
+        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #A98FE0, #8C6FD6)' }} />
       </div>
     </div>
   );

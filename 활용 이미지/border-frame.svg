@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none" preserveAspectRatio="none">
+  <!--
+    손그림 느낌 둥근 사각 테두리.
+    살짝 떨리는 라인을 path로 표현. stroke 색/두께는 CSS나 attribute로 조절.
+    CSS border-image로 쓸 때는 border-image-slice로 모서리 고정.
+  -->
+  <path
+    d="M30,12
+       C90,7 150,9 200,8
+       C260,7 320,9 370,13
+       C384,14 392,22 393,38
+       C396,90 395,150 393,210
+       C392,250 391,270 388,282
+       C386,292 378,294 360,294
+       C300,297 240,295 200,296
+       C150,297 90,295 40,293
+       C22,292 10,288 8,272
+       C5,220 6,150 8,90
+       C9,50 10,28 13,20
+       C15,13 20,12 30,12 Z"
+    stroke="#3a3a3a"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    vector-effect="non-scaling-stroke"
+  />
+</svg>

@@ -31,11 +31,11 @@ export default function ChatChoiceButton({
   if (variant === 'ghost') {
     cls = 'border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:border-slate-300';
   } else if (variant === 'cta') {
-    cls = 'border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700';
+    cls = 'border-[#8C6FD6] bg-[#8C6FD6] text-white hover:bg-[#7C5FCC]';
   } else if (selected) {
-    cls = 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-200';
+    cls = 'border-[#C7B6E6] bg-[#EFEAFB] text-[#5B3FB2]';
   } else {
-    cls = 'border-slate-200 bg-white text-slate-800 hover:border-indigo-300 hover:bg-slate-50';
+    cls = 'border-[rgba(120,100,160,0.25)] bg-white text-[#3F3F46] hover:border-[#C7B6E6] hover:bg-[#FAF7FF]';
   }
 
   return (
@@ -57,7 +57,7 @@ export default function ChatChoiceButton({
             className={[
               'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
               selected || variant === 'cta'
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-[#8C6FD6] text-white'
                 : 'bg-slate-200 text-slate-700',
             ].join(' ')}
             aria-hidden

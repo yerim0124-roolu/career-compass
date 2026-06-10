@@ -253,15 +253,18 @@ check('REQUIRED I: HybridFlowView imports V2 ResultSpineView',
 // ResultSpineView (which the hybrid renders verbatim).
 // ═══════════════════════════════════════════════════════════════════════════════
 {
+  // v3 결과지 개편 — 섹션 통합으로 일부 필드는 더 이상 별도 카드로 렌더하지 않는다:
+  //   · coreExperiment.label → '이번 주 한 수'는 맞춤 분석(resultContext.narrative.weeklyMove)에만 노출(중복 제거)
+  //   · successSignals / stopOrPivotCriteria → '30일 후 다시 볼 질문' 체크리스트 + 안전장치 한 줄로 통합
+  // 엔진은 여전히 이 데이터를 생성한다(REQUIRED K가 비어있지 않음을 보장). 여기선 '렌더되는 섹션'만 확인.
   const sections = [
     { name: 'identityStatement',     pattern: /spine\.identityAxis\.statement/ },
     { name: 'profileContext.headline + body + tags', pattern: /spine\.profileContext\.headline[\s\S]{0,400}spine\.profileContext\.body[\s\S]{0,400}spine\.profileContext\.tags/ },
     { name: 'strategyStatement',     pattern: /ep\.strategyStatement/ },
-    { name: 'coreExperimentLabel',   pattern: /ep\.coreExperiment\.label/ },
     { name: 'weeklyActions',         pattern: /ep\.weeklyActions\.map/ },
-    { name: 'successSignals',        pattern: /ep\.successSignals\.map/ },
-    { name: 'stopOrPivotCriteria',   pattern: /ep\.stopOrPivotCriteria\.map/ },
     { name: 'reevaluationChecklist', pattern: /ep\.reevaluationChecklist\.map/ },
+    // 맞춤 분석(메인 진단)의 '이번 주 한 수' — resultContext 서사
+    { name: 'resultContext.weeklyMove', pattern: /rc\.narrative\.weeklyMove/ },
     // P3.9 — closingLine moved to the page end (peak-end), accessed via the full
     // spine path there; either accessor satisfies the "closingLine renders" contract.
     { name: 'closingLine',           pattern: /(?:ep|spine\.executionPlan)\.closingLine/ },

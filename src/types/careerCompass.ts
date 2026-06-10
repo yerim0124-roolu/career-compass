@@ -709,6 +709,49 @@ export interface ProfileContextSummary {
   tags?: string[];
 }
 
+// ─── v2 개인화 레이어 (ResultContext) ────────────────────────────────────────
+// resultContextEngine가 산출하는 결과지 4섹션 + 메타. ADDITIVE 메타데이터로
+// ResultSpine.resultContext에 부착된다. 엔진(분류·라우팅)은 이 필드를 읽지 않는다.
+export type ReadinessLevel =
+  | 'pause'
+  | 'reflect_only'
+  | 'tiny_test'
+  | 'structured_test'
+  | 'commitment_test';
+
+export type FrictionSource =
+  | 'income_uncertainty'
+  | 'career_capital_loss'
+  | 'identity_loss'
+  | 'too_many_live_options'
+  | 'low_market_signal'
+  | 'low_energy'
+  | 'time_constraint'
+  | 'tradeoff_pain';
+
+// 결과지 1·2·3섹션(지금 고민의 핵심 / 이번 달 접근 / 이번 주 한 수).
+export interface AssembledNarrative {
+  core: string;
+  monthlyApproach: string;
+  weeklyMove: string;
+  isBlended: boolean;
+}
+
+export interface ResultContext {
+  mainType: string;
+  primarySubtype: string;
+  secondarySubtype: string;
+  subtypeConfidence: number;              // raw: primaryScore − secondaryScore
+  subtypeScores: Record<string, number>;  // 디버깅·튜닝용
+  pullDirection: string;                   // CareerOptionKey
+  showPullDirection: boolean;
+  primaryFriction: FrictionSource;
+  secondaryFriction: FrictionSource;
+  readinessLevel: ReadinessLevel;
+  narrative: AssembledNarrative;
+  signals: string[];                       // 4섹션: 이렇게 판단한 이유
+}
+
 export interface ResultSpine {
   identityAxis: IdentityAxis;
   resultMode: ResultMode;
@@ -769,6 +812,10 @@ export interface ResultSpine {
   // from spine + profile + responses). ADDITIVE metadata, same contract as
   // profileContext: engines never read it; routing fingerprints exclude it.
   narrativeSeed?: NarrativePayload;
+  // ─── v2 ────────────────────────────────────────────────────────────────────
+  // 개인화 레이어(resultContextEngine) 산출 — subtype 기반 결과지 4섹션 + 신호.
+  // ADDITIVE 메타데이터: 엔진은 읽지 않고, 라우팅 핑거프린트에서 제외된다.
+  resultContext?: ResultContext;
 }
 
 // ─── ADR-001 — LLM narrative layer payload ────────────────────────────────────

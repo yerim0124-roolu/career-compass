@@ -263,8 +263,8 @@ export default function HybridFlowView() {
   const Header = (
     <header className="border-b border-slate-200 bg-white/95 backdrop-blur sticky top-0 z-10">
       <div className="max-w-2xl mx-auto px-4 h-12 flex items-center justify-between gap-3">
-        <span className="flex items-center gap-1.5 font-black text-indigo-700 text-sm">
-          <span aria-hidden>🧭</span> Career Compass <span className="text-slate-300 font-bold">hybrid</span>
+        <span className="flex items-center gap-1.5 font-black text-sm" style={{ color: '#5E5280' }}>
+          <span aria-hidden>🧭</span> Career Compass <span className="font-bold" style={{ color: '#C7BBDE' }}>hybrid</span>
         </span>
         <div className="flex items-center gap-3">
           <button
@@ -289,7 +289,7 @@ export default function HybridFlowView() {
   // ─── Phase render ────────────────────────────────────────────────────────
   if (phase === 'result' && spine) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-white">
         {Header}
         {/* Back-to-answers: backFlow's `done` branch re-opens the last main
             step so a single answer can be fixed without a full restart.
@@ -310,7 +310,7 @@ export default function HybridFlowView() {
 
   if (phase === 'profileReview') {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-white">
         {Header}
         <ProfileSummaryReview
           profile={profile}
@@ -329,7 +329,7 @@ export default function HybridFlowView() {
     // behavior is identical to #v2 because the underlying data + builder
     // are the same; only the surrounding chrome differs.
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-white">
         {Header}
         <div className="max-w-5xl mx-auto px-4 py-6 lg:grid lg:grid-cols-3 lg:gap-8">
           <main className="lg:col-span-2 space-y-5 pb-28 lg:pb-6">
@@ -353,7 +353,8 @@ export default function HybridFlowView() {
                 type="button"
                 onClick={advanceFlow}
                 disabled={!flowComplete}
-                className="px-6 py-3 rounded-2xl bg-indigo-600 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors"
+                className="px-6 py-3 rounded-2xl text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                style={{ background: '#8C6FD6', boxShadow: '0 2px 8px rgba(140,111,214,0.28)' }}
               >
                 {isLastFlowStep ? '결과 보기' : '다음'} <span aria-hidden>→</span>
               </button>
@@ -362,10 +363,10 @@ export default function HybridFlowView() {
 
           {/* Desktop right column: lightweight progress + early archetypes. */}
           <aside className="hidden lg:block">
-            <div className="sticky top-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="sticky top-6 space-y-4 cc-sketch-q p-5 bg-white">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">진행 현황</p>
               <div>
-                <p className="text-2xl font-black text-indigo-600">{stepIndex + 1}<span className="text-base text-slate-300"> / {CAREER_QUESTION_FLOW.length}</span></p>
+                <p className="text-2xl font-black" style={{ color: '#8C6FD6' }}>{stepIndex + 1}<span className="text-base text-slate-300"> / {CAREER_QUESTION_FLOW.length}</span></p>
                 <p className="text-xs text-slate-500 mt-0.5">선택 {selectedCount}개 반영 중</p>
               </div>
               <div>
@@ -373,7 +374,7 @@ export default function HybridFlowView() {
                 {partialArchetypes.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {partialArchetypes.map((a) => (
-                      <span key={a.key} className="text-xs font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full">{ARCHETYPE_LABELS[a.key]}</span>
+                      <span key={a.key} className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ color: '#5B3FB2', background: '#EFEAFB' }}>{ARCHETYPE_LABELS[a.key]}</span>
                     ))}
                   </div>
                 ) : (
@@ -393,7 +394,8 @@ export default function HybridFlowView() {
             type="button"
             onClick={advanceFlow}
             disabled={!flowComplete}
-            className="flex-1 py-3.5 rounded-2xl bg-indigo-600 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 py-3.5 rounded-2xl text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#8C6FD6', boxShadow: '0 2px 8px rgba(140,111,214,0.28)' }}
           >
             {isLastFlowStep ? '결과 보기' : '다음'} <span aria-hidden>→</span>
           </button>
@@ -404,13 +406,13 @@ export default function HybridFlowView() {
 
   // phase === 'profile' — chat-style onboarding with back-nav + per-step edit.
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       {Header}
       {/* Subtle progress bar for the profile onboarding section. */}
       <div className="h-0.5 w-full bg-slate-100">
         <div
-          className="h-0.5 bg-indigo-500 transition-[width] duration-300"
-          style={{ width: `${Math.min(100, Math.round(((profileCursor + 1) / ONBOARDING_TOTAL) * 100))}%` }}
+          className="h-0.5 transition-[width] duration-300"
+          style={{ width: `${Math.min(100, Math.round(((profileCursor + 1) / ONBOARDING_TOTAL) * 100))}%`, background: '#8C6FD6' }}
         />
       </div>
 

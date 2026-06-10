@@ -37,8 +37,8 @@ export default function ChatMessage({ variant, children, eyebrow }: ChatMessageP
           className={[
             'whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-[15px] leading-relaxed shadow-[0_1px_0_rgba(15,23,42,0.02)]',
             isBot
-              ? 'bg-slate-100 text-slate-900 rounded-tl-md'
-              : 'bg-indigo-600 text-white rounded-tr-md',
+              ? 'bg-[#F4F0FB] text-[#3F3F46] rounded-tl-md'
+              : 'bg-[#8C6FD6] text-white rounded-tr-md',
           ].join(' ')}
         >
           {children}
