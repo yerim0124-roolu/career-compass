@@ -154,6 +154,10 @@ export const CLOSING_LINES = {
   // over essentialism lens (an option-overloaded burnt-out user gets the recovery closing,
   // not the "정리" closing).
   recovery: '지금은 잠시 멈춰도 괜찮아요. 새 일을 벌이기보다 흐트러진 리듬을 되찾는 것만으로, 이번 달은 충분합니다.',
+  // P1.8 — leadership variant. emergingLeader's binding move is EXPANDING influence, so the
+  // essentialist "두세 개만 남겨라"(subtract) closing contradicts the recommendation. This
+  // variant keeps the warm cadence but frames a small act of leading as enough.
+  leadership: '처음부터 큰 자리가 아니어도 괜찮아요. 이번 달은 작은 일 하나를 내가 끌어보는 것만으로, 충분히 잘 가고 있는 거예요.',
 } as const;
 
 // P1.4 — when the user is on a validation-strategy mainType (unvalidatedAspirant),
@@ -173,6 +177,9 @@ export function resolveClosingLine(
   planModuleKey?: SolutionModuleKey,
 ): string {
   if (mainTypeKey === 'overloadedBurnout' || planModuleKey === 'recoveryFirst') return CLOSING_LINES.recovery;
+  // P1.8 — emergingLeader expands influence; never give the essentialist "subtract" closing.
+  // (Burnout still wins above — a burnt-out leader recovers first.)
+  if (mainTypeKey === 'emergingLeader') return CLOSING_LINES.leadership;
   if (lenses.plannedHappenstance) return CLOSING_LINES.optionGeneration;
   if (mainTypeKey === 'unvalidatedAspirant') return CLOSING_LINES.actionType;
   if (lenses.essentialism) return CLOSING_LINES.essentialist;

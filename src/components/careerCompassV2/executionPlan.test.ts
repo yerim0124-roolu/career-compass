@@ -286,7 +286,9 @@ const CLOSING_ESS = '다 붙잡으려 애쓰지 않아도 괜찮아요. 이번 �
 const CLOSING_ACT = '완벽하지 않아도 괜찮아요. 이번 달은 작게 한 번 부딪혀 신호 한 줄만 남겨도, 그걸로 충분합니다.';
 // P1.5 — burnout/recovery variant added.
 const CLOSING_REC = '지금은 잠시 멈춰도 괜찮아요. 새 일을 벌이기보다 흐트러진 리듬을 되찾는 것만으로, 이번 달은 충분합니다.';
-const isOneOf3 = (s: string) => s === CLOSING_OPT || s === CLOSING_ESS || s === CLOSING_ACT || s === CLOSING_REC;
+// P1.8 — leadership variant (emergingLeader).
+const CLOSING_LEAD = '처음부터 큰 자리가 아니어도 괜찮아요. 이번 달은 작은 일 하나를 내가 끌어보는 것만으로, 충분히 잘 가고 있는 거예요.';
+const isOneOf3 = (s: string) => s === CLOSING_OPT || s === CLOSING_ESS || s === CLOSING_ACT || s === CLOSING_REC || s === CLOSING_LEAD;
 
 for (const k of Object.keys(SCN) as (keyof typeof SCN)[]) {
   const sp = buildResultFromResponses(SCN[k]);
