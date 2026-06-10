@@ -466,6 +466,47 @@ function composeLeadershipS2(profile: UserProfile): string {
   return `내부 조정과 영향 범위 확장을 중심으로, ${cadence}${subjectParticle(cadence)} 자연스럽습니다.`;
 }
 
+// P3.6 — short module-neutral cadence adverb derived from the user's transition
+// intent/timing. Used by the frame-coherent S2 templates below so the cadence is
+// personalized without ever naming a specific solution module.
+function profileCadence(profile: UserProfile): string {
+  if (profile.transitionTiming === 'after_6_months' || profile.transitionIntent === 'must_stay')
+    return '지금 자리를 지키며 차근히';
+  if (profile.transitionIntent === 'ready_to_switch' || profile.transitionTiming === 'now')
+    return '바로 작게';
+  if (profile.transitionIntent === 'curious')
+    return '가볍게';
+  return '차근히'; // preparing / within_1_3 / within_3_6 / unknown
+}
+
+// P3.6 — module-coherent S2 for recommendations where the generic workMode theme
+// ('내부 조정과 역할 재설계') + timing tone ('자산화·탐색') would name a DIFFERENT module
+// than the recommendation and read as a contradiction. Resolved per module DIRECTION
+// (not just frame — 'planning' is split because opportunityGeneration EXPANDS options
+// while valueTradeoffMapping/strengthsReflection CLARIFY them, opposite directions):
+//   • recovery  (runwayStabilizer; recoveryFirst is owned by the burnout composer)
+//   • expand    (opportunityGeneration) — widen options, never '정리/좁히기'
+//   • clarify   (valueTradeoffMapping / strengthsReflection)
+//   • outward   (marketTest / independentPilot / contentEngine) — points OUTSIDE the
+//     current org, so the '내부 조정' framing is dropped.
+// Each variant intentionally avoids restating the module's PRIORITY sentence (S3),
+// so S2+S3 don't repeat the same clause.
+const OUTWARD_ACTION_MODULES: ReadonlySet<SolutionModuleKey> = new Set<SolutionModuleKey>([
+  'marketTest', 'independentPilot', 'contentEngine',
+]);
+function composeFrameCoherentS2(profile: UserProfile, moduleKey: SolutionModuleKey, frame: FrameCategory): string | undefined {
+  const cad = profileCadence(profile);
+  if (frame === 'recovery')
+    return `큰 결정을 서두르기보다, ${cad} 현실 조건부터 안정화하는 흐름이 자연스럽습니다.`;
+  if (moduleKey === 'opportunityGeneration')
+    return `선택지를 좁히기보다, ${cad} 가능한 길을 더 넓혀보는 흐름이 자연스럽습니다.`;
+  if (moduleKey === 'valueTradeoffMapping' || moduleKey === 'strengthsReflection')
+    return `당장 답을 내기보다, ${cad} 나에게 맞는 방향을 또렷이 하는 흐름이 자연스럽습니다.`;
+  if (OUTWARD_ACTION_MODULES.has(moduleKey))
+    return `지금 가진 강점을 ${cad} 바깥에서 작게 시험해보는 흐름이 자연스럽습니다.`;
+  return undefined; // stay/build action modules keep the generic theme+tone path
+}
+
 function composeNonBurnoutBody(profile: UserProfile, result: ResultSpine): string {
   const moduleKey = result.solutionLayer.primaryModule.key;
   const frame = frameCategoryFor(moduleKey);
@@ -480,6 +521,15 @@ function composeNonBurnoutBody(profile: UserProfile, result: ResultSpine): strin
   // that contradicts the 조직 내 리더십 recommendation).
   if (moduleKey === 'leadershipGrowth') {
     sentences.push(composeLeadershipS2(profile));
+    sentences.push(PRIORITY_BY_MODULE[moduleKey]);
+    return sentences.slice(0, 3).join(' ');
+  }
+
+  // P3.6 — other modules where the generic theme/tone would name a conflicting
+  // module: use a frame-coherent S2 instead (planning / recovery / outward action).
+  const coherentS2 = composeFrameCoherentS2(profile, moduleKey, frame);
+  if (coherentS2) {
+    sentences.push(coherentS2);
     sentences.push(PRIORITY_BY_MODULE[moduleKey]);
     return sentences.slice(0, 3).join(' ');
   }
