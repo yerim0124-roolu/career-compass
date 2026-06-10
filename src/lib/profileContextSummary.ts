@@ -355,13 +355,24 @@ function computeActionTone(profile: UserProfile): string | undefined {
   const timingPart = (() => {
     switch (profile.transitionTiming) {
       case 'now':               return '바로 실행 가능한 작은 행동';
-      case 'within_1_3_months': return '준비와 외부 확인 병행';
+      case 'within_1_3_months': return '외부 확인 병행';
       case 'within_3_6_months': return '자산화·탐색·준비';
       case 'unknown':           return '작게 확인하고 판단';
       default:                  return undefined;
     }
   })();
-  const parts = [intentPart, timingPart].filter((s): s is string => !!s);
+  // Dedup: the timing phrase can list the same keyword the intent phrase already
+  // carries (e.g. intent '준비 중심' + timing '자산화·탐색·준비' → '준비' twice).
+  // Drop any '·'-delimited timing token whose word already appears in the intent
+  // phrase, so the two dimensions don't repeat. Timing-only (no intent) is left
+  // intact, preserving the standalone '자산화·탐색·준비' copy.
+  let timingDeduped = timingPart;
+  if (intentPart && timingPart && timingPart.includes('·')) {
+    const intentWords = new Set(intentPart.split(/[\s·]/).filter(Boolean));
+    const kept = timingPart.split('·').filter((tok) => !intentWords.has(tok));
+    timingDeduped = kept.length > 0 ? kept.join('·') : undefined;
+  }
+  const parts = [intentPart, timingDeduped].filter((s): s is string => !!s);
   if (parts.length === 0) return undefined;
   const joined = parts.join(' · ');
   return `${joined}${subjectParticle(joined)} 자연스럽습니다.`;
@@ -436,6 +447,25 @@ function isActionUrgentTone(tone: string): boolean {
   return tone.includes('실행 가능성 중심') || tone.includes('바로 실행 가능한 작은 행동');
 }
 
+// P3.6 — leadership-coherent S2. The generic workMode theme (organization →
+// '내부 조정과 역할 재설계') and timing tone ('자산화·탐색·준비') name OTHER solution
+// modules (roleRedesign / portfolioConvert / exploration) and clash with the
+// 조직 내 리더십(leadershipGrowth) recommendation. For this module we replace S2 with a
+// leadership-framed sentence whose cadence still reflects the user's transition
+// intent/timing — but in module-neutral, leadership-coherent language.
+function composeLeadershipS2(profile: UserProfile): string {
+  const cadence = (() => {
+    if (profile.transitionTiming === 'after_6_months' || profile.transitionIntent === 'must_stay')
+      return '지금 자리를 지키며 준비하는 흐름';
+    if (profile.transitionIntent === 'ready_to_switch' || profile.transitionTiming === 'now')
+      return '바로 작게 시작해보는 흐름';
+    if (profile.transitionIntent === 'curious')
+      return '가볍게 살펴보며 준비하는 흐름';
+    return '차근히 준비하는 흐름'; // preparing / within_1_3 / within_3_6 / unknown
+  })();
+  return `내부 조정과 영향 범위 확장을 중심으로, ${cadence}${subjectParticle(cadence)} 자연스럽습니다.`;
+}
+
 function composeNonBurnoutBody(profile: UserProfile, result: ResultSpine): string {
   const moduleKey = result.solutionLayer.primaryModule.key;
   const frame = frameCategoryFor(moduleKey);
@@ -444,6 +474,15 @@ function composeNonBurnoutBody(profile: UserProfile, result: ResultSpine): strin
 
   // S1 — careerPattern (WHO they are). Frame-neutral; always coherent.
   if (profile.careerPattern) sentences.push(CAREER_PATTERN_SENTENCE[profile.careerPattern]);
+
+  // P3.6 — leadershipGrowth: use a leadership-coherent S2 instead of the generic
+  // theme/tone block (which would inject role-redesign / assetization vocabulary
+  // that contradicts the 조직 내 리더십 recommendation).
+  if (moduleKey === 'leadershipGrowth') {
+    sentences.push(composeLeadershipS2(profile));
+    sentences.push(PRIORITY_BY_MODULE[moduleKey]);
+    return sentences.slice(0, 3).join(' ');
+  }
 
   // S2 — workMode theme + action tone, ONLY when frame-coherent.
   //   • The career_break theme ('회복과 재진입, 생활 리듬') is a recovery
