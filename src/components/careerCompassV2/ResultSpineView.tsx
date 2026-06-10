@@ -295,7 +295,11 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
   const summaryBlock = (() => {
         const dateMatch = spine.executionPlan.reevaluationDateLabel.match(/\((\d{4})-(\d{2})-(\d{2})\)/);
         const reevalShort = dateMatch ? `${Number(dateMatch[2])}월 ${Number(dateMatch[3])}일` : '30일 후';
-        const directionLabel = spine.strategicDirection?.label ?? spine.conditionalOption?.label;
+        // '확인할 방향'은 전진(검증할) 방향만 노출한다. restRecover(휴식/재정비)는 회복
+        // 안전판이지 검증할 방향이 아니므로, fallback이 restRecover면 방향 대신 '이번 달 초점'을
+        // 보여준다(restRecover는 하단 '다른 선택지'에는 그대로 남는다).
+        const rawDirection = spine.strategicDirection ?? spine.conditionalOption;
+        const directionLabel = rawDirection && rawDirection.optionKey !== 'restRecover' ? rawDirection.label : undefined;
         const rows = [
           { label: '현재 우선순위', value: spine.currentBestMove.label },
           { label: directionLabel ? '확인할 방향' : '이번 달 초점', value: directionLabel ?? spine.solutionLayer.primaryModule.title },
