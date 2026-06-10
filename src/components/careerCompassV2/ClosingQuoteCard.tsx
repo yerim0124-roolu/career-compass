@@ -10,6 +10,12 @@ import cutoutImage from '../../assets/closing-illustration-cutout.png';
 //
 // 배경 일러스트 비율 1672×941 (≈16:9). 인물 윤곽은 ≈47% 지점부터라 텍스트 영역은 상단 0~46%.
 export default function ClosingQuoteCard({ message }: { message: string }) {
+  // 의미 단위 줄바꿈: 이미 \n이 있으면(데이터에 미리 끊긴 경우) 그대로 존중하고,
+  // 없으면 마침표·쉼표 뒤에서 끊어 절(節) 단위로 줄을 나눈다(자동 줄바꿈에 맡기지 않음).
+  // 각 줄은 하나의 절이라 word-break: keep-all과 함께 단어가 중간에서 끊기지 않는다.
+  const displayMessage = message.includes('\n')
+    ? message
+    : message.replace(/([.,]) /g, '$1\n');
   return (
     <div
       className="relative mx-auto w-full max-w-2xl"
@@ -32,6 +38,7 @@ export default function ClosingQuoteCard({ message }: { message: string }) {
           style={{
             width: '74%',
             whiteSpace: 'pre-line',
+            wordBreak: 'keep-all',
             textAlign: 'center',
             color: '#3f3f46',
             fontWeight: 600,
@@ -41,7 +48,7 @@ export default function ClosingQuoteCard({ message }: { message: string }) {
             fontSize: 'clamp(13px, 2.6cqi, 21px)',
           }}
         >
-          {message}
+          {displayMessage}
         </p>
       </div>
     </div>
