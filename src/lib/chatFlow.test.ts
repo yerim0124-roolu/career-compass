@@ -47,8 +47,11 @@ check('REQUIRED 1: #/v2 alias also resolves to "v2"', resolveRoute('#/v2') === '
 check('REQUIRED 2: #chat resolves to "chat" route', resolveRoute('#chat') === 'chat');
 check('REQUIRED 2: #chat-v1 alias resolves to "chat"', resolveRoute('#chat-v1') === 'chat');
 check('REQUIRED 2: #/chat alias resolves to "chat"', resolveRoute('#/chat') === 'chat');
-check('Route — unknown hash falls back to "v1"', resolveRoute('#anything') === 'v1');
-check('Route — empty hash falls back to "v1"', resolveRoute('') === 'v1');
+// Default route is now 'hybrid' (current product). Legacy V1 is reachable at '#v1'.
+check('Route — unknown hash falls back to "hybrid"', resolveRoute('#anything') === 'hybrid');
+check('Route — empty hash falls back to "hybrid"', resolveRoute('') === 'hybrid');
+check('Route — #v1 resolves to legacy "v1"', resolveRoute('#v1') === 'v1');
+check('Route — #/v1 alias resolves to "v1"', resolveRoute('#/v1') === 'v1');
 // P3.8 — hybrid route + alias #v3
 check('P3.8: #hybrid resolves to "hybrid"', resolveRoute('#hybrid') === 'hybrid');
 check('P3.8: #v3 alias resolves to "hybrid"', resolveRoute('#v3') === 'hybrid');
