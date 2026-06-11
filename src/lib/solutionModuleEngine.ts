@@ -798,9 +798,14 @@ export function buildExecutionPlan(inp: ExecutionPlanInputs): ExecutionPlan {
       '다음 달 작게 시도할 후보 1개가 보이는지',
       '"아무것도 없다"에서 "이 정도는 해볼 수 있다"로 감각이 바뀌었는지',
     ];
-  } else if (planDecoupledFromExperiment || noHomeMatch) {
+  } else if (planDecoupledFromExperiment || noHomeMatch || planModulePrimaryDominates) {
     // P1.4 — plan and experiment decoupled. Reframe planModule.successSignals as
     // reevaluation questions so what the user re-checks matches what they actually did.
+    // P1.9 — also force plan-based reeval for the types whose plan is locked to the
+    // diagnosed primary (scatteredExplorer / conflictedAtFork / lowOptionVisibility /
+    // emergingLeader). Without this, a narrowing-plan user who ran an experiment whose
+    // home module is null (e.g. advisoryTeaching) fell through to the experiment's
+    // CONTEXT_REEVAL ("자문 문의 왔나") — which contradicts the "후보를 좁히자" strategy.
     reevaluationChecklist = dedupe(planModule.successSignals.map(reframeAsReevalQuestion)).slice(0, 4);
   } else {
     const experimentReeval = CONTEXT_REEVAL_CRITERIA[sourceOptionKey] ?? [];
