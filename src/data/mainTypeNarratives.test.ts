@@ -1,7 +1,7 @@
 // Contract tests for the static result-depth content (유형 딥 서사 + 직무 소재 변형).
 // Run: node --experimental-strip-types src/data/mainTypeNarratives.test.ts
 
-import { MAIN_TYPE_NARRATIVES } from './mainTypeNarratives.ts';
+import { MAIN_TYPE_NARRATIVES, selectTraps } from './mainTypeNarratives.ts';
 import { getExperimentJobHint } from './jobRoleExperimentHints.ts';
 import { MAIN_TYPE_LABELS } from '../types/careerCompass.ts';
 import type { MainTypeKey } from '../types/careerCompass.ts';
@@ -21,23 +21,35 @@ check('narratives: 9개 유형 전부 커버', TYPE_KEYS.every((k) => !!MAIN_TYP
 
 for (const k of TYPE_KEYS) {
   const n = MAIN_TYPE_NARRATIVES[k];
-  check(`narratives[${k}]: 구조 완전 (thesis/arrival/traps×2/meaning, 빈 문자열 없음)`,
+  check(`narratives[${k}]: 구조 완전 (thesis/arrival/traps 2~4/meaning, 빈 문자열 없음)`,
     n.thesis.length > 10 && n.arrival.length > 50
-    && n.traps.length === 2 && n.traps.every((t) => t.title.length > 0 && t.body.length > 30)
+    && n.traps.length >= 2 && n.traps.length <= 4 && n.traps.every((t) => t.title.length > 0 && t.body.length > 30)
     && n.meaning.length > 30);
 }
 check('narratives: 기계어(→)·내부 용어 없음',
   TYPE_KEYS.every((k) => {
     const n = MAIN_TYPE_NARRATIVES[k];
-    const all = [n.thesis, n.arrival, n.traps[0].body, n.traps[1].body, n.meaning].join(' ');
+    const all = [n.thesis, n.arrival, ...n.traps.map((t) => t.body), n.meaning].join(' ');
     return !all.includes('→') && !all.includes('mainType') && !/[a-zA-Z]{6,}/.test(all);
   }));
 check('narratives: 진단성 표현 없음 (번아웃 톤 안전)',
   TYPE_KEYS.every((k) => {
     const n = MAIN_TYPE_NARRATIVES[k];
-    const all = [n.thesis, n.arrival, n.traps[0].body, n.traps[1].body, n.meaning].join(' ');
+    const all = [n.thesis, n.arrival, ...n.traps.map((t) => t.body), n.meaning].join(' ');
     return !/우울증|진단|장애|환자(?!들)/.test(all);
   }));
+
+// P3.10 — selectTraps: 신호 매칭 시 해당 함정 surfacing, 매칭 없으면 기본 앞 2개.
+check('selectTraps: 매칭 없으면 기본 앞 2개', (() => {
+  const n = MAIN_TYPE_NARRATIVES.plateauedPerformer;
+  const got = selectTraps(n.traps, new Set());
+  return got.length === 2 && got[0] === n.traps[0] && got[1] === n.traps[1];
+})());
+check('selectTraps: 신호 매칭 함정이 위로', (() => {
+  const n = MAIN_TYPE_NARRATIVES.plateauedPerformer; // 함정3 when=['lowSelfTrust']
+  const got = selectTraps(n.traps, new Set(['lowSelfTrust']));
+  return got.length === 2 && got.some((t) => (t.when ?? []).includes('lowSelfTrust'));
+})());
 
 // ─── 직무 소재 변형 ───────────────────────────────────────────────────────────
 

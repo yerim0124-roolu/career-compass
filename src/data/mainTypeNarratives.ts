@@ -1,23 +1,41 @@
 // 결과지 '당신의 이야기' — mainType별 딥 서사 (정적 콘텐츠).
 //
-// 구조: arrival(어떻게 여기까지 왔나) → traps(이 유형이 자주 빠지는 함정 2개)
-//       → meaning(그래서 지금 플랜이 이런 모양인 이유).
+// 구조: arrival(어떻게 여기까지 왔나) → traps(이 유형이 자주 빠지는 함정 3~4개 중
+//       사용자 신호에 맞는 2개 표시) → meaning(그래서 지금 플랜이 이런 모양인 이유).
 // 톤: Tone A — 친구의 조언, 해요체, 구체적 장면, 허락을 주는 화법.
 // 계약: 표시 전용 콘텐츠. 엔진은 절대 읽지 않는다 (라우팅·게이트 영향 0).
+//
+// P3.10 — traps를 타입당 4개로 늘리고 `when`(supportTag/bestMove 키) 신호로 2개만 골라
+// 보여준다. 같은 mainType이라도 사용자의 성향·추천에 따라 다른 조합이 나오도록 해, "같은
+// 유형이면 글자까지 똑같던" 반복을 줄인다. 원본 2개는 `when` 없이 기본(폴백)으로 남는다.
 
 import type { MainTypeKey } from '../types/careerCompass.ts';
 
 export interface MainTypeTrap {
   title: string;
   body: string;
+  // 이 함정을 더 위로 올릴 신호(SupportTagKey 또는 bestMove CareerOptionKey). 비면 기본 함정.
+  when?: string[];
 }
 
 export interface MainTypeNarrative {
   // 섹션 도입 한 줄 (서사의 핵심 명제)
   thesis: string;
   arrival: string;
-  traps: [MainTypeTrap, MainTypeTrap];
+  traps: MainTypeTrap[]; // 3~4개; 결과지는 selectTraps로 신호에 맞는 2개만 표시
   meaning: string;
+}
+
+// 신호(supportTags ∪ bestMove)에 가장 잘 맞는 함정 2개를 고른다.
+// 점수 = when 태그 중 신호에 포함된 개수. 동점은 선언 순서(원본 우선). 매칭이 없으면 앞 2개.
+export function selectTraps(traps: MainTypeTrap[], signals: Set<string>, count = 2): MainTypeTrap[] {
+  const scored = traps.map((t, idx) => ({
+    t,
+    idx,
+    score: (t.when ?? []).reduce((s, w) => s + (signals.has(w) ? 1 : 0), 0),
+  }));
+  scored.sort((a, b) => b.score - a.score || a.idx - b.idx);
+  return scored.slice(0, count).map((s) => s.t);
 }
 
 export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
@@ -33,6 +51,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
       {
         title: '함정 2 — 한 방 계획',
         body: '완벽한 이직, 완벽한 아이템을 기다리며 시간이 가요. 이 유형의 돌파는 늘 한 방이 아니라, 밖에 보여준 작은 것 하나에서 시작됐어요.',
+      },
+      {
+        title: '함정 3 — 겸손이 증거를 숨김',
+        body: '내세우는 게 불편해서 성과를 \'운이 좋았다\'로 깎아내려요. 그런데 시장은 겸손을 읽지 못해요 — 정리해서 보여주지 않으면 없는 것과 같아요.',
+        when: ['lowSelfTrust'],
+      },
+      {
+        title: '함정 4 — 사내 인정에 안주',
+        body: '사내 평판이 좋으니 굳이 밖을 확인 안 해요. 그런데 그 평판은 이 조직 안에서만 통용되는 화폐일 수 있어요 — 환율을 한 번은 확인해봐야 해요.',
+        when: ['recognitionSensitive', 'stayRedesign'],
       },
     ],
     meaning:
@@ -52,6 +80,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
         title: '함정 2 — 쉬는 것에 죄책감 갖기',
         body: '쉬면서도 머릿속으로 커리어 계산을 계속 돌려요. 그건 휴식이 아니라 잔업이에요. 회복은 게으름이 아니라 판단력을 복구하는 작업이에요.',
       },
+      {
+        title: '함정 3 — 회복을 또 하나의 과제로 만들기',
+        body: '쉬는 김에 자기계발·운동·공부까지 빡세게 채워요. 그건 회복이 아니라 종목만 바꾼 과부하예요. 진짜 회복엔 \'아무것도 안 해도 되는\' 칸이 필요해요.',
+        when: ['highDrive'],
+      },
+      {
+        title: '함정 4 — 버티면 지나간다고 믿기',
+        body: '\'이 시즌만 넘기면\'을 반복해요. 그런데 외부 조건이 그대로면 다음 시즌도 똑같아요 — 회복은 견디기가 아니라, 나를 갈아 넣던 조건 하나를 바꾸는 것부터예요.',
+        when: ['externalConstraint'],
+      },
     ],
     meaning:
       '그래서 이번 달 플랜이 방향 찾기가 아니라 회복이에요. 설렘이라는 센서가 다시 켜져야, 어떤 선택지가 진짜 내 것인지 읽을 수 있어요. 방향은 그 다음에 정해도 늦지 않아요.',
@@ -69,6 +107,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
       {
         title: '함정 2 — 조건을 무시하고 지르기',
         body: '반대로 답답함이 폭발해 준비 없이 움직이면, 현실이 곧바로 청구서를 내밀어요. 그러면 \'역시 난 안 돼\'라는 잘못된 결론만 남죠.',
+      },
+      {
+        title: '함정 3 — 런웨이를 감으로 어림하기',
+        body: '\'얼마쯤 버티겠지\'로 막연히 계산해요. 그런데 숫자로 적어보면, 불안의 크기와 실제 여유가 꽤 다른 경우가 많아요. 정확한 개월 수가 마음을 더 가볍게 해줘요.',
+        when: ['marketInsightGap', 'externalConstraint'],
+      },
+      {
+        title: '함정 4 — 안전을 0과 1로 보기',
+        body: '\'완전히 안전해질 때까지\'를 기다려요. 그런데 안전은 스위치가 아니라 다이얼이에요 — 한 칸씩 올리면서 그 사이에 움직이는 거예요.',
+        when: ['riskAverse'],
       },
     ],
     meaning:
@@ -88,6 +136,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
         title: '함정 2 — 탐색을 결정과 혼동하기',
         body: '\'알아보면 결정해야 할 것 같아서\' 알아보는 것 자체를 미뤄요. 커피챗 한 번은 계약이 아니에요. 보는 것과 고르는 것을 분리하면 탐색이 가벼워져요.',
       },
+      {
+        title: '함정 3 — 검색으로 탐색을 대신하기',
+        body: '혼자 검색하고 머릿속으로만 굴려요. 그런데 새 선택지는 화면이 아니라 사람에게서 나와요 — 한 명에게 직접 물으면, 안 보이던 두세 개가 따라 나와요.',
+        when: ['selfInsightGap'],
+      },
+      {
+        title: '함정 4 — 내 업계 기준으로만 환산하기',
+        body: '\'내 경력은 여기서만 쓸모 있다\'고 단정해요. 그런데 강점의 이름을 바꿔 부르면 쓸 수 있는 자리가 늘어나요 — 같은 능력이 다른 판에선 다른 값을 받기도 해요.',
+        when: ['marketInsightGap'],
+      },
     ],
     meaning:
       '그래서 이번 달 플랜이 결정이 아니라 발굴이에요. 선택지의 개수를 늘리는 게 목표예요 — 고르는 건 메뉴판이 채워진 다음에 해도 충분해요.',
@@ -105,6 +163,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
       {
         title: '함정 2 — 0 아니면 100',
         body: '\'완전히 남거나 완전히 떠나거나\'로만 프레임을 잡아요. 실제로는 한쪽 발을 걸친 실험으로 양쪽 가치를 모두 시험해볼 수 있는 경우가 많아요.',
+      },
+      {
+        title: '함정 3 — 남의 기준으로 채점하기',
+        body: '\'남들이 보기엔 이쪽이 맞지\'라며 외부 점수를 빌려와요. 그런데 갈림길은 내 우선순위로만 풀려요 — 빌려온 기준은 나중에 후회의 형태로 되돌아오기 쉬워요.',
+        when: ['recognitionSensitive'],
+      },
+      {
+        title: '함정 4 — 결정을 영구형으로 보기',
+        body: '한 번 고르면 되돌릴 수 없다고 느껴 더 굳어버려요. 그런데 대부분의 선택은 1년 단위로 다시 고를 수 있어요 — 영구가 아니라 시즌이라고 보면 한결 가벼워져요.',
+        when: ['riskAverse'],
       },
     ],
     meaning:
@@ -124,6 +192,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
         title: '함정 2 — 폭을 죄책감으로 바꾸기',
         body: '\'난 왜 진득하지 못할까\'라며 폭 자체를 결함 취급해요. 폭은 결함이 아니라 원료예요. 문제는 폭이 아니라, 그걸 한 번도 한 점에 모아본 적이 없다는 것뿐이에요.',
       },
+      {
+        title: '함정 3 — 다 잘하려다 다 얕아지기',
+        body: '관심 사이의 우선순위를 안 정하고 전부 끌고 가요. 그러면 에너지는 가득 쓰는데 어느 것도 임계점을 못 넘겨요. 잠깐 한 곳에 몰아주는 시즌이 오히려 폭을 살려요.',
+        when: ['highDrive'],
+      },
+      {
+        title: '함정 4 — 좁히기를 손실로 느끼기',
+        body: '하나를 고르면 나머지를 \'버린다\'고 느껴 못 좁혀요. 그런데 좁히는 건 버리는 게 아니라, 이번 시즌에 먼저 굴릴 순서를 정하는 거예요 — 나머지는 대기열에 있을 뿐이에요.',
+        when: ['creativeExpressive'],
+      },
     ],
     meaning:
       '그래서 이번 달 플랜이 \'하나만 골라 완주\'의 축소판이에요. 벌인 것 중 하나를 골라 작게라도 끝까지 — 폭이 깊이로 바뀌는 경험 한 번이 다음 단계를 열어요.',
@@ -141,6 +219,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
       {
         title: '함정 2 — 가까운 사람의 칭찬을 데이터로 치기',
         body: '가족·친구의 \'좋다\'는 응원이지 수요가 아니에요. 돈이나 시간을 걸 의향이 확인된 반응만 검증으로 세요.',
+      },
+      {
+        title: '함정 3 — 반응이 없으면 기능을 더하기',
+        body: '시장이 조용하면 \'아직 부족해서\'라며 또 만들어요. 그런데 대개 문제는 완성도가 아니라 \'누구에게 보냈는가\'예요. 만들기 전에 보낼 사람부터 바꿔보세요.',
+        when: ['marketInsightGap'],
+      },
+      {
+        title: '함정 4 — 한 번 해보고 단정하기',
+        body: '한두 번 반응이 약하면 \'역시 안 되네\'로 닫아버려요. 검증은 한 발이 아니라 여러 발이에요 — 표본이 너무 작으면 그건 결과가 아니라 우연이에요.',
+        when: ['lowSelfTrust'],
       },
     ],
     meaning:
@@ -160,6 +248,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
         title: '함정 2 — 권태의 해법을 \'탈출\'로 잡기',
         body: '지루함이 폭발해 갑자기 퇴사 같은 큰 변화로 점프하려 해요. 그런데 이 유형의 해법은 보통 떠나기가 아니라, 안정을 유지한 채 변화의 부피를 늘리는 거예요.',
       },
+      {
+        title: '함정 3 — 권태를 소비로 달래기',
+        body: '여행·쇼핑·새 취미로 잠깐 덮어요. 그런데 2층의 허기는 \'내 것\' 감각에서만 채워져서, 소비로는 며칠이면 다시 비어요. 사는 것보다 만드는 것 한 가지가 더 오래 가요.',
+        when: ['recognitionSensitive'],
+      },
+      {
+        title: '함정 4 — 큰 변화만 변화로 치기',
+        body: '\'기왕이면 크게\'를 떠올려 작은 재설계를 시시하게 봐요. 그런데 안정을 안 깨는 작은 변화가 이 유형에선 가장 빠른 길이에요 — 밑천을 지키면 여러 번 시도할 수 있거든요.',
+        when: ['highDrive'],
+      },
     ],
     meaning:
       '그래서 이번 달 플랜이 안전판을 깨지 않는 크기의 변화 실험이에요. 지금 가진 안정은 버릴 자산이 아니라, 실험을 가능하게 하는 밑천이에요.',
@@ -178,6 +276,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
         title: '함정 2 — 동시에 다 걸기',
         body: '여력이 있으니 여러 판을 동시에 벌이고 싶어져요. 그런데 레버리지는 집중할 때만 배수가 붙어요. 분산하면 그냥 바쁜 사람이 돼요.',
       },
+      {
+        title: '함정 3 — 준비를 더 갖추려 하기',
+        body: '이미 충분한데 \'조금만 더\'를 반복해요. 이 단계의 위험은 부족이 아니라, 굴리지 않아 칩이 식는 거예요 — 준비는 끝났고, 남은 건 거는 일이에요.',
+        when: ['lowSelfTrust'],
+      },
+      {
+        title: '함정 4 — 큰 베팅만 베팅으로 보기',
+        body: '\'할 거면 제대로\'로 첫 판을 크게 잡아요. 그런데 첫 칩은 따려는 게 아니라 정보를 사는 거예요 — 작게 걸어야 어느 판이 내 판인지 빨리 읽혀요.',
+        when: ['highDrive', 'independent'],
+      },
     ],
     meaning:
       '그래서 이번 달 플랜이 \'하나의 판에 작게 첫 칩 올리기\'예요. 크게 걸 필요 없어요 — 첫 반응이 어느 판이 내 판인지 알려줄 거예요.',
@@ -195,6 +303,16 @@ export const MAIN_TYPE_NARRATIVES: Record<MainTypeKey, MainTypeNarrative> = {
       {
         title: '함정 2 — 떠나는 것으로 푸는 것',
         body: '답답할 때 \'더 좋은 곳으로 이직\'을 떠올려요. 그런데 지금 조직에서 끌어본 경험이 없으면, 옮긴 곳에서도 같은 자리에 머물기 쉬워요. 리딩은 환경이 아니라 시도에서 시작돼요.',
+      },
+      {
+        title: '함정 3 — 다 떠안아 병목이 되기',
+        body: '\'리드 = 내가 다 한다\'로 오해해 일을 끌어안아요. 그런데 끌기는 떠안기가 아니라, 방향을 주고 맡기는 거예요 — 혼자 다 하면 곧 자기 자신이 병목이 돼요.',
+        when: ['highDrive'],
+      },
+      {
+        title: '함정 4 — 인정받는 데만 신경 쓰기',
+        body: '\'알아줄까\'에 에너지를 써요. 그런데 리드의 증거는 인정이 아니라 \'내가 끌어서 굴러간 일\' 자체예요 — 그게 한 건 쌓이면 인정은 뒤따라와요.',
+        when: ['recognitionSensitive'],
       },
     ],
     meaning:

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ResultSpine, ActionReadiness, MoveRecommendation, MainTypeKey } from '../../types/careerCompass.ts';
 import { ARCHETYPE_LABELS } from '../../types/careerCompass.ts';
-import { MAIN_TYPE_NARRATIVES } from '../../data/mainTypeNarratives.ts';
+import { MAIN_TYPE_NARRATIVES, selectTraps } from '../../data/mainTypeNarratives.ts';
 import { getExperimentJobHint } from '../../data/jobRoleExperimentHints.ts';
 import ClosingQuoteCard from './ClosingQuoteCard.tsx';
 import { getClosingMessage } from '../../data/closingMessages.ts';
@@ -379,7 +379,10 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
   const trapsBlock = (() => {
         const story = MAIN_TYPE_NARRATIVES[spine.solutionLayer.mainTypeKey as MainTypeKey];
         if (!story) return null;
-        const traps = story.traps.slice(0, 2);
+        // P3.10 — 같은 유형이라도 사용자 신호(supportTags + 추천 한 수)에 맞는 함정 2개만 골라
+        // 보여줘 반복을 줄인다(매칭 없으면 기본 앞 2개).
+        const trapSignals = new Set<string>([...spine.solutionLayer.supportTags, spine.currentBestMove.optionKey]);
+        const traps = selectTraps(story.traps, trapSignals);
         return (
           <Section title="반복될 수 있는 고민 패턴" accent="#F2C94C">
             <div className="cc-sketch cc-tr px-5 py-5 space-y-4">
