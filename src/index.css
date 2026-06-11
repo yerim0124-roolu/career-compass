@@ -21,7 +21,11 @@
   }
   #root {
     width: 100%;
+    /* 카카오톡 등 인앱 웹뷰는 100vh를 (접히는 툴바 뒤까지 포함해) 잘못 계산해 하단이
+       안 잡히고 스크롤이 잠긴 듯 보인다. 동적 뷰포트 단위(dvh)로 실제 보이는 높이에 맞춘다.
+       (dvh 미지원 구형 브라우저는 위의 100vh로 폴백) */
     min-height: 100vh;
+    min-height: 100dvh;
   }
   /* Tighter Korean headline spacing */
   h1, h2, h3 {

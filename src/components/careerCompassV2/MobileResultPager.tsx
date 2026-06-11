@@ -1,9 +1,12 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
 // 모바일 전용 페이지형/스텝형 결과 보기.
 //  · 상단: 현재 위치 표시(1 / N · 라벨) + 점 인디케이터(탭으로 이동)
-//  · 본문: 현재 페이지만 렌더(키 큰 페이지 옆 여백 방지) + 좌우 스와이프(터치)
-//  · 하단: 이전 / 다음(다음 페이지 이름 표기) 버튼 — 스와이프에만 의존하지 않게 항상 제공
+//  · 본문: 현재 페이지만 렌더(키 큰 페이지 옆 여백 방지)
+//  · 하단: 이전 / 다음(다음 페이지 이름 표기) 버튼
+//  · 페이지 전환은 버튼·점 인디케이터로만. 좌우 스와이프는 제거 — 세로 스크롤 중 손가락이
+//    옆으로 살짝 호를 그리는 것을 스와이프로 오인해 의도치 않게 앞 페이지로 튀던 버그(가로축만
+//    보고 세로축을 무시) 때문. 버튼 전환이 모바일에서 가장 확실하다.
 export interface PagerPage {
   label: string;        // 인디케이터용 전체 이름
   nav?: string;         // '다음' 버튼에 쓸 짧은 이름(= 다음 페이지 이름). 마지막 페이지는 빈 값.
@@ -13,21 +16,11 @@ export interface PagerPage {
 export default function MobileResultPager({ pages }: { pages: PagerPage[] }) {
   const [i, setI] = useState(0);
   const total = pages.length;
-  const touchX = useRef<number | null>(null);
 
   const goto = (n: number) => {
     const idx = Math.max(0, Math.min(total - 1, n));
     setI(idx);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0].clientX; };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchX.current == null) return;
-    const dx = e.changedTouches[0].clientX - touchX.current;
-    if (dx < -48) goto(i + 1);
-    else if (dx > 48) goto(i - 1);
-    touchX.current = null;
   };
 
   return (
@@ -51,8 +44,8 @@ export default function MobileResultPager({ pages }: { pages: PagerPage[] }) {
         </div>
       </div>
 
-      {/* 현재 페이지 — 좌우 스와이프 */}
-      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="min-h-[36vh]">
+      {/* 현재 페이지 — 전환은 하단 버튼·점 인디케이터로만(스와이프 제거) */}
+      <div className="min-h-[36vh]">
         <div className="space-y-5">{pages[i].content}</div>
       </div>
 

@@ -289,7 +289,7 @@ export default function HybridFlowView() {
   // ─── Phase render ────────────────────────────────────────────────────────
   if (phase === 'result' && spine) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         {Header}
         {/* Back-to-answers: backFlow's `done` branch re-opens the last main
             step so a single answer can be fixed without a full restart.
@@ -310,7 +310,7 @@ export default function HybridFlowView() {
 
   if (phase === 'profileReview') {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         {Header}
         <ProfileSummaryReview
           profile={profile}
@@ -329,7 +329,7 @@ export default function HybridFlowView() {
     // behavior is identical to #v2 because the underlying data + builder
     // are the same; only the surrounding chrome differs.
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-dvh bg-white">
         {Header}
         <div className="max-w-5xl mx-auto px-4 py-6 lg:grid lg:grid-cols-3 lg:gap-8">
           <main className="lg:col-span-2 space-y-5 pb-28 lg:pb-6">
@@ -406,7 +406,7 @@ export default function HybridFlowView() {
 
   // phase === 'profile' — chat-style onboarding with back-nav + per-step edit.
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-dvh bg-white flex flex-col">
       {Header}
       {/* Subtle progress bar for the profile onboarding section. */}
       <div className="h-0.5 w-full bg-slate-100">

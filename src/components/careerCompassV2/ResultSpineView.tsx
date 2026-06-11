@@ -773,7 +773,7 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
   ];
 
   return (
-    <div className="cc-page min-h-screen">
+    <div className="cc-page min-h-dvh">
       <div className="max-w-2xl mx-auto px-5 py-8">
         {/* 데스크톱 — 기존 긴 단일 레이아웃 */}
         <div className="hidden sm:block space-y-10">
