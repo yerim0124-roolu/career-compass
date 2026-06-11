@@ -144,7 +144,7 @@ check('or_internal: labels match spec',
 check('or_internal: helperText present (org-internal hint)', !!orInternal.helperText && orInternal.helperText.includes('사내 이동'));
 check('liveInsight trigger moved: or_internal=true, or_venture removed', orInternal.liveInsightTrigger === true && !stepById2('or_venture').liveInsightTrigger);
 check('option_reactions stage count === 3', CAREER_QUESTION_FLOW.filter((s) => s.stage === 'option_reactions').length === 3);
-check('CAREER_QUESTION_FLOW length === 21 (20 core + memo; cs_blocker·ar_narrow 추가)', CAREER_QUESTION_FLOW.length === 21);
+check('CAREER_QUESTION_FLOW length === 20 (P3.11 ap_memo 제거; 마지막=ap_experiment)', CAREER_QUESTION_FLOW.length === 20);
 
 // ─── rc_options (perceived option visibility — Hope Theory pathways probe) ──────
 const rcOptions = stepById2('rc_options');

@@ -18,7 +18,7 @@ check('single_select needs a selection', !isStepComplete(stepById('cs_main'), un
 check('multi_select honors minSelect (ar_roles now 1)', !isStepComplete(stepById('ar_roles'), { selectedOptionIds: [] }) && isStepComplete(stepById('ar_roles'), { selectedOptionIds: ['ar_founder'] }));
 check('multi_select honors maxSelect (5)', !isStepComplete(stepById('cv_values'), { selectedOptionIds: ['cv_autonomy', 'cv_money', 'cv_problem', 'cv_bigmarket', 'cv_growth', 'cv_impact'] }));
 check('ranking honors minSelect (3)', !isStepComplete(stepById('cv_priorities'), { ranking: ['pr_money', 'pr_freedom'] }) && isStepComplete(stepById('cv_priorities'), { ranking: ['pr_money', 'pr_freedom', 'pr_growth'] }));
-check('optional_short_text is always complete (skippable)', isStepComplete(stepById('ap_memo'), undefined));
+// P3.11 — ap_memo(optional_short_text) 제거됨. 관련 스킵 케이스 테스트 삭제.
 
 // ─── End-to-end via responses (mirrors the UI state shape) ─────────────────────
 const responses: FlowResponses = {

@@ -377,17 +377,11 @@ const actionExperiment: QuestionStep = {
   ],
 };
 
-// The single optional short-text field in the whole flow (always skippable).
-const actionMemo: QuestionStep = {
-  id: 'ap_memo',
-  stage: 'action_preferences',
-  inputType: 'optional_short_text',
-  title: '덧붙이고 싶은 말',
-  assistantPrompt: '한 줄 정도 더하고 싶은 말이 있다면 적어도 좋아요. 건너뛰어도 됩니다.',
-  optional: true,
-};
+// P3.11 — 자유 입력 'ap_memo'(한 줄 더하고 싶은 말)는 제거됨. 분류(벡터/construct/게이트)·
+// 결과지·narrative 어디에서도 읽지 않던 죽은 필드라(입력해도 사라짐) 마지막 문항을 30일
+// 실험 선택(actionExperiment)으로 끝낸다.
 
-// ─── Assembled flow (18 core steps + 1 optional memo) ─────────────────────────
+// ─── Assembled flow (마지막은 30일 실험 선택) ─────────────────────────────────
 export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   currentState,
   attractiveRoles,
@@ -406,7 +400,6 @@ export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   reactionInternal,
   decisionBlocker,
   actionExperiment,
-  actionMemo,
 ];
 
 // Maps each output-format card to the career option whose timing/fit/reeval it routes

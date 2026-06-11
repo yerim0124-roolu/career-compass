@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ResultSpine, ActionReadiness, MoveRecommendation, MainTypeKey } from '../../types/careerCompass.ts';
+import type { ResultSpine, MoveRecommendation, MainTypeKey } from '../../types/careerCompass.ts';
 import { ARCHETYPE_LABELS } from '../../types/careerCompass.ts';
 import { MAIN_TYPE_NARRATIVES, selectTraps } from '../../data/mainTypeNarratives.ts';
 import { getExperimentJobHint } from '../../data/jobRoleExperimentHints.ts';
@@ -37,32 +37,6 @@ function SignalDots({ level }: { level: 'high' | 'low' }) {
         <span key={i} className="w-2 h-2 rounded-full" style={{ background: i < filled ? color : '#E2E8F0' }} />
       ))}
     </span>
-  );
-}
-
-// 단계형 진행 표시 — 가짜 %(근거 0% 모임) 대신 '지금 어느 단계인지'를 정직하게.
-//   확인 전(현재) → 작은 반응 확인(다음) → 장기 방향 판단(이후)
-function PhaseSteps() {
-  const steps = [
-    { label: '확인 전', sub: '지금 여기', state: 'now' as const },
-    { label: '작은 반응 확인', sub: '다음 단계', state: 'next' as const },
-    { label: '장기 방향 판단', sub: '이후', state: 'later' as const },
-  ];
-  return (
-    <ol className="flex items-stretch gap-2">
-      {steps.map((s, i) => {
-        const active = s.state === 'now';
-        return (
-          <li key={i} className="flex-1 rounded-xl px-3 py-3 border" style={{
-            background: active ? TONE.progress.bg : '#FFFFFF',
-            borderColor: active ? TONE.progress.bar : '#E5E7EB',
-          }}>
-            <p className="text-[11px] font-bold" style={{ color: active ? TONE.progress.fg : '#94A3B8' }}>{s.sub}</p>
-            <p className="text-[14px] font-extrabold mt-0.5" style={{ color: active ? TONE.progress.fg : '#475569' }}>{s.label}</p>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
@@ -149,12 +123,6 @@ function loadReevalChecks(): Record<string, boolean> {
     return {};
   }
 }
-
-const ACTION_READINESS_KO: Record<ActionReadiness, string> = {
-  ready: '실행 준비됨',
-  'explore-with-structure': '구조 있는 탐색',
-  'stabilize-first': '기반 다지기 먼저',
-};
 
 // Natural Korean subject particle (이/가) based on whether the last syllable has a 받침.
 function subjectParticle(word: string): string {
@@ -535,72 +503,50 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
         );
       })();
 
-  // 근거 자세히 보기 — 접힘 하단(단계형 PhaseSteps + 심리 신호 + 현실 장벽 + 이론 근거)
+  // 근거 자세히 보기 — 모바일(mEvidence)과 동일한 3블록: 영향 신호 / 현실 장벽 / 쉬운 이론.
+  // (P3.11 — PhaseSteps·지금 단계·실행 준비도·이론적 근거 접힘 제거, 모바일과 통일)
   const evidenceBlock = (
       <Section title="근거 자세히 보기" accent="#B9A7E0">
-        <details className="cc-sketch cc-tr px-6 py-5">
-          <summary className="text-[15px] font-bold text-zinc-700 cursor-pointer select-none">지금 어느 단계인지 보기</summary>
-          <div className="mt-4 space-y-6">
-              {/* 단계형 — % 대신 '확인 전 → 작은 반응 확인 → 장기 방향 판단' */}
-              <div>
-                <p className="text-[14px] font-bold text-zinc-700 mb-2.5">지금 단계</p>
-                <PhaseSteps />
-                <p className="text-[14px] text-zinc-600 leading-[1.7] mt-3">
-                  지금은 장기 방향을 확정하기보다, 30일 동안 작은 반응과 생활 조건을 확인하는 단계예요.
-                </p>
-                <p className="text-[14px] text-zinc-600 mt-2">
-                  <span className="font-semibold text-zinc-500 mr-1.5">실행 준비도</span>
-                  <span className="font-bold text-zinc-800">{ACTION_READINESS_KO[spine.evidence.actionReadiness]}</span>
-                </p>
-              </div>
-
-              {/* 심리 신호 — 정직한 3단계 점 표시(●●○). 엔진은 high/low 두 값만 주므로
-                  연속 막대(78%/32%)는 없는 정밀도를 지어내는 셈 → 단계 표시로 교체. */}
-              {spine.evidence.constructSignals.length > 0 && (
-                <div>
-                  <p className="text-[14px] font-bold text-zinc-700 mb-2.5">심리 신호</p>
-                  <div className="space-y-3">
-                    {spine.evidence.constructSignals.map((s, i) => (
-                      <div key={i}>
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex-1 text-[14px] font-bold text-zinc-800">{s.humanLabel}</span>
-                          <SignalDots level={s.level === 'high' ? 'high' : 'low'} />
-                          <span className="w-9 shrink-0 text-right text-[12px] font-bold" style={{ color: s.level === 'high' ? TONE.progress.fg : TONE.caution.fg }}>
-                            {s.level === 'high' ? '높음' : '낮음'}
-                          </span>
-                        </div>
-                        <p className="text-[13px] text-zinc-500 leading-[1.6] mt-1">{s.note}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {spine.evidence.contextualBarriers.length > 0 && (
-                <div>
-                  <p className="text-[14px] font-bold text-zinc-700 mb-2">현실 장벽</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {spine.evidence.contextualBarriers.map((b, i) => (
-                      <span key={i} className="text-[13px] font-medium px-2.5 py-1 rounded-full" style={{ background: TONE.caution.bg, color: TONE.caution.fg }}>{b}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          {/* framework names live here only — 중첩 details (전체 근거 안의 더 깊은 접힘) */}
-          <details className="border-t border-zinc-100 pt-3.5 mt-4">
-            <summary className="text-[13px] font-semibold text-zinc-500 cursor-pointer select-none">이론적 근거 보기</summary>
-            <p className="text-[13px] text-zinc-500 leading-[1.65] mt-2">{spine.evidence.theoryGroundedSummary}</p>
-            {spine.evidence.constructSignals.length > 0 && (
-              <ul className="mt-2 space-y-0.5">
+        <div className="cc-sketch cc-tr px-6 py-5">
+          {/* 판단에 영향을 준 신호 */}
+          {spine.evidence.constructSignals.length > 0 && (
+            <div>
+              <p className="text-[14px] font-bold text-zinc-700 mb-2.5">판단에 영향을 준 신호</p>
+              <div className="space-y-3">
                 {spine.evidence.constructSignals.map((s, i) => (
-                  <li key={i} className="text-[12px] text-zinc-400">{s.framework} · {s.construct} ({s.level === 'high' ? '높음' : '낮음'})</li>
+                  <div key={i}>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex-1 text-[14px] font-bold text-zinc-800">{s.humanLabel}</span>
+                      <SignalDots level={s.level === 'high' ? 'high' : 'low'} />
+                      <span className="w-9 shrink-0 text-right text-[12px] font-bold" style={{ color: s.level === 'high' ? TONE.progress.fg : TONE.caution.fg }}>
+                        {s.level === 'high' ? '높음' : '낮음'}
+                      </span>
+                    </div>
+                    <p className="text-[13px] text-zinc-500 leading-[1.6] mt-1">{s.note}</p>
+                  </div>
                 ))}
-              </ul>
-            )}
-          </details>
-        </details>
+              </div>
+            </div>
+          )}
+
+          {/* 현실 장벽 */}
+          {spine.evidence.contextualBarriers.length > 0 && (
+            <div className="border-t border-zinc-100 pt-4 mt-4">
+              <p className="text-[14px] font-bold text-zinc-700 mb-2">현실 장벽</p>
+              <div className="flex flex-wrap gap-2">
+                {spine.evidence.contextualBarriers.map((b, i) => (
+                  <span key={i} className="text-[13px] font-medium rounded-full" style={{ padding: '5px 10px', background: '#FBEEE3', color: '#A85B22' }}>{b}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 쉬운 이론 설명 */}
+          <div className="border-t border-zinc-100 pt-4 mt-4">
+            <p className="text-[14px] font-bold text-zinc-700 mb-1.5">이 결과는 어떻게 나왔나요</p>
+            <p className="text-[14px] text-zinc-600 leading-[1.6]">이 결과는 심리학 기반 진로 이론을 종합해 나온 거예요. 지금은 방향을 확정하기보다, 무엇을 먼저 확인하면 좋을지를 보여드려요.</p>
+          </div>
+        </div>
       </Section>
   );
 
