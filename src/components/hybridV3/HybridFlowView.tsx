@@ -48,6 +48,7 @@ import {
 } from '../../lib/chatFlow.ts';
 import type { ChatStep } from '../../lib/chatFlow.ts';
 import ProfileSummaryReview from './ProfileSummaryReview';
+import { logStart, logProgress, logComplete } from '../../lib/analytics.ts';
 
 // Same PersistedSession shape V2 uses. Hybrid has its own key so V2 sessions
 // stay independent. Loaded via the EXACT V2 parser.
@@ -130,6 +131,9 @@ export default function HybridFlowView() {
   // returns to the review instead of advancing to the next chat question.
   const [returnToReviewAfterCommit, setReturnToReviewAfterCommit] = useState(false);
 
+  // 분석 — 플로우 진입(마운트) 1회.
+  useEffect(() => { logStart(); }, []);
+
   // ─── Persist on every change ─────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -164,6 +168,15 @@ export default function HybridFlowView() {
     () => (phase === 'result' ? buildResultFromSession({ responses, profile }) : null),
     [phase, responses, profile],
   );
+
+  // 분석 — 결과(resultContext)가 산출되어 결과지가 뜰 때 1회만. StrictMode 중복 가드.
+  const loggedComplete = useRef(false);
+  useEffect(() => {
+    if (phase === 'result' && spine?.resultContext && !loggedComplete.current) {
+      loggedComplete.current = true;
+      logComplete({ answers: responses, resultContext: spine.resultContext });
+    }
+  }, [phase, spine]);
 
   // ─── Auto-scroll on phase / cursor / step changes ────────────────────────
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -224,6 +237,7 @@ export default function HybridFlowView() {
   const setForFlowStep = (v: StepResponse2) => setResponses((r) => ({ ...r, [flowStep.id]: v }));
   const advanceFlow = () => {
     if (!flowComplete) return;
+    logProgress(stepIndex, flowStep.id, responses[flowStep.id]);
     if (isLastFlowStep) {
       setDone(true);
       setPhase('result');
@@ -260,20 +274,14 @@ export default function HybridFlowView() {
   };
 
   // ─── Top bar ──────────────────────────────────────────────────────────────
+  // "hybrid" 라벨과 버전 전환(#v2) 링크는 제거됨. "다시"(restartAll)는 전 화면 유지.
   const Header = (
     <header className="border-b border-slate-200 bg-white/95 backdrop-blur sticky top-0 z-10">
       <div className="max-w-2xl mx-auto px-4 h-12 flex items-center justify-between gap-3">
         <span className="flex items-center gap-1.5 font-black text-sm" style={{ color: '#5E5280' }}>
-          <span aria-hidden>🧭</span> Career Compass <span className="font-bold" style={{ color: '#C7BBDE' }}>hybrid</span>
+          <span aria-hidden>🧭</span> Career Compass
         </span>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => { window.location.hash = '#v2'; }}
-            className="text-xs text-slate-400 hover:text-slate-700"
-          >
-            카드 버전(#v2)
-          </button>
           <button
             type="button"
             onClick={restartAll}
