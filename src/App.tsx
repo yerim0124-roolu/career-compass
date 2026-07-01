@@ -6,6 +6,8 @@ import ResultsDashboard from './components/ResultsDashboard';
 import CareerCompassV2Page from './components/careerCompassV2/CareerCompassV2Page';
 import GuidedChatView from './components/chatV1/GuidedChatView';
 import HybridFlowView from './components/hybridV3/HybridFlowView';
+import PaidResultView from './components/paid/PaidResultView';
+import { FEATURE_FLAGS } from './config/featureFlags';
 import { resolveRoute } from './lib/routing';
 import type { Route } from './lib/routing';
 import type { FormData, Results } from './types';
@@ -34,6 +36,9 @@ export default function App() {
   if (route === 'v2') return <CareerCompassV2Page />;
   if (route === 'chat') return <GuidedChatView />;
   if (route === 'hybrid') return <HybridFlowView />;
+  // 유료 라우트: 플래그가 켜졌을 때만 접근 가능. 꺼져 있으면 무료 기본 화면
+  // (hybrid = 홈)으로 리다이렉트해, 이 단계 배포 시 사용자 경험이 변하지 않게 한다.
+  if (route === 'paid') return FEATURE_FLAGS.paidAnalysis ? <PaidResultView /> : <HybridFlowView />;
   return <AppV1 />;
 }
 

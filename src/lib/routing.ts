@@ -15,11 +15,13 @@
 // redesigned experience. The legacy V1 landing stays reachable at '#v1'.
 // Adding a new route here is the only place that needs to change.
 
-export type Route = 'v1' | 'v2' | 'chat' | 'hybrid';
+export type Route = 'v1' | 'v2' | 'chat' | 'hybrid' | 'paid';
 
 export function resolveRoute(hash: string): Route {
   if (hash === '#v2' || hash === '#/v2') return 'v2';
   if (hash === '#chat' || hash === '#chat-v1' || hash === '#/chat' || hash === '#/chat-v1') return 'chat';
   if (hash === '#v1' || hash === '#/v1') return 'v1';
+  // 유료 심화 분석(빈 라우트). 실제 접근 여부는 App.tsx에서 FEATURE_FLAGS로 게이팅.
+  if (hash === '#paid-result' || hash === '#/paid-result') return 'paid';
   return 'hybrid';
 }
