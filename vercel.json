@@ -1,7 +1,8 @@
 {
+  "fluid": true,
   "functions": {
     "api/paid-analysis.ts": {
-      "maxDuration": 60
+      "maxDuration": 180
     }
   }
 }

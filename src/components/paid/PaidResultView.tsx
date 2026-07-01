@@ -53,34 +53,44 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   const paidRef = useRef(paidAnswers);
   paidRef.current = paidAnswers;
 
+  // 각 실행(mount/재시도)의 고유 id — 늦게 도착한 stale 콜백을 무시하기 위함.
+  const runIdRef = useRef(0);
+
   useEffect(() => {
     const paid = paidRef.current;
     if (!paid) { setPhase('no_answers'); return; }
     setPhase('loading');
     setResult(null);
 
+    const myRun = ++runIdRef.current;
     const controller = new AbortController();
-    let cancelled = false;
-    let settled = false; // 성공/에러 중 하나로 반드시 종결. 무한 로딩 방지.
+    let settled = false;
+    // 이 실행이 여전히 최신이고 아직 종결 전일 때만 상태를 바꾼다.
+    const isActive = () => myRun === runIdRef.current && !settled;
 
     const finishError = (reason: string) => {
-      if (cancelled || settled) return;
+      if (!isActive()) return;
       settled = true;
-      controller.abort();
+      window.clearTimeout(timeout);
       logPaidAnalysisFailed(reason);
+      // eslint-disable-next-line no-console
+      console.log('[paid-analysis] → error UI (reason:', reason, ')');
       setPhase('error');
     };
     const finishSuccess = (data: PaidResult) => {
-      if (cancelled || settled) return;
+      if (!isActive()) return;
       settled = true;
-      controller.abort();
+      window.clearTimeout(timeout);
+      // eslint-disable-next-line no-console
+      console.log('[paid-analysis] → success: result 세팅, loading 종료');
       setResult(data);
       setPhase('success');
     };
 
-    // 하드 타임아웃: 60초 안에 성공/에러로 끝나지 않으면 무조건 에러로 종결.
-    // (스트림이 안 닫혀 done이 안 와도 여기서 확실히 로딩을 푼다.)
-    const timeout = window.setTimeout(() => finishError('timeout'), 60000);
+    // 하드 타임아웃: non-streaming Claude 응답이 최대 1~2분까지 걸릴 수 있어 150초로 둔다.
+    // 서버가 200으로 1분 이상 버티므로 프론트가 먼저 포기(abort)하면 정상 응답을 놓친다.
+    // 타임아웃이 "실제로" 초과했을 때만 abort → 응답과의 레이스에서 프론트가 먼저 죽지 않게.
+    const timeout = window.setTimeout(() => { controller.abort(); finishError('timeout'); }, 150000);
 
     (async () => {
       try {
@@ -91,21 +101,64 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           body: JSON.stringify({ freeContext, paidAnswers: paid }),
           signal: controller.signal,
         });
-        // non-streaming: 서버가 검증 통과한 순수 JSON을 한 번에 반환한다.
-        // 4xx/5xx(키 없음·검증 실패·업스트림 오류)는 !resp.ok로 잡혀 에러 UI로 간다.
-        if (!resp.ok) throw new Error(`http_${resp.status}`);
-        const data = (await resp.json()) as unknown;
-        if (!validateResult(data)) throw new Error('validation_failed');
-        finishSuccess(data);
+
+        // 진단 로깅 — 실제로 무엇이 오는지 (status / 길이 / 앞부분 / parse / validate).
+        const status = resp.status;
+        const bodyText = await resp.text();
+        // eslint-disable-next-line no-console
+        console.log('[paid-analysis] status:', status, '| text length:', bodyText.length);
+        // eslint-disable-next-line no-console
+        console.log('[paid-analysis] body(0..500):', bodyText.slice(0, 500));
+
+        if (!resp.ok) throw new Error(`http_${status}`);
+
+        let data: unknown = null;
+        let parseOk = false;
+        try { data = JSON.parse(bodyText); parseOk = true; }
+        catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('[paid-analysis] JSON.parse 실패:', err);
+        }
+        // eslint-disable-next-line no-console
+        console.log('[paid-analysis] JSON.parse 성공:', parseOk);
+
+        const valid = parseOk && validateResult(data);
+        // eslint-disable-next-line no-console
+        console.log('[paid-analysis] validateResult:', valid);
+
+        if (!valid) {
+          if (parseOk) {
+            // 서버가 준 실제 스키마와 프론트 기대의 차이를 출력.
+            const d = (data ?? {}) as Record<string, unknown>;
+            const sc = d.summaryCard as Record<string, unknown> | undefined;
+            const jc = d.judgeCriteria as Record<string, unknown> | undefined;
+            // eslint-disable-next-line no-console
+            console.error('[paid-analysis] 스키마 불일치 — 받은 top-level keys:', Object.keys(d),
+              '| 기대: [summaryCard, sections, judgeCriteria]');
+            // eslint-disable-next-line no-console
+            console.error('[paid-analysis] summaryCard keys:', sc ? Object.keys(sc) : '(없음)',
+              '| 기대: [coreNow, biggestRisk, dontDo, doThis, judgeBy]');
+            // eslint-disable-next-line no-console
+            console.error('[paid-analysis] sections:',
+              Array.isArray(d.sections) ? `array(len=${(d.sections as unknown[]).length}) (기대 7)` : '(배열 아님)',
+              '| judgeCriteria keys:', jc ? Object.keys(jc) : '(없음)',
+              '(기대: [intro, checks, ifYes, ifNo])');
+          }
+          throw new Error(parseOk ? 'validation_failed' : 'parse_failed');
+        }
+
+        finishSuccess(data as PaidResult);
       } catch (e) {
-        if (controller.signal.aborted && settled) return; // 우리가 성공 후 abort한 경우
+        // 타임아웃/언마운트로 abort된 경우는 이미 finishError가 처리했거나 stale이므로 무시.
+        if (controller.signal.aborted) return;
         finishError(e instanceof Error ? e.message : 'unknown');
       } finally {
         window.clearTimeout(timeout);
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); window.clearTimeout(timeout); };
+    // 언마운트/재시도 시: 이 실행을 stale로 만들고(runId 증가) 정리.
+    return () => { runIdRef.current++; controller.abort(); window.clearTimeout(timeout); };
   }, [attempt]);
 
   // ── 답변 없음(직접 접근/새로고침) ──
@@ -136,7 +189,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           <div className="w-10 h-10 rounded-full border-4 animate-spin"
             style={{ borderColor: BOX_BORDER, borderTopColor: PURPLE }} aria-hidden />
           <p className="text-sm text-slate-600 leading-relaxed">{LOADING_MESSAGES[msgIndex]}</p>
-          <p className="text-[11px] text-slate-400">10~20초 정도 걸릴 수 있어요.</p>
+          <p className="text-[11px] text-slate-400">1~2분 정도 걸릴 수 있어요.</p>
         </div>
       </div>
     );
