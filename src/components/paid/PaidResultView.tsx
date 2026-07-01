@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
 import { readFreeContext } from './freeContext.ts';
 import { logPaidAnalysisFailed } from './paidAnalytics.ts';
-import { extractJson, validateResult, type PaidResult } from './resultValidation.ts';
+import { extractJson, validateResult, reconstructText, type PaidResult } from './resultValidation.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
@@ -60,8 +60,27 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     setResult(null);
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 60000);
     let cancelled = false;
+    let settled = false; // 성공/에러 중 하나로 반드시 종결. 무한 로딩 방지.
+
+    const finishError = (reason: string) => {
+      if (cancelled || settled) return;
+      settled = true;
+      controller.abort();
+      logPaidAnalysisFailed(reason);
+      setPhase('error');
+    };
+    const finishSuccess = (data: PaidResult) => {
+      if (cancelled || settled) return;
+      settled = true;
+      controller.abort();
+      setResult(data);
+      setPhase('success');
+    };
+
+    // 하드 타임아웃: 60초 안에 성공/에러로 끝나지 않으면 무조건 에러로 종결.
+    // (스트림이 안 닫혀 done이 안 와도 여기서 확실히 로딩을 푼다.)
+    const timeout = window.setTimeout(() => finishError('timeout'), 60000);
 
     (async () => {
       try {
@@ -75,27 +94,36 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
         // 스트림 시작 전 실패(4xx/5xx)는 여기서 잡힌다.
         if (!resp.ok || !resp.body) throw new Error(`http_${resp.status}`);
 
-        // 서버는 순수 JSON 텍스트를 스트리밍으로 흘린다. 로딩 UI를 유지한 채
-        // 전체 텍스트를 끝까지 누적한 뒤, 한 번에 파싱·검증한다(글자 실시간 표시 아님).
+        // 스트림을 청크로 누적하되, 매 청크마다 "완전한 유효 JSON이 모였는지" 확인해
+        // 모이는 즉시 완료한다(스트림 종료 done을 기다리지 않음 — 서버가 연결을 늦게
+        // 닫아도 무한 로딩에 빠지지 않게). 서버가 순수 JSON이든 SSE든 reconstructText가
+        // 흡수한다. 화면은 로딩 유지 → 완성 시 카드로 전환(글자 실시간 표시 아님).
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
         let full = '';
+
         for (;;) {
           const { done, value } = await reader.read();
-          if (done) break;
-          full += decoder.decode(value, { stream: true });
-        }
-        full += decoder.decode(); // 남은 멀티바이트 flush
-        if (cancelled) return;
+          if (value) full += decoder.decode(value, { stream: true });
 
-        const parsed = extractJson(full);
-        if (!validateResult(parsed)) throw new Error('parse_or_validation_failed');
-        setResult(parsed);
-        setPhase('success');
+          const parsed = extractJson(reconstructText(full));
+          if (validateResult(parsed)) {
+            try { await reader.cancel(); } catch { /* noop */ }
+            finishSuccess(parsed);
+            return;
+          }
+          if (done) break;
+          if (settled) return; // 타임아웃 등으로 이미 종결됐으면 중단
+        }
+
+        // 스트림이 끝났는데도 유효 JSON을 못 얻음 → 마지막 flush 후 한 번 더 시도.
+        full += decoder.decode();
+        const finalParsed = extractJson(reconstructText(full));
+        if (validateResult(finalParsed)) { finishSuccess(finalParsed); return; }
+        throw new Error('parse_or_validation_failed');
       } catch (e) {
-        if (cancelled) return;
-        logPaidAnalysisFailed(e instanceof Error ? e.message : 'unknown');
-        setPhase('error');
+        if (controller.signal.aborted && settled) return; // 우리가 성공 후 abort한 경우
+        finishError(e instanceof Error ? e.message : 'unknown');
       } finally {
         window.clearTimeout(timeout);
       }

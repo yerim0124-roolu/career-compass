@@ -13,6 +13,36 @@ export interface PaidResult {
   judgeCriteria: { intro: string; checks: string[]; ifYes: string; ifNo: string };
 }
 
+/**
+ * 서버가 보낸 원문에서 "결과지 JSON 텍스트"를 뽑아낸다.
+ * - 정상: 서버가 순수 JSON 텍스트를 흘림 → 원문 그대로 사용.
+ * - 방어: 만약 원문이 Anthropic SSE(`data: {...}`) 형태로 오면(프록시/서버 형식
+ *   변화 대비), content_block_delta의 text_delta만 이어붙여 재구성한다.
+ * 어느 형식이 와도 프론트가 동일하게 처리하도록 하는 관용 파서.
+ */
+export function reconstructText(raw: string): string {
+  const looksSse = raw.includes('"content_block_delta"') || /(^|\n)data:/.test(raw);
+  if (!looksSse) return raw;
+  let text = '';
+  let sawDelta = false;
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (!t.startsWith('data:')) continue;
+    const d = t.slice(5).trim();
+    if (d === '' || d === '[DONE]') continue;
+    try {
+      const e = JSON.parse(d) as { type?: string; delta?: { type?: string; text?: string } };
+      if (e.type === 'content_block_delta' && e.delta?.type === 'text_delta'
+          && typeof e.delta.text === 'string') {
+        text += e.delta.text;
+        sawDelta = true;
+      }
+    } catch { /* 부분 라인/비-델타 무시 */ }
+  }
+  // 델타를 하나도 못 벗겼으면(=실은 SSE가 아니었음) 원문을 그대로 돌려준다.
+  return sawDelta ? text : raw;
+}
+
 /** 코드펜스/앞뒤 잡텍스트를 걷어내고 JSON만 파싱. 실패 시 null. */
 export function extractJson(text: string): unknown {
   const trimmed = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
