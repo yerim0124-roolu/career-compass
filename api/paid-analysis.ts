@@ -7,10 +7,134 @@
 // 보안: ANTHROPIC_API_KEY는 process.env로만 접근하며, 코드/응답 어디에도 노출하지
 // 않는다. 실패 시 키·내부 정보 없이 에러 코드만 반환한다.
 
-import {
-  subtypeToKorean, ageBandToKorean, mainTypeToKorean, pullDirectionToKorean,
-  frictionToKorean, readinessToKorean, experienceToKorean,
-} from '../src/components/paid/labelMap.ts';
+// ── 코드값 → 한글 변환 (self-contained) ────────────────────────────────────────
+// ⚠️ Vercel 함수는 자기 파일 기준으로 번들된다. api/ 함수가 src/ 파일을 import하면
+// 배포 번들에 그 src 파일이 포함되지 않아 런타임 ERR_MODULE_NOT_FOUND가 난다.
+// 그래서 변환 로직을 여기에 자립적으로 둔다(프론트 src/components/paid/labelMap.ts와
+// 매핑 내용은 동일하게 유지 — 한쪽을 바꾸면 다른 쪽도 함께 갱신할 것).
+
+const SUBTYPE_LABELS: Record<string, string> = {
+  incomeRisk: '생활에 줄 영향',
+  careerCapitalContinuity: '쌓아온 걸 이어갈 길',
+  identityTransition: '새로운 나로 옮겨가는 일',
+  valuePreservation: '가치의 우선순위',
+  possibilityClosureAvoidance: '선택지를 닫기 어려운 마음',
+  researchLoop: '끝나지 않는 정보 탐색',
+  curiositySpread: '흩어진 관심',
+  marketResponseUnknown: '시장의 반응',
+  selfFitUnknown: '해낼 수 있을지에 대한 확신',
+  sustainabilityUnknown: '지속 가능성',
+  meaningDecline: '옅어진 의미',
+  autonomyDeficit: '스스로 정할 자리',
+  growthRoutineAbsent: '성장하는 감각',
+  expertiseStagnation: '실력을 꺼낼 통로',
+  recognitionGap: '보이지 않는 실력',
+  assetUnleveraged: '아직 안 쓴 자산',
+  contentLeverage: '콘텐츠로 낼 첫 신호',
+  advisoryLeverage: '자문·강의로 확인할 수요',
+  analysisLeverage: '분석으로 받을 반응',
+  independentPilot: '작은 유료 일감',
+  startupPrep: '문제와 수요의 검증',
+  generalLeverage: '어디부터 시작할지',
+  runwayShortage: '움직일 재정 여유',
+  lossIntolerance: '감당할 수 있는 시도 크기',
+  externalConstraint: '시간·역할의 합의',
+  selfInfoGap: '또렷하지 않은 내 강점',
+  marketInfoGap: '바깥에 어떤 길이 있는지',
+  roleLanguageGap: '끌리는 일을 부를 이름',
+  energyDepletion: '먼저 필요한 회복',
+  decisionOverload: '줄여야 할 판단 부담',
+  environmentDrain: '에너지를 빼앗는 환경',
+  default: '맡아서 끌어볼 자리',
+};
+const SUBTYPE_FALLBACK = '지금의 핵심 고민';
+function subtypeToKorean(code?: string | null): string {
+  if (!code) return SUBTYPE_FALLBACK;
+  return SUBTYPE_LABELS[code] ?? SUBTYPE_FALLBACK;
+}
+
+const AGE_BAND_LABELS: Record<string, string> = {
+  '20_early': '20대 초반', '20_late': '20대 후반',
+  '30_early': '30대 초반', '30_late': '30대 후반',
+  '40_early': '40대 초반', '40_late_plus': '40대 후반 이상',
+};
+function ageBandToKorean(code?: string | null): string {
+  if (!code) return '';
+  return AGE_BAND_LABELS[code] ?? '';
+}
+
+const MAIN_TYPE_LABELS: Record<string, string> = {
+  overloadedBurnout: '과부하 소진형',
+  realityLocked: '현실 조건 정비형',
+  lowOptionVisibility: '기회 탐색 부족형',
+  conflictedAtFork: '갈림길 결정형',
+  scatteredExplorer: '탐색 과잉형',
+  unvalidatedAspirant: '시장 미검증 도전형',
+  plateauedPerformer: '정체된 성실형',
+  restlessStabilizer: '안정 속 권태형',
+  emergingLeader: '조직 리더 성장형',
+  leverageReady: '전문성 레버리지형',
+};
+function mainTypeToKorean(code?: string | null): string {
+  if (!code) return '';
+  return MAIN_TYPE_LABELS[code] ?? '';
+}
+
+const PULL_DIRECTION_LABELS: Record<string, string> = {
+  stayRedesign: '현 직무 유지·재설계',
+  jobChange: '이직',
+  startup: '창업',
+  independent: '프리랜스/독립',
+  contentBrand: '콘텐츠/퍼스널 브랜드',
+  advisoryTeaching: '전문 자문/강의',
+  investAnalysis: '투자/분석/리포트',
+  orgLeadership: '조직 내 리더십',
+  restRecover: '휴식/재정비',
+};
+function pullDirectionToKorean(code?: string | null): string {
+  if (!code) return '';
+  return PULL_DIRECTION_LABELS[code] ?? '';
+}
+
+const FRICTION_LABELS: Record<string, string> = {
+  income_uncertainty: '수입의 불확실성',
+  career_capital_loss: '쌓은 경력 자산을 잃을 우려',
+  identity_loss: '지금의 정체성을 잃을 우려',
+  too_many_live_options: '너무 많이 열려 있는 선택지',
+  low_market_signal: '아직 부족한 시장 신호',
+  low_energy: '바닥난 에너지',
+  time_constraint: '시간의 제약',
+  tradeoff_pain: '가치 사이의 상충',
+};
+const FRICTION_FALLBACK = '지금의 결정을 어렵게 하는 마찰';
+function frictionToKorean(code?: string | null): string {
+  if (!code) return '';
+  return FRICTION_LABELS[code] ?? FRICTION_FALLBACK;
+}
+
+const READINESS_LABELS: Record<string, string> = {
+  pause: '지금은 회복이 먼저인 단계',
+  reflect_only: '생각을 정리하는 단계',
+  tiny_test: '가장 작은 시도를 해볼 단계',
+  structured_test: '병행할 구조를 만들 단계',
+  commitment_test: '집중해 검증할 단계',
+};
+function readinessToKorean(code?: string | null): string {
+  if (!code) return '';
+  return READINESS_LABELS[code] ?? '';
+}
+
+const TOTAL_CAREER_STAGE_LABELS: Record<string, string> = {
+  total_0_3: '총 경력 0~3년',
+  total_3_7: '총 경력 3~7년',
+  total_7_12: '총 경력 7~12년',
+  total_12_plus: '총 경력 12년 이상',
+  no_fulltime_experience: '정규직 경험 없음',
+};
+function experienceToKorean(code?: string | null): string {
+  if (!code) return '';
+  return TOTAL_CAREER_STAGE_LABELS[code] ?? '';
+}
 
 export const MODEL = 'claude-sonnet-4-6';
 const MAX_OUTPUT_TOKENS = 4096;
