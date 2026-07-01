@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
 import { readFreeContext } from './freeContext.ts';
 import { logPaidAnalysisFailed } from './paidAnalytics.ts';
-import { extractJson, validateResult, reconstructText, type PaidResult } from './resultValidation.ts';
+import { validateResult, type PaidResult } from './resultValidation.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
@@ -91,36 +91,12 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           body: JSON.stringify({ freeContext, paidAnswers: paid }),
           signal: controller.signal,
         });
-        // 스트림 시작 전 실패(4xx/5xx)는 여기서 잡힌다.
-        if (!resp.ok || !resp.body) throw new Error(`http_${resp.status}`);
-
-        // 스트림을 청크로 누적하되, 매 청크마다 "완전한 유효 JSON이 모였는지" 확인해
-        // 모이는 즉시 완료한다(스트림 종료 done을 기다리지 않음 — 서버가 연결을 늦게
-        // 닫아도 무한 로딩에 빠지지 않게). 서버가 순수 JSON이든 SSE든 reconstructText가
-        // 흡수한다. 화면은 로딩 유지 → 완성 시 카드로 전환(글자 실시간 표시 아님).
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let full = '';
-
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (value) full += decoder.decode(value, { stream: true });
-
-          const parsed = extractJson(reconstructText(full));
-          if (validateResult(parsed)) {
-            try { await reader.cancel(); } catch { /* noop */ }
-            finishSuccess(parsed);
-            return;
-          }
-          if (done) break;
-          if (settled) return; // 타임아웃 등으로 이미 종결됐으면 중단
-        }
-
-        // 스트림이 끝났는데도 유효 JSON을 못 얻음 → 마지막 flush 후 한 번 더 시도.
-        full += decoder.decode();
-        const finalParsed = extractJson(reconstructText(full));
-        if (validateResult(finalParsed)) { finishSuccess(finalParsed); return; }
-        throw new Error('parse_or_validation_failed');
+        // non-streaming: 서버가 검증 통과한 순수 JSON을 한 번에 반환한다.
+        // 4xx/5xx(키 없음·검증 실패·업스트림 오류)는 !resp.ok로 잡혀 에러 UI로 간다.
+        if (!resp.ok) throw new Error(`http_${resp.status}`);
+        const data = (await resp.json()) as unknown;
+        if (!validateResult(data)) throw new Error('validation_failed');
+        finishSuccess(data);
       } catch (e) {
         if (controller.signal.aborted && settled) return; // 우리가 성공 후 abort한 경우
         finishError(e instanceof Error ? e.message : 'unknown');

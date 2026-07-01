@@ -300,14 +300,13 @@ export default async function handler(req: any, res: any): Promise<void> {
 
   const userContent = assembleUserContent(freeContext, paidAnswers);
 
-  // ── 스트리밍 호출 ─────────────────────────────────────────────────────────
-  // stream:true로 호출하고, 도착하는 텍스트 델타를 즉시 res.write로 프론트에 흘린다.
-  // 이렇게 첫 바이트가 곧바로 나가 연결이 유지되므로, 생성이 10~20초 걸려도 Vercel이
-  // "응답 없음"으로 함수를 조기 종료하지 않아 타임아웃을 회피한다. 최종적으로 프론트가
-  // 받는 전체 텍스트는 순수 JSON(시스템 프롬프트 지시)이며, 파싱·검증은 프론트가 한다.
-  let upstream: Awaited<ReturnType<typeof fetch>>;
+  // ── non-streaming 호출 ─────────────────────────────────────────────────────
+  // Claude 응답을 서버가 전부 받은 뒤, 검증을 통과한 순수 JSON을 한 번에 반환한다.
+  // Vercel 함수 실행시간 한도(Fluid Compute: Hobby 기본 300초 / legacy: maxDuration
+  // 최대 60초) 안에서 15~35초 생성이 끝나므로 스트리밍의 first-byte 불안정성 없이
+  // 안정적으로 동작한다. 실패/파싱실패/검증실패는 명확한 상태코드로 프론트에 알린다.
   try {
-    upstream = await fetch('https://api.anthropic.com/v1/messages', {
+    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -317,61 +316,19 @@ export default async function handler(req: any, res: any): Promise<void> {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_OUTPUT_TOKENS,
-        stream: true,
         system: PAID_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userContent }],
       }),
     });
+    if (!upstream.ok) { res.status(502).json({ error: 'upstream_error' }); return; }
+
+    const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
+    const text = data.content?.find((c) => c.type === 'text')?.text ?? '';
+    const parsed = extractJson(text);
+    if (!validateResult(parsed)) { res.status(422).json({ error: 'validation_failed' }); return; }
+
+    res.status(200).json(parsed);
   } catch {
     res.status(502).json({ error: 'upstream_error' });
-    return;
-  }
-
-  // 스트림 시작 전 실패(4xx/5xx 또는 body 없음)는 아직 상태코드를 바꿀 수 있으므로
-  // 여기서 에러 JSON으로 응답한다. 프론트는 !res.ok → 에러 UI.
-  if (!upstream.ok || !upstream.body) {
-    res.status(502).json({ error: 'upstream_error' });
-    return;
-  }
-
-  // 여기서부터는 200 스트리밍. 헤더를 먼저 내보내 연결을 연다(버퍼링 방지 힌트 포함).
-  res.writeHead(200, {
-    'Content-Type': 'text/plain; charset=utf-8',
-    'Cache-Control': 'no-store',
-    'X-Accel-Buffering': 'no',
-  });
-
-  try {
-    const reader = upstream.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    // Anthropic SSE: 라인 단위로 `data: {json}`. content_block_delta의 text_delta만 추출.
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? ''; // 마지막 미완성 라인은 다음 청크와 합치기 위해 보존
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
-        const dataStr = trimmed.slice(5).trim();
-        if (dataStr === '' || dataStr === '[DONE]') continue;
-        try {
-          const evt = JSON.parse(dataStr) as {
-            type?: string; delta?: { type?: string; text?: string };
-          };
-          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta'
-              && typeof evt.delta.text === 'string') {
-            res.write(evt.delta.text);
-          }
-        } catch { /* 부분 JSON/비-델타 이벤트는 무시 */ }
-      }
-    }
-    res.end();
-  } catch {
-    // 스트리밍 도중 오류 → 이미 200/헤더가 나갔으므로 상태코드는 못 바꾼다.
-    // 연결만 종료하면 프론트가 불완전 텍스트를 파싱 실패로 처리해 에러 UI를 띄운다.
-    try { res.end(); } catch { /* noop */ }
   }
 }
