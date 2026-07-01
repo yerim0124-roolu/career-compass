@@ -22,7 +22,12 @@ function readHybridDone(): boolean {
   }
 }
 
-/** hybrid 결과 phase 여부를 localStorage 기반으로 추적(폴링 + storage/focus). */
+/**
+ * hybrid 결과 phase 여부를 localStorage 기반으로 추적.
+ * HybridFlowView(READ-ONLY)가 이벤트를 못 쏘므로, 같은 탭에서의 상태 변화는
+ * 폴링으로, 탭 복귀/포커스/해시 이동/다른 탭 변경은 이벤트로 함께 감지한다.
+ * (프로덕션·개발 동일하게 동작 — localStorage/타이머는 빌드 모드와 무관)
+ */
 function useHybridDone(): boolean {
   const [done, setDone] = useState<boolean>(() => readHybridDone());
   useEffect(() => {
@@ -31,13 +36,18 @@ function useHybridDone(): boolean {
       const next = readHybridDone();
       return next === prev ? prev : next;
     });
+    check(); // 마운트 직후 즉시 1회 재확인(초기 렌더 이후 상태가 바뀐 경우 대비).
     const id = window.setInterval(check, 800);
-    window.addEventListener('storage', check);
-    window.addEventListener('focus', check);
+    window.addEventListener('storage', check);      // 다른 탭에서의 변경
+    window.addEventListener('focus', check);        // 창 포커스 복귀
+    window.addEventListener('visibilitychange', check); // 탭 가시성 복귀
+    window.addEventListener('hashchange', check);   // 해시 라우팅 이동
     return () => {
       window.clearInterval(id);
       window.removeEventListener('storage', check);
       window.removeEventListener('focus', check);
+      window.removeEventListener('visibilitychange', check);
+      window.removeEventListener('hashchange', check);
     };
   }, []);
   return done;
