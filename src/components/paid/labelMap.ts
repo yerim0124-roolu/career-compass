@@ -78,3 +78,88 @@ export function ageBandToKorean(code?: string | null): string {
   if (!code) return '';
   return AGE_BAND_LABELS[code] ?? '';
 }
+
+// ── mainType 코드 → 한글 ───────────────────────────────────────────────────────
+// 근거: src/types/careerCompass.ts의 MAIN_TYPE_LABELS(정본). 서버 번들을 가볍게
+// 유지하려 값을 여기 복사하되, 정본이 바뀌면 함께 갱신할 것.
+const MAIN_TYPE_LABELS: Record<string, string> = {
+  overloadedBurnout: '과부하 소진형',
+  realityLocked: '현실 조건 정비형',
+  lowOptionVisibility: '기회 탐색 부족형',
+  conflictedAtFork: '갈림길 결정형',
+  scatteredExplorer: '탐색 과잉형',
+  unvalidatedAspirant: '시장 미검증 도전형',
+  plateauedPerformer: '정체된 성실형',
+  restlessStabilizer: '안정 속 권태형',
+  emergingLeader: '조직 리더 성장형',
+  leverageReady: '전문성 레버리지형',
+};
+export function mainTypeToKorean(code?: string | null): string {
+  if (!code) return '';
+  return MAIN_TYPE_LABELS[code] ?? '';
+}
+
+// ── pullDirection(CareerOptionKey) 코드 → 한글 ────────────────────────────────
+// 근거: src/types/careerCompass.ts의 CAREER_OPTION_LABELS(정본).
+const PULL_DIRECTION_LABELS: Record<string, string> = {
+  stayRedesign: '현 직무 유지·재설계',
+  jobChange: '이직',
+  startup: '창업',
+  independent: '프리랜스/독립',
+  contentBrand: '콘텐츠/퍼스널 브랜드',
+  advisoryTeaching: '전문 자문/강의',
+  investAnalysis: '투자/분석/리포트',
+  orgLeadership: '조직 내 리더십',
+  restRecover: '휴식/재정비',
+};
+export function pullDirectionToKorean(code?: string | null): string {
+  if (!code) return '';
+  return PULL_DIRECTION_LABELS[code] ?? '';
+}
+
+// ── primaryFriction(FrictionSource) 코드 → 한글 ───────────────────────────────
+// 근거: src/lib/resultContextEngine.ts의 friction 검출부 의미 + FrictionSource 타입.
+// 임의 창작이 아니라 코드값의 의미를 짧은 명사구로 옮긴 것. 미매핑은 일반 표현 폴백.
+const FRICTION_LABELS: Record<string, string> = {
+  income_uncertainty: '수입의 불확실성',
+  career_capital_loss: '쌓은 경력 자산을 잃을 우려',
+  identity_loss: '지금의 정체성을 잃을 우려',
+  too_many_live_options: '너무 많이 열려 있는 선택지',
+  low_market_signal: '아직 부족한 시장 신호',
+  low_energy: '바닥난 에너지',
+  time_constraint: '시간의 제약',
+  tradeoff_pain: '가치 사이의 상충',
+};
+const FRICTION_FALLBACK = '지금의 결정을 어렵게 하는 마찰';
+export function frictionToKorean(code?: string | null): string {
+  if (!code) return '';
+  return FRICTION_LABELS[code] ?? FRICTION_FALLBACK;
+}
+
+// ── readinessLevel 코드 → 한글 ────────────────────────────────────────────────
+// 근거: src/data/signalMap.ts의 responseByReadiness(각 준비도의 행동 강도 의미).
+const READINESS_LABELS: Record<string, string> = {
+  pause: '지금은 회복이 먼저인 단계',
+  reflect_only: '생각을 정리하는 단계',
+  tiny_test: '가장 작은 시도를 해볼 단계',
+  structured_test: '병행할 구조를 만들 단계',
+  commitment_test: '집중해 검증할 단계',
+};
+export function readinessToKorean(code?: string | null): string {
+  if (!code) return '';
+  return READINESS_LABELS[code] ?? '';
+}
+
+// ── 경력 연차(totalCareerStage) 코드 → 한글 ───────────────────────────────────
+// 근거: src/types/careerCompass.ts의 UserProfile.totalCareerStage enum.
+const TOTAL_CAREER_STAGE_LABELS: Record<string, string> = {
+  total_0_3: '총 경력 0~3년',
+  total_3_7: '총 경력 3~7년',
+  total_7_12: '총 경력 7~12년',
+  total_12_plus: '총 경력 12년 이상',
+  no_fulltime_experience: '정규직 경험 없음',
+};
+export function experienceToKorean(code?: string | null): string {
+  if (!code) return '';
+  return TOTAL_CAREER_STAGE_LABELS[code] ?? '';
+}

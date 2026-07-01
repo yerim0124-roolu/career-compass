@@ -15,7 +15,7 @@ const isDev = typeof import.meta !== 'undefined' && !!import.meta.env?.DEV;
 // analytics.ts와 동일한 키 — 같은 익명 세션 ID를 공유한다.
 const SESSION_KEY = 'career-compass-analytics-session-id';
 
-type PaidEventType = 'paid_preview_viewed' | 'paid_checkout_clicked';
+type PaidEventType = 'paid_preview_viewed' | 'paid_checkout_clicked' | 'paid_analysis_failed';
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return 'ssr';
@@ -61,4 +61,9 @@ export function logPaidPreviewViewed(): void {
 /** "결제하고 전체 받기" 클릭 시. */
 export function logPaidCheckoutClicked(): void {
   send('paid_checkout_clicked');
+}
+
+/** 심화 분석 생성 실패 시(에러 코드만 기록, 내부 정보 없음). */
+export function logPaidAnalysisFailed(reason?: string): void {
+  send('paid_analysis_failed', reason ? { reason } : {});
 }
