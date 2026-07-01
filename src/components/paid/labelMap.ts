@@ -11,8 +11,8 @@
 export const SUBTYPE_LABELS: Record<string, string> = {
   // conflictedAtFork
   incomeRisk: '생활에 줄 영향',
-  careerCapitalContinuity: '쌓아온 경력을 잇는 문제',
-  identityTransition: '새 역할 속의 나',
+  careerCapitalContinuity: '쌓아온 걸 이어갈 길',
+  identityTransition: '새로운 나로 옮겨가는 일',
   valuePreservation: '가치의 우선순위',
   // scatteredExplorer
   possibilityClosureAvoidance: '선택지를 닫기 어려운 마음',
@@ -59,4 +59,22 @@ const FALLBACK = '지금의 핵심 고민';
 export function subtypeToKorean(code: string | undefined | null): string {
   if (!code) return FALLBACK;
   return SUBTYPE_LABELS[code] ?? FALLBACK;
+}
+
+// ── 나이대(ageBand) 코드값 → 한글 ──────────────────────────────────────────────
+// 무료 profile.ageBand 코드값을 3단계 프롬프트에 한글로 넣기 위한 매핑.
+// chatFlow.ts의 PROFILE_AGE_BAND label과 동일하게 유지한다.
+const AGE_BAND_LABELS: Record<string, string> = {
+  '20_early': '20대 초반',
+  '20_late': '20대 후반',
+  '30_early': '30대 초반',
+  '30_late': '30대 후반',
+  '40_early': '40대 초반',
+  '40_late_plus': '40대 후반 이상',
+};
+
+/** 매핑에 없거나 비면 빈 문자열 반환 → 프롬프트에서 "나이 정보 없음"으로 처리 가능. */
+export function ageBandToKorean(code?: string | null): string {
+  if (!code) return '';
+  return AGE_BAND_LABELS[code] ?? '';
 }

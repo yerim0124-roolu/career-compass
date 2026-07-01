@@ -12,6 +12,22 @@ import { logPaidPreviewViewed, logPaidCheckoutClicked } from './paidAnalytics.ts
 
 const HYBRID_STORAGE_KEY = 'career-compass-hybrid-session-v1';
 
+// ── 한글 조사 자동 선택 (앞 명사 마지막 글자의 받침 유무 기반) ─────────────────
+/** 받침 있으면 '과', 없으면 '와'. 한글이 아니면 기본 '와'. */
+function josaWaGwa(word: string): string {
+  const last = word[word.length - 1];
+  const code = last?.charCodeAt(0) ?? 0;
+  if (code < 0xac00 || code > 0xd7a3) return '와';
+  return (code - 0xac00) % 28 !== 0 ? '과' : '와';
+}
+/** 받침 있으면 '을', 없으면 '를'. 한글이 아니면 기본 '를'. */
+function josaEulReul(word: string): string {
+  const last = word[word.length - 1];
+  const code = last?.charCodeAt(0) ?? 0;
+  if (code < 0xac00 || code > 0xd7a3) return '를';
+  return (code - 0xac00) % 28 !== 0 ? '을' : '를';
+}
+
 // "이런 리포트를 받아요" 정적 목록.
 const REPORT_ITEMS: Array<{ lead?: string; text: string }> = [
   { lead: '📋', text: '1분 요약 카드 (핵심 진단 · 가장 큰 리스크 · 이번 달 할 것)' },
@@ -41,9 +57,10 @@ function useTeaser(): string {
     const tail = '이 마음의 정체와, 그래서 이번 달 무엇을 하면 좋을지 — 더 깊은 분석에서 구체적으로 짚어드릴게요.';
     // primary === secondary(단일 subtype 유형)면 "사이에서 흔들리고"가 어색하므로 변형.
     if (primary === secondary) {
-      return `지금 당신은 '${primary}'을(를) 두고 고민하고 있어요. ${tail}`;
+      return `지금 당신은 '${primary}'${josaEulReul(primary)} 두고 고민하고 있어요. ${tail}`;
     }
-    return `지금 당신은 '${primary}'와(과) '${secondary}' 사이에서 흔들리고 있어요. ${tail}`;
+    // 앞 명사(primary)의 받침에 맞춰 '와/과' 자동 선택.
+    return `지금 당신은 '${primary}'${josaWaGwa(primary)} '${secondary}' 사이에서 흔들리고 있어요. ${tail}`;
   }, []);
 }
 

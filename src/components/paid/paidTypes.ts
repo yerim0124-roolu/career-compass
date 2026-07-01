@@ -6,8 +6,9 @@
 
 export interface PaidAnswers {
   // 스텝 1 — 지금 당신의 상황
+  // 나이대는 무료 퀴즈(profile.ageBand)에서 이미 수집하므로 여기서 묻지 않는다.
+  // 무료 ageBand 값은 3단계 프롬프트에서 함께 사용(freeContext.readFreeAgeBand).
   workStatus: string;
-  ageGroup: string;
   maritalStatus: string;
   dependents: string;
   // 스텝 2 — 지금 이 고민

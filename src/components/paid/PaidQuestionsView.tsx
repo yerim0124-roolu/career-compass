@@ -18,7 +18,7 @@ type Question =
   | { key: 'mustKeep'; type: 'multi'; question: string; options: string[]; max: number };
 
 type SingleKey =
-  | 'workStatus' | 'ageGroup' | 'maritalStatus' | 'dependents'
+  | 'workStatus' | 'maritalStatus' | 'dependents'
   | 'candidateDirection' | 'runway' | 'incomeFloor' | 'weeklyTime' | 'energyLevel';
 type TextKey = 'trigger' | 'flowMoment';
 
@@ -30,8 +30,6 @@ const STEPS: StepDef[] = [
     questions: [
       { key: 'workStatus', type: 'single', question: '지금 어떤 형태로 일하고 계세요?',
         options: ['회사원(정규직)', '계약직·파견', '프리랜서·개인사업', '사장님(직원 있음)', '지금은 쉬는 중·구직 중'] },
-      { key: 'ageGroup', type: 'single', question: '나이대가 어떻게 되세요?',
-        options: ['20대', '30대 초중반', '30대 후반~40대 초', '40대 중반~50대', '50대 이상'] },
       { key: 'maritalStatus', type: 'single', question: '결혼하셨어요?',
         options: ['미혼', '기혼'] },
       { key: 'dependents', type: 'single', question: '생계를 책임지는 가족이 있나요?',
@@ -80,7 +78,7 @@ const STEPS: StepDef[] = [
 ];
 
 const EMPTY: PaidAnswers = {
-  workStatus: '', ageGroup: '', maritalStatus: '', dependents: '',
+  workStatus: '', maritalStatus: '', dependents: '',
   trigger: '', candidateDirection: '',
   runway: '', incomeFloor: '', weeklyTime: '', energyLevel: '',
   flowMoment: '', mustKeep: [],

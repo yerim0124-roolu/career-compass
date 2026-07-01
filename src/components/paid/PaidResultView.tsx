@@ -5,6 +5,8 @@
 // 주입해 실제 결과를 렌더할 예정. 접근 게이팅은 App.tsx의 FEATURE_FLAGS에서 처리.
 
 import type { PaidAnswers } from './paidTypes.ts';
+import { readFreeAgeBand } from './freeContext.ts';
+import { ageBandToKorean } from './labelMap.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
@@ -15,6 +17,9 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   const answered = paidAnswers
     ? Object.values(paidAnswers).filter((v) => (Array.isArray(v) ? v.length > 0 : v !== '')).length
     : 0;
+  // 무료 퀴즈의 나이대를 함께 확보(3단계 프롬프트에서 paidAnswers와 같이 주입).
+  const ageBand = readFreeAgeBand();
+  const ageBandKo = ageBandToKorean(ageBand);
 
   return (
     <div className="min-h-dvh bg-white flex items-center justify-center px-6">
@@ -25,7 +30,9 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           유료 분석 결과가 여기 표시됩니다 (준비 중).
         </p>
         {isDev && paidAnswers && (
-          <p className="text-[11px] text-slate-400">[dev] 심화 답변 {answered}개 항목 수신됨</p>
+          <p className="text-[11px] text-slate-400">
+            [dev] 심화 답변 {answered}개 · 나이대 {ageBandKo || '정보 없음'}
+          </p>
         )}
       </div>
     </div>
