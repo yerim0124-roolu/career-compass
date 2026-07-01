@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/paid-analysis.ts": {
+      "maxDuration": 60
+    }
+  }
+}
