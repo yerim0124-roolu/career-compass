@@ -8,17 +8,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
 import { readFreeContext } from './freeContext.ts';
 import { logPaidAnalysisFailed } from './paidAnalytics.ts';
+import { extractJson, validateResult, type PaidResult } from './resultValidation.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
-}
-
-interface PaidResult {
-  summaryCard: {
-    coreNow: string; biggestRisk: string; dontDo: string; doThis: string; judgeBy: string;
-  };
-  sections: Array<{ title: string; body: string }>;
-  judgeCriteria: { intro: string; checks: string[]; ifYes: string; ifNo: string };
 }
 
 type Phase = 'loading' | 'success' | 'error' | 'no_answers';
@@ -79,10 +72,25 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           body: JSON.stringify({ freeContext, paidAnswers: paid }),
           signal: controller.signal,
         });
-        if (!resp.ok) throw new Error(`http_${resp.status}`);
-        const data = (await resp.json()) as PaidResult;
+        // 스트림 시작 전 실패(4xx/5xx)는 여기서 잡힌다.
+        if (!resp.ok || !resp.body) throw new Error(`http_${resp.status}`);
+
+        // 서버는 순수 JSON 텍스트를 스트리밍으로 흘린다. 로딩 UI를 유지한 채
+        // 전체 텍스트를 끝까지 누적한 뒤, 한 번에 파싱·검증한다(글자 실시간 표시 아님).
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let full = '';
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          full += decoder.decode(value, { stream: true });
+        }
+        full += decoder.decode(); // 남은 멀티바이트 flush
         if (cancelled) return;
-        setResult(data);
+
+        const parsed = extractJson(full);
+        if (!validateResult(parsed)) throw new Error('parse_or_validation_failed');
+        setResult(parsed);
         setPhase('success');
       } catch (e) {
         if (cancelled) return;
