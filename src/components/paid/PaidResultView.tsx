@@ -14,7 +14,14 @@ interface Props {
   paidAnswers?: PaidAnswers | null;
 }
 
-type Phase = 'loading' | 'success' | 'error' | 'no_answers';
+type Phase = 'loading' | 'success' | 'error' | 'no_answers' | 'insufficient_input';
+
+// 입력 품질 게이트: 서술형이 이보다 짧으면 Claude를 호출하지 않고 추가 입력을 요청한다.
+const MIN_FREE_TEXT_CHARS = 500;
+const MIN_FREE_TEXT_SENTENCES = 5;
+function countSentences(text: string): number {
+  return text.split(/[\n.!?]|다\.|요\.|음\./).map((s) => s.trim()).filter((s) => s.length >= 5).length;
+}
 
 const LOADING_MESSAGES = [
   '당신만을 위한 분석을 만들고 있어요…',
@@ -87,22 +94,36 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
       setPhase('success');
     };
 
-    // 하드 타임아웃: non-streaming Claude 응답이 최대 1~2분까지 걸릴 수 있어 150초로 둔다.
-    // 서버가 200으로 1분 이상 버티므로 프론트가 먼저 포기(abort)하면 정상 응답을 놓친다.
-    // 타임아웃이 "실제로" 초과했을 때만 abort → 응답과의 레이스에서 프론트가 먼저 죽지 않게.
-    const timeout = window.setTimeout(() => { controller.abort(); finishError('timeout'); }, 150000);
+    // 하드 타임아웃: 서버 함수는 최대 3분(180초)까지 열려 있고 main Claude 호출을 150초까지
+    // 기다린다. 프론트는 그보다 여유 있게 180초로 둬야 서버 정상 응답을 놓치지 않는다.
+    const timeout = window.setTimeout(() => { controller.abort(); finishError('timeout'); }, 180000);
 
     (async () => {
       try {
         const freeContext = readFreeContext();
         // 진단 — 서버로 보내는 서술형 길이(개인정보 전체는 찍지 않음). free-text 누락 추적용.
         const clip60 = (v: string) => (v ? v.slice(0, 60).replace(/\n/g, ' ') : '(none)');
+        const freeTextChars = freeContext.occupation.length + freeContext.userFreeText.length + paid.trigger.length + paid.flowMoment.length;
+        const sentenceCount = countSentences(`${paid.trigger}\n${paid.flowMoment}\n${freeContext.userFreeText}`);
         // eslint-disable-next-line no-console
         console.log('[paid-analysis] SEND | freeContext keys:', Object.keys(freeContext).join(','),
           '| occupation len:', freeContext.occupation.length, '| userFreeText len:', freeContext.userFreeText.length,
           '| paid.trigger len:', paid.trigger.length, `"${clip60(paid.trigger)}"`,
           '| paid.flowMoment len:', paid.flowMoment.length, `"${clip60(paid.flowMoment)}"`,
+          '| freeTextChars:', freeTextChars, '| sentenceCount:', sentenceCount,
           '| candidateDirection:', paid.candidateDirection, '| mustKeep:', paid.mustKeep.join('/'));
+
+        // 입력 품질 게이트: 서술형이 부족하면 Claude를 호출하지 않고 추가 입력을 요청한다.
+        if (freeTextChars < MIN_FREE_TEXT_CHARS || sentenceCount < MIN_FREE_TEXT_SENTENCES) {
+          if (!isActive()) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          // eslint-disable-next-line no-console
+          console.warn('[paid-analysis] insufficient_input — Claude 호출 생략. freeTextChars:', freeTextChars, 'sentences:', sentenceCount);
+          setPhase('insufficient_input');
+          return;
+        }
+
         const resp = await fetch('/api/paid-analysis', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -161,6 +182,28 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     // 언마운트/재시도 시: 이 실행을 stale로 만들고(runId 증가) 정리.
     return () => { runIdRef.current++; controller.abort(); window.clearTimeout(timeout); };
   }, [attempt]);
+
+  // ── 입력 부족(서술형이 너무 짧음) → 추가 입력 요청 ──
+  if (phase === 'insufficient_input') {
+    return (
+      <div className="min-h-dvh bg-white">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">
+          <p className="text-2xl" aria-hidden>✍️</p>
+          <p className="text-base font-black text-slate-800">조금만 더 들려주세요</p>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            지금 서술형 답변이 짧아서, 당신의 상황에 꼭 맞는 깊은 분석을 만들기 어려워요.<br />
+            <span className="font-semibold">'요즘 이 고민이 커진 계기'</span>와 <span className="font-semibold">'몰입했던 순간'</span>을
+            2~3문장씩만 더 구체적으로 적어 주시면, 훨씬 정확한 리포트를 드릴 수 있어요.
+          </p>
+          <button type="button" onClick={() => { window.location.hash = '#paid-questions'; }}
+            className="px-6 py-3 rounded-2xl text-white font-bold" style={{ background: PURPLE }}>
+            답변 보완하러 가기 <span aria-hidden>→</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── 답변 없음(직접 접근/새로고침) ──
   if (phase === 'no_answers') {

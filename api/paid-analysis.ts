@@ -140,7 +140,11 @@ export const MODEL = 'claude-sonnet-4-6';
 // 태그 출력(이스케이프 없음)이라 JSON보다 토큰 효율이 높다. 6000이면 긴 서사 7섹션이
 // 충분히 담기면서 생성 시간이 90초 안쪽으로 들어온다(이전 JSON 8000은 138초·parse 실패).
 const MAX_OUTPUT_TOKENS = 6000;
-const MAIN_CALL_TIMEOUT_MS = 95000; // main 호출 서버측 abort(2분 넘게 기다리다 fallback로 떨어지는 것 방지)
+// Vercel 함수는 3분(180s)까지 열려 있으므로 main 호출은 넉넉히 150초까지 기다린다.
+// (이전 95초 abort가 ~100초에 502 upstream_error를 만들었다.)
+const MAIN_CALL_TIMEOUT_MS = 150000;
+const REPAIR_CALL_TIMEOUT_MS = 55000;   // content-repair는 남은 시간에 맞춰 더 짧게
+const REPAIR_START_BUDGET_MS = 90000;   // main이 이 시간 안에 끝났을 때만 content-repair 시도(총 180s 내)
 
 // ── 시스템 프롬프트 (전문, 그대로) ──────────────────────────────────────────────
 export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람의 마음을 깊이 읽어주는 따뜻한 커리어 안내자입니다. 아래 진단 데이터를 그대로 요약하지 말고, 데이터에 적히지 않은 이 사람의 현실까지 조심스럽게 추론해서 채우세요.
@@ -781,31 +785,34 @@ function buildContentRepairInput(currentJson: string, profileFacts: string, evid
 }
 
 /** Anthropic 비스트리밍 호출. 텍스트 반환, upstream 실패 시 throw. */
+// errorType을 구분해 throw한다: claude_abort_timeout / claude_http_error / claude_network_error.
 async function callClaude(apiKey: string, system: string, userContent: string, maxTokens: number, timeoutMs?: number): Promise<string> {
   const controller = new AbortController();
-  const to = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+  let timedOut = false;
+  const to = timeoutMs ? setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs) : undefined;
+  let upstream: Awaited<ReturnType<typeof fetch>>;
   try {
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+    upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: maxTokens,
-        system,
-        messages: [{ role: 'user', content: userContent }],
-      }),
+      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: userContent }] }),
       signal: controller.signal,
     });
-    if (!upstream.ok) throw new Error(`upstream_${upstream.status}`);
-    const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
-    return data.content?.find((c) => c.type === 'text')?.text ?? '';
+  } catch (e) {
+    if (timedOut || (e as { name?: string })?.name === 'AbortError') throw new Error('claude_abort_timeout');
+    throw new Error('claude_network_error');
   } finally {
     if (to) clearTimeout(to);
   }
+  if (!upstream.ok) throw new Error(`claude_http_error_${upstream.status}`);
+  const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
+  return data.content?.find((c) => c.type === 'text')?.text ?? '';
+}
+function classifyClaudeError(msg: string): string {
+  if (msg.startsWith('claude_abort_timeout')) return 'claude_abort_timeout';
+  if (msg.startsWith('claude_http_error')) return 'claude_http_error';
+  if (msg.startsWith('claude_network_error')) return 'claude_network_error';
+  return 'unknown';
 }
 
 // ── deterministic fallback builder (Claude 재호출 없이 서버에서 최소 유효 결과) ──
@@ -1001,7 +1008,6 @@ export default async function handler(req: any, res: any): Promise<void> {
   // ── 원칙: Claude는 태그 텍스트를 만들고, 서버가 canonical을 조립한다. rich primary 유지,
   //   fallback은 catastrophic(추출 섹션 ≤2)일 때만. quality 미달은 content-repair로 보강.
   const t0 = Date.now();
-  const SOFT_DEADLINE = 135000;
   const includeDiag = process.env.VERCEL_ENV !== 'production';
   try {
     const raw1 = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS, MAIN_CALL_TIMEOUT_MS);
@@ -1035,13 +1041,14 @@ export default async function handler(req: any, res: any): Promise<void> {
     // eslint-disable-next-line no-console
     console.log('[paid] qualityWarnings:', warnings.length ? warnings.join(',') : 'none', '| source(pre-repair):', finalResultSource);
     let contentRepairAttempted = false; let contentRepairSucceeded = false;
-    const shouldRepair = (warnings.length > 0 || finalResultSource === 'full_fallback_used') && (Date.now() - t0) < SOFT_DEADLINE;
+    // content-repair는 main이 REPAIR_START_BUDGET(90초) 안에 끝났을 때만(총 180초 내 마무리).
+    const shouldRepair = (warnings.length > 0 || finalResultSource === 'full_fallback_used') && (Date.now() - t0) < REPAIR_START_BUDGET_MS;
     if (shouldRepair) {
       contentRepairAttempted = true;
       const tC = Date.now();
       const cr = await callClaude(apiKey, CONTENT_REPAIR_SYSTEM_PROMPT,
         buildContentRepairInput(JSON.stringify(result), facts.text, evidence.text, warnings.length ? warnings : ['full_fallback_recovery']),
-        MAX_OUTPUT_TOKENS, MAIN_CALL_TIMEOUT_MS);
+        MAX_OUTPUT_TOKENS, REPAIR_CALL_TIMEOUT_MS);
       let ct = parseTaggedResult(cr);
       if (ct.sectionCount === 0) { const j = extractJson(cr); if (j) ct = { obj: j as Record<string, unknown>, sectionCount: 7, coreSectionCount: 4 }; }
       const cRep = rawContentReport(ct.obj);
@@ -1080,15 +1087,21 @@ export default async function handler(req: any, res: any): Promise<void> {
       '| qualityWarnings:', finalWarnings.length ? finalWarnings.join(',') : 'none',
       '| contentRepairAttempted:', contentRepairAttempted, '| contentRepairSucceeded:', contentRepairSucceeded,
       '| total ms:', Date.now() - t0);
-    // long real case에서 full_fallback_used는 실패다 — preview에서 명확히 남긴다.
+    // full_fallback_used는 유료 결과지가 아니다 — 절대 결과 카드로 렌더링하지 않는다.
+    // content-repair로도 회복 못 하면 422 quality_failed로 반환해 프론트가 실패 UI를 띄운다.
     if (finalResultSource === 'full_fallback_used') {
+      const diag = { error: 'quality_failed', errorType: 'full_fallback_used', extractedSections: tag.sectionCount, evidenceKeywordCount, contentRepairAttempted, elapsedMs: Date.now() - t0 };
       // eslint-disable-next-line no-console
-      console.error('[paid] QUALITY_FAILED: full_fallback_used shown as paid result. 원인 확인 필요(위 IN/call#1 로그).');
+      console.error('[paid] QUALITY_FAILED (fallback not rendered):', JSON.stringify(diag));
+      res.status(422).json(includeDiag ? diag : { error: 'quality_failed' });
+      return;
     }
     res.status(200).json(includeDiag ? { ...result, _diag: { finalResultSource, extractedSections: tag.sectionCount, evidenceKeywordCount, qualityWarnings: finalWarnings } } : result);
   } catch (e) {
+    const msg = e instanceof Error ? e.message : 'unknown';
+    const errorType = classifyClaudeError(msg);
     // eslint-disable-next-line no-console
-    console.error('[paid] upstream/exception:', e instanceof Error ? e.message : 'unknown', '| total ms:', Date.now() - t0);
-    res.status(502).json({ error: 'upstream_error' });
+    console.error('[paid] upstream/exception:', msg, '| errorType:', errorType, '| total ms:', Date.now() - t0);
+    res.status(502).json(includeDiag ? { error: 'upstream_error', errorType } : { error: 'upstream_error', errorType });
   }
 }
