@@ -187,9 +187,9 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
 [근거 반영 — 최우선] USER_EVIDENCE_PACK에서 아래를 반드시 읽어내 각 섹션에 자연스러운 리포트 문장으로 녹여라(키워드 나열 금지). 각 주요 섹션은 evidence에서 최소 2개 이상 사용:
  · 지금 만들고/하고 싶은 것(브랜드·콘텐츠·사업·상품 아이디어) · 현재 수입 공백 또는 필요한 최소 수입 · 버틸 수 있는 기간 · 기존 직업(병원 취직/임상 확대 등) 복귀에 대한 고민 · 배우자·가족·생활비 압박 · 가장 두려워하는 시나리오 · 이미 반응을 얻은 경험 · 돈을 받을 수 있는지 확인해야 하는 포인트 · 지키고 싶은 것.
 [금지] "작은 실험", "방향 감각", "현재 전문성", "에너지", "고민을 한 문장으로 적어보기", "대상 한 명 정하기", "초안 만들기" 같은 일반·템플릿 표현 반복 금지. 모든 전환자에게 붙일 수 있는 문장 금지 — 이 사용자만의 맥락이 들어가야 한다.
-[분량 — 유료 리포트 수준] 각 섹션 본문을 golden 밀도로: corePatterns/blockers/strengths/risks 각 body 400~700자, monthlyExperiments body 300~500자, finalMessage 400~700자, sevenDayPlan 각 항목 100~180자. 짧고 얕으면 실패.
+[구조 — narrative report] 결과지는 카드형 목록이 아니라 '긴 서사 리포트'다. 아래 7개 narrative 섹션(currentPosition·whyNow·innerConflict·riskMap·transitionAssets·monthlyExperiment·futureMessage)을 각각 하나의 이어지는 문단(들)로, 지정 분량으로 밀도 있게 쓴다. 각 섹션은 evidence pack의 구체 정보를 최소 2개 이상 자연스럽게 녹인다.
 ━━ 출력 형식 (반드시 아래 스키마에 '정확히' 맞는 순수 JSON만) ━━
-규칙: 마크다운·코드펜스(\`\`\`)·설명·JSON 앞뒤 텍스트 전부 금지. 배열 개수는 지정 수를 정확히. 아래 필드만 생성.
+규칙: 마크다운·코드펜스(\`\`\`)·설명·JSON 앞뒤 텍스트 전부 금지. 아래 필드만 생성. 각 body는 지정 분량을 채운다(짧고 얕으면 실패).
 {
   "summaryCard": {
     "coreNow": "지금 핵심 1~2문장",
@@ -198,40 +198,35 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
     "doThis": "이번 달 할 것 1문장",
     "judgeBy": "30일 뒤 판단 기준 1문장"
   },
-  "corePatterns": [
-    { "title": "패턴 이름", "body": "왜 지금 이 고민이 왔는지 + 결정을 못 내리게 하는 심리 메커니즘을 사용자 언어와 구체 맥락으로. 250~400자" }
-  ],
-  "blockers": [
-    { "title": "이름", "body": "붙잡는 현실·심리 요인을 사용자 제약과 연결해. 200~350자" }
-  ],
-  "strengths": [
-    { "title": "이름", "body": "기존 커리어 자산 + 현재 전문성을 구체 자산으로. 250~400자" }
-  ],
-  "risks": [
-    { "title": "이름", "body": "돈·시간·가족·나이를 사용자 실제 수치와 연결한 현실 리스크. 250~400자" }
-  ],
-  "monthlyExperiments": [
-    {
-      "title": "실험 이름(무엇을 검증하는지 드러나게)",
-      "body": "이 실험이 무엇을 시장/수익/전환 가능성 차원에서 검증하는지. 300~500자",
-      "hypothesis": "검증할 가설(예: '수의학 전문성을 브랜드 신뢰로 전환해 돈을 받을 수 있는가')",
-      "target": "실제 구매/결제 가능성이 있는 구체 집단",
-      "action": "콘텐츠 N개가 아니라, 구매의사·DM·소액 결제·상담 요청·예약을 유도하는 구체 제안",
-      "successMetric": "저장·좋아요가 아니라 DM·구매의사·소액 결제·상담 요청·예약·이메일 확보 등 '돈에 가까운 반응'의 구체 수치",
-      "stopSignal": "반응 없음뿐 아니라 어떤 가설을 버릴지 명확히",
-      "whyThisFits": "사용자의 수입 공백·버틸 기간·기존 경험·현재 전문성을 연결한 근거"
-    }
-  ],
-  "sevenDayPlan": [
-    "1일차: 유료 반응을 확인할 가설 1개 정의(감정정리 아님). 100~180자 — 이후 2일차 타깃 10명 리스트업, 3일차 제안 메시지/랜딩 문구, 4일차 콘텐츠/제안 1개 공개, 5일차 DM/지인 5명 직접 검증, 6일차 반응을 돈/관심/칭찬/무반응으로 분류, 7일차 키울 가설·버릴 가설 결정. 즉 감정정리가 아니라 실제 검증 루프."
-  ],
-  "recheckCriteria": [
-    "30일 뒤 스스로 점검할 기준(예/아니오, 돈에 가까운 반응 여부 중심). 120~220자"
-  ],
-  "finalMessage": "사용자가 직접 쓴 말을 다시 안아주는 마무리. 실제 표현 인용 가능. 400~700자"
+  "currentPosition": { "title": "지금 당신이 멈춰 선 곳", "body": "지금 어떤 지점에 서 있는지를 사용자 상황으로. 500~800자" },
+  "whyNow": { "title": "왜 하필 지금 이 마음이 왔는지", "body": "계기·수입 공백·버틸 기간 등과 연결. 500~800자" },
+  "innerConflict": { "title": "두 마음의 줄다리기", "body": "기존 일 복귀 vs 새 방향 사이의 갈등을 구체적으로. 심리 메커니즘 최대 2개. 600~900자" },
+  "riskMap": { "title": "현실 리스크 지도", "body": "버틸 기간·최소 수입·부양 등 실제 수치와 연결한 리스크. 600~900자" },
+  "transitionAssets": { "title": "당신이 이미 가진 전환 자산", "body": "기존 커리어 + 현재 전문성(자격·도메인 이해·신뢰 자산)의 조합. 500~800자" },
+  "monthlyExperiment": {
+    "title": "이번 달의 30일 실험",
+    "body": "이번 달 무엇을 시장/수익/전환 가능성 차원에서 검증할지의 서사. 700~1000자",
+    "experiments": [
+      {
+        "title": "실험 이름(무엇을 검증하는지 드러나게)",
+        "body": "실험 개요",
+        "hypothesis": "검증할 가설(예: 이 전문성에 돈을 낼 사람이 있는가)",
+        "target": "실제 구매/결제 가능성이 있는 구체 집단",
+        "action": "구매의사·DM·소액 결제·상담 요청·예약을 유도하는 구체 제안(콘텐츠 N개 아님)",
+        "successMetric": "저장·좋아요가 아니라 DM·소액 결제·상담 요청·예약·이메일 확보 등 돈에 가까운 반응의 구체 수치",
+        "stopSignal": "어떤 가설을 버릴지 명확히",
+        "whyThisFits": "수입 공백·버틸 기간·기존 경험·현재 전문성을 연결한 근거"
+      }
+    ]
+  },
+  "futureMessage": { "title": "한 달 뒤의 당신에게", "body": "사용자가 직접 쓴 말을 다시 안아주는 마무리. 실제 표현 인용 가능. 400~700자" },
+  "sevenDayPlan": [ "1일차: 유료 반응을 확인할 가설 1개 정의(감정정리 아님). 이후 2일차 타깃 10명 리스트업, 3일차 제안 메시지/랜딩 문구, 4일차 제안 1개 공개, 5일차 DM/지인 5명 직접 검증, 6일차 반응을 돈/관심/칭찬/무반응으로 분류, 7일차 키울 가설·버릴 가설 결정. 각 100~180자" ],
+  "recheckCriteria": [ "30일 뒤 스스로 점검(예/아니오, 돈에 가까운 반응 중심). 120~220자" ],
+  "ifTwoOrMoreYes": "재점검에서 2가지 이상 예일 때의 다음 행동",
+  "ifAllNo": "모두 아니오일 때의 안내(전환 서두르지 말고 대상/제안 교체 또는 회복·역할 재설계)"
 }
-개수 규칙(반드시): corePatterns 3, blockers 3, strengths 3, risks 2~3, monthlyExperiments 3(각 구조화 필드 채움), sevenDayPlan 7(1일차~7일차, 위 검증 루프 흐름), recheckCriteria 3.
-[30일 실험] "콘텐츠 올려보세요/주 2회 올리기/대상 한 명 정하기" 금지. 반드시 '누구에게 무엇을 팔거나 검증할지'와 '돈에 가까운 성공 지표'가 있어야 한다.
+개수 규칙(반드시): narrative 7섹션 모두 채움, monthlyExperiment.experiments 2~3(각 구조화 필드 채움), sevenDayPlan 7(1일차~7일차 검증 루프), recheckCriteria 3.
+[30일 실험] "콘텐츠 올려보세요/주 2회 올리기/대상 한 명 정하기" 금지. '누구에게 무엇을 팔거나 검증할지'와 '돈에 가까운 성공 지표' 필수.
 [7일 계획] "고민 적기/지키고 싶은 것 정하기/초안 만들기" 수준 금지. 유료 반응 검증 루프로.
 [수의사 등 전문직] 현재 직업을 '현재 가진 전문 자격·신뢰 자산·도메인 이해'로 구체적으로 다루되, 오래 종사한 것처럼 쓰지 말 것(PROFILE_FACTS 준수). 기존 커리어 자산과 현재 전문성의 조합 가능성을 중심으로.
 JSON 외 어떤 텍스트도 금지. 마크다운·코드펜스 금지. 순수 JSON만.`;
@@ -403,16 +398,28 @@ export function extractJson(text: string): unknown {
 // ── 계약(normalize + validate) — src/shared/paidAnalysisContract.ts의 '동일 복사' ──
 // Vercel 번들 제약으로 src를 import할 수 없어 여기에 복사한다. 둘의 동등성은
 // src/components/paid/paidAnalysisContract.test.ts가 픽스처로 비교해 드리프트를 막는다.
-export interface TitledItem { title: string; body: string; }
+export interface NarrativeSection { title: string; body: string; }
 export interface ExperimentItem {
   title: string; body: string;
   hypothesis?: string; target?: string; action?: string; successMetric?: string; stopSignal?: string; whyThisFits?: string;
 }
 export interface PaidAnalysisResult {
   summaryCard: { coreNow: string; biggestRisk: string; dontDo: string; doThis: string; judgeBy: string; };
-  corePatterns: TitledItem[]; blockers: TitledItem[]; strengths: TitledItem[]; risks: TitledItem[];
-  monthlyExperiments: ExperimentItem[]; sevenDayPlan: string[]; recheckCriteria: string[]; finalMessage: string;
+  currentPosition: NarrativeSection; whyNow: NarrativeSection; innerConflict: NarrativeSection;
+  riskMap: NarrativeSection; transitionAssets: NarrativeSection;
+  monthlyExperiment: NarrativeSection & { experiments: ExperimentItem[] };
+  futureMessage: NarrativeSection;
+  sevenDayPlan: string[]; recheckCriteria: string[]; ifTwoOrMoreYes: string; ifAllNo: string;
 }
+const SECTION_DEFS: Array<{ key: string; title: string; aliases: string[] }> = [
+  { key: 'currentPosition', title: '지금 당신이 멈춰 선 곳', aliases: ['currentPosition', 'currentState', 'position', 'nowStanding'] },
+  { key: 'whyNow', title: '왜 하필 지금 이 마음이 왔는지', aliases: ['whyNow', 'why', 'whyThisMoment'] },
+  { key: 'innerConflict', title: '두 마음의 줄다리기', aliases: ['innerConflict', 'conflict', 'tugOfWar', 'twoMinds'] },
+  { key: 'riskMap', title: '현실 리스크 지도', aliases: ['riskMap', 'risks', 'realRisks', 'riskMapSection'] },
+  { key: 'transitionAssets', title: '당신이 이미 가진 전환 자산', aliases: ['transitionAssets', 'assets', 'strengths'] },
+  { key: 'monthlyExperiment', title: '이번 달의 30일 실험', aliases: ['monthlyExperiment', 'experiment', 'experimentSection'] },
+  { key: 'futureMessage', title: '한 달 뒤의 당신에게', aliases: ['futureMessage', 'finalMessage', 'closing', 'closingMessage'] },
+];
 
 function asStr(v: unknown): string {
   if (typeof v === 'string') return v.trim();
@@ -425,23 +432,40 @@ function pick(o: Record<string, unknown>, keys: string[]): unknown {
   for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k];
   return undefined;
 }
-function toTitled(v: unknown): TitledItem | null {
+function bodyOf(v: unknown): string {
+  if (typeof v === 'string') return v.trim();
+  const o = rec(v);
+  let body = asStr(pick(o, ['body', 'text', 'description', 'content']));
+  const bullets = pick(o, ['bullets', 'items', 'points', 'paragraphs']);
+  if (Array.isArray(bullets)) body = [body, ...bullets.map(asStr)].filter(Boolean).join(' ');
+  return body;
+}
+function toSection(v: unknown, defaultTitle: string): NarrativeSection {
+  const title = asStr(pick(rec(v), ['title', 'heading'])) || defaultTitle;
+  return { title, body: bodyOf(v) };
+}
+function toExperiment(v: unknown): ExperimentItem | null {
   if (typeof v === 'string') { const b = v.trim(); return b ? { title: '', body: b } : null; }
   if (!v || typeof v !== 'object') return null;
   const o = v as Record<string, unknown>;
-  const title = asStr(pick(o, ['title', 'heading', 'name', 'label']));
-  let body = asStr(pick(o, ['body', 'text', 'description', 'content', 'interpretation', 'action']));
-  const bullets = pick(o, ['bullets', 'items', 'points']);
-  if (!body && Array.isArray(bullets)) body = bullets.map(asStr).filter(Boolean).join(' ');
+  const title = asStr(pick(o, ['title', 'heading', 'name']));
+  const hypothesis = asStr(pick(o, ['hypothesis', 'assumption']));
+  const target = asStr(pick(o, ['target', 'who', 'audience']));
+  const action = asStr(pick(o, ['action', 'what', 'doWhat']));
+  const successMetric = asStr(pick(o, ['successMetric', 'success', 'metric']));
+  const stopSignal = asStr(pick(o, ['stopSignal', 'stop', 'abort']));
+  const whyThisFits = asStr(pick(o, ['whyThisFits', 'why', 'fit']));
+  let body = bodyOf(o);
+  if (!body) body = [action && `무엇: ${action}`, target && `대상: ${target}`, successMetric && `성공 기준: ${successMetric}`].filter(Boolean).join(' · ');
   if (!body && !title) return null;
-  return { title, body: body || title };
+  return { title, body: body || title, hypothesis, target, action, successMetric, stopSignal, whyThisFits };
 }
-function normTitledArray(raw: unknown, count: number, pad: TitledItem): TitledItem[] {
+function normExperiments(raw: unknown, pad: ExperimentItem): ExperimentItem[] {
   const arr = Array.isArray(raw) ? raw : (raw !== undefined && raw !== null ? [raw] : []);
-  const items = arr.map(toTitled).filter((x): x is TitledItem => x !== null);
+  const items = arr.map(toExperiment).filter((x): x is ExperimentItem => x !== null);
   if (items.length === 0) return [];
-  const out = items.slice(0, count);
-  while (out.length < count) out.push({ ...pad });
+  const out = items.slice(0, 3);
+  while (out.length < 2) out.push({ ...pad });
   return out;
 }
 function normStrArray(raw: unknown, count: number, pad: string): string[] {
@@ -452,65 +476,55 @@ function normStrArray(raw: unknown, count: number, pad: string): string[] {
   while (out.length < count) out.push(pad);
   return out;
 }
-function toExperiment(v: unknown): ExperimentItem | null {
-  const base = toTitled(v);
-  if (typeof v !== 'object' || v === null) return base ? { title: base.title, body: base.body } : null;
-  const o = v as Record<string, unknown>;
-  const hypothesis = asStr(pick(o, ['hypothesis', 'assumption']));
-  const target = asStr(pick(o, ['target', 'who', 'audience']));
-  const action = asStr(pick(o, ['action', 'what', 'doWhat']));
-  const successMetric = asStr(pick(o, ['successMetric', 'success', 'metric']));
-  const stopSignal = asStr(pick(o, ['stopSignal', 'stop', 'abort']));
-  const whyThisFits = asStr(pick(o, ['whyThisFits', 'why', 'fit']));
-  let body = base?.body ?? '';
-  if (!body) body = [action && `무엇: ${action}`, target && `대상: ${target}`, successMetric && `성공 기준: ${successMetric}`].filter(Boolean).join(' · ');
-  const title = base?.title ?? '';
-  if (!body && !title) return null;
-  return { title, body: body || title, hypothesis, target, action, successMetric, stopSignal, whyThisFits };
-}
-function normExperimentArray(raw: unknown, count: number, pad: ExperimentItem): ExperimentItem[] {
-  const arr = Array.isArray(raw) ? raw : (raw !== undefined && raw !== null ? [raw] : []);
-  const items = arr.map(toExperiment).filter((x): x is ExperimentItem => x !== null);
-  if (items.length === 0) return [];
-  const out = items.slice(0, count);
-  while (out.length < count) out.push({ ...pad });
-  return out;
-}
+const SECTION_PAD: Record<string, string> = {
+  currentPosition: '지금 서 있는 지점을 이어지는 섹션과 함께 보면 더 또렷해져요.',
+  whyNow: '왜 지금인지는 이어지는 리스크·자산 섹션과 함께 읽어 주세요.',
+  innerConflict: '두 방향 사이의 줄다리기는 아래 리스크·자산 섹션에서 이어집니다.',
+  riskMap: '현실 조건은 실험 크기를 정하는 기준으로 이어집니다.',
+  transitionAssets: '지금까지 쌓아온 것은 다른 형태로 이어 쓸 수 있는 자산이에요.',
+  monthlyExperiment: '이번 달은 돈에 가까운 반응을 확인하는 작은 검증부터 시작해 보세요.',
+  futureMessage: '한 달 뒤의 당신에게, 지금의 한 걸음이 방향을 좁혀줄 거예요.',
+};
 
 export function normalizePaidResult(raw: unknown): PaidAnalysisResult {
   const r = rec(raw);
+  const ns = rec(pick(r, ['narrativeSections', 'sections']));
   const scRaw = rec(pick(r, ['summaryCard', 'summary_card', 'summary']));
   const jc = rec(pick(r, ['judgeCriteria', 'judge_criteria']));
   const summaryCard = {
-    coreNow: asStr(pick(scRaw, ['coreNow', 'core', 'now', 'coreNowLine'])),
+    coreNow: asStr(pick(scRaw, ['coreNow', 'core', 'now'])),
     biggestRisk: asStr(pick(scRaw, ['biggestRisk', 'risk', 'biggest_risk'])),
-    dontDo: asStr(pick(scRaw, ['dontDo', 'avoid', 'dont_do', 'notNow'])),
-    doThis: asStr(pick(scRaw, ['doThis', 'do', 'thisMonth', 'do_this'])),
-    judgeBy: asStr(pick(scRaw, ['judgeBy', 'judge', 'criteria', 'judge_by'])),
+    dontDo: asStr(pick(scRaw, ['dontDo', 'avoid', 'dont_do'])),
+    doThis: asStr(pick(scRaw, ['doThis', 'do', 'thisMonth'])),
+    judgeBy: asStr(pick(scRaw, ['judgeBy', 'judge', 'criteria'])),
   };
-  const corePatterns = normTitledArray(pick(r, ['corePatterns', 'patterns', 'coreConflicts', 'sections']), 3,
-    { title: '덧붙이는 관점', body: '이 부분은 이어지는 섹션과 함께 보면 더 또렷해져요.' });
-  const blockers = normTitledArray(pick(r, ['blockers', 'obstacles', 'blocks']), 3,
-    { title: '살펴볼 지점', body: '지금 결정을 늦추는 요인을 한 번 더 점검해볼 여지가 있어요.' });
-  const strengths = normTitledArray(pick(r, ['strengths', 'assets', 'transitionAssets']), 3,
-    { title: '가진 자산', body: '지금까지 쌓아온 경험을 다른 형태로 이어 쓸 여지가 있어요.' });
-  const risks = normTitledArray(pick(r, ['risks', 'realRisks', 'riskMap']), 3,
-    { title: '점검할 리스크', body: '수입·시간·상황 조건을 실험 크기에 맞춰 조정해 보세요.' }).slice(0, 3);
-  const monthlyExperiments = normExperimentArray(pick(r, ['monthlyExperiments', 'experiments', 'thirtyDayExperiments']), 3,
-    { title: '30일 실험', body: '작게 시작해 반응을 확인할 수 있는 실험을 하나 더 열어두세요.' });
-  const sevenDayPlan = normStrArray(pick(r, ['sevenDayPlan', 'weekPlan', 'sevenDay', 'dailyPlan']), 7,
-    '이번 주에 할 수 있는 작은 한 걸음을 이어가 보세요.');
-  const recheckCriteria = normStrArray(pick(r, ['recheckCriteria', 'checks']) ?? pick(jc, ['checks']), 3,
-    '한 달 뒤, 이 방향이 나에게 맞았는지 스스로 점검해 보세요.');
-  const finalMessage = asStr(pick(r, ['finalMessage', 'closingMessage', 'closing', 'summaryMessage']))
-    || asStr(pick(rec(pick(r, ['closing'])), ['body', 'text']));
-  return { summaryCard, corePatterns, blockers, strengths, risks, monthlyExperiments, sevenDayPlan, recheckCriteria, finalMessage };
+  const sec = (def: { key: string; title: string; aliases: string[] }): NarrativeSection => {
+    const v = pick(r, def.aliases) ?? pick(ns, def.aliases);
+    const s = toSection(v, def.title);
+    return { title: s.title, body: s.body || SECTION_PAD[def.key] };
+  };
+  const bySec = Object.fromEntries(SECTION_DEFS.map((d) => [d.key, sec(d)])) as Record<string, NarrativeSection>;
+  const meRaw = pick(r, ['monthlyExperiment', 'experiment', 'experimentSection']) ?? pick(ns, ['monthlyExperiment', 'experiment']);
+  const experiments = normExperiments(
+    pick(rec(meRaw), ['experiments', 'items']) ?? pick(r, ['experiments', 'monthlyExperiments']),
+    { title: '30일 검증 실험', body: '돈에 가까운 반응(문의·상담·소액 결제)을 확인하는 작은 제안을 한 가지 열어두세요.', hypothesis: '이 방향에 돈을 낼 사람이 있는가', target: '실제 구매 가능성이 있는 구체 집단', action: '구매의사·상담·소액 결제를 유도하는 제안', successMetric: 'DM·상담 요청·소액 결제·이메일 확보', stopSignal: '돈에 가까운 반응이 전혀 없으면 대상/제안 교체', whyThisFits: '수입 공백과 버틸 기간을 고려한 저리스크 검증이라서' },
+  );
+  const sevenDayPlan = normStrArray(pick(r, ['sevenDayPlan', 'weekPlan', 'sevenDay']), 7, '이번 주 검증 루프의 한 단계를 이어가 보세요.');
+  const recheckCriteria = normStrArray(pick(r, ['recheckCriteria', 'checks']) ?? pick(jc, ['checks']), 3, '돈에 가까운 반응이 나왔는지 스스로 점검해 보세요.');
+  const ifTwoOrMoreYes = asStr(pick(r, ['ifTwoOrMoreYes', 'ifYes'])) || asStr(pick(jc, ['ifYes'])) || '두 가지 이상 반응이 있었다면, 그 방향을 다음 30일에 조금 더 키워 보세요.';
+  const ifAllNo = asStr(pick(r, ['ifAllNo', 'ifNo'])) || asStr(pick(jc, ['ifNo'])) || '반응이 없었다면 전환을 서두르기보다, 대상·제안을 바꾸거나 잠시 회복·역할 재설계를 먼저 두세요.';
+  return {
+    summaryCard,
+    currentPosition: bySec.currentPosition, whyNow: bySec.whyNow, innerConflict: bySec.innerConflict,
+    riskMap: bySec.riskMap, transitionAssets: bySec.transitionAssets,
+    monthlyExperiment: { title: bySec.monthlyExperiment.title, body: bySec.monthlyExperiment.body, experiments },
+    futureMessage: bySec.futureMessage,
+    sevenDayPlan, recheckCriteria, ifTwoOrMoreYes, ifAllNo,
+  };
 }
 
 const isStr = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
-const okTitled = (v: unknown, min: number, max: number): boolean =>
-  Array.isArray(v) && v.length >= min && v.length <= max
-  && v.every((x) => { const o = x as TitledItem; return !!o && isStr(o.body); });
+const okSection = (v: unknown): boolean => { const o = v as NarrativeSection; return !!o && isStr(o.body); };
 const okStrArr = (v: unknown, n: number): boolean => Array.isArray(v) && v.length === n && v.every(isStr);
 
 /** 스키마 검증 실패 항목 목록(진단·로깅용). 비어 있으면 유효. */
@@ -521,14 +535,16 @@ export function validationErrors(o: unknown): string[] {
   const sc = r.summaryCard as Record<string, unknown> | undefined;
   const scFilled = sc ? [sc.coreNow, sc.biggestRisk, sc.dontDo, sc.doThis, sc.judgeBy].filter(isStr).length : 0;
   if (!sc || scFilled < 3) e.push('summaryCard');
-  if (!okTitled(r.corePatterns, 3, 3)) e.push('corePatterns(3)');
-  if (!okTitled(r.blockers, 3, 3)) e.push('blockers(3)');
-  if (!okTitled(r.strengths, 3, 3)) e.push('strengths(3)');
-  if (!okTitled(r.risks, 2, 3)) e.push('risks(2-3)');
-  if (!okTitled(r.monthlyExperiments, 3, 3)) e.push('monthlyExperiments(3)');
+  for (const key of ['currentPosition', 'whyNow', 'innerConflict', 'riskMap', 'transitionAssets', 'futureMessage']) {
+    if (!okSection(r[key])) e.push(key);
+  }
+  const me = r.monthlyExperiment as Record<string, unknown> | undefined;
+  if (!me || !isStr(me.body)) e.push('monthlyExperiment');
+  else if (!Array.isArray(me.experiments) || me.experiments.length < 2 || me.experiments.length > 3 || !me.experiments.every((x) => isStr((x as ExperimentItem)?.body))) e.push('monthlyExperiment.experiments(2-3)');
   if (!okStrArr(r.sevenDayPlan, 7)) e.push('sevenDayPlan(7)');
   if (!okStrArr(r.recheckCriteria, 3)) e.push('recheckCriteria(3)');
-  if (!isStr(r.finalMessage)) e.push('finalMessage');
+  if (!isStr(r.ifTwoOrMoreYes)) e.push('ifTwoOrMoreYes');
+  if (!isStr(r.ifAllNo)) e.push('ifAllNo');
   return e;
 }
 
@@ -538,31 +554,27 @@ export function validateResult(o: unknown): boolean {
 
 // rawContentReport — src/shared/paidAnalysisContract.ts와 동일 복사(드리프트 테스트로 보장).
 export interface RawContentReport {
-  hasCore: boolean; summaryFilled: number; realCounts: Record<string, number>; hasFinalMessage: boolean; defaultedSlots: number;
+  hasCore: boolean; summaryFilled: number; sectionsWithBody: number; experimentCount: number; sevenDayCount: number; defaultedSlots: number;
 }
 export function rawContentReport(raw: unknown): RawContentReport {
   const r = rec(raw);
+  const ns = rec(pick(r, ['narrativeSections', 'sections']));
   const sc = rec(pick(r, ['summaryCard', 'summary_card', 'summary']));
-  const summaryFilled = ['coreNow', 'core', 'now', 'biggestRisk', 'risk', 'dontDo', 'avoid', 'doThis', 'do', 'thisMonth', 'judgeBy', 'judge', 'criteria']
+  const summaryFilled = ['coreNow', 'core', 'now', 'biggestRisk', 'risk', 'dontDo', 'avoid', 'doThis', 'do', 'judgeBy', 'judge']
     .reduce((n, k) => (asStr(sc[k]) ? n + 1 : n), 0);
-  const realTitled = (v: unknown) => (Array.isArray(v) ? v : []).map(toTitled).filter(Boolean).length;
-  const realStr = (v: unknown) => (Array.isArray(v) ? v : []).map((x) => (typeof x === 'string' ? x.trim() : asStr(pick(rec(x), ['body', 'text', 'task', 'day', 'title'])))).filter(Boolean).length;
-  const realCounts = {
-    corePatterns: realTitled(pick(r, ['corePatterns', 'patterns', 'coreConflicts', 'sections'])),
-    blockers: realTitled(pick(r, ['blockers', 'obstacles', 'blocks'])),
-    strengths: realTitled(pick(r, ['strengths', 'assets', 'transitionAssets'])),
-    risks: realTitled(pick(r, ['risks', 'realRisks', 'riskMap'])),
-    monthlyExperiments: realTitled(pick(r, ['monthlyExperiments', 'experiments', 'thirtyDayExperiments'])),
-    sevenDayPlan: realStr(pick(r, ['sevenDayPlan', 'weekPlan', 'sevenDay', 'dailyPlan'])),
-    recheckCriteria: realStr(pick(r, ['recheckCriteria', 'checks']) ?? pick(rec(pick(r, ['judgeCriteria', 'judge_criteria'])), ['checks'])),
-  };
-  const hasFinalMessage = !!asStr(pick(r, ['finalMessage', 'closingMessage', 'closing', 'summaryMessage']));
-  const need = { corePatterns: 3, blockers: 3, strengths: 3, risks: 2, monthlyExperiments: 3, sevenDayPlan: 7, recheckCriteria: 3 };
-  let defaultedSlots = Math.max(0, 3 - Math.min(summaryFilled, 5)) + (hasFinalMessage ? 0 : 1);
-  for (const k of Object.keys(need) as (keyof typeof need)[]) defaultedSlots += Math.max(0, need[k] - Math.min(realCounts[k], need[k]));
-  const bodyTotal = realCounts.corePatterns + realCounts.blockers + realCounts.strengths + realCounts.risks + realCounts.monthlyExperiments;
-  const hasCore = summaryFilled >= 2 && realCounts.corePatterns >= 1 && bodyTotal >= 4;
-  return { hasCore, summaryFilled, realCounts, hasFinalMessage, defaultedSlots };
+  let sectionsWithBody = 0;
+  for (const def of SECTION_DEFS) {
+    const v = pick(r, def.aliases) ?? pick(ns, def.aliases);
+    if (bodyOf(v)) sectionsWithBody += 1;
+  }
+  const meRaw = pick(r, ['monthlyExperiment', 'experiment']) ?? pick(ns, ['monthlyExperiment', 'experiment']);
+  const expArr = pick(rec(meRaw), ['experiments', 'items']) ?? pick(r, ['experiments', 'monthlyExperiments']);
+  const experimentCount = (Array.isArray(expArr) ? expArr : []).map(toExperiment).filter(Boolean).length;
+  const sevenDayCount = (Array.isArray(pick(r, ['sevenDayPlan', 'weekPlan'])) ? (pick(r, ['sevenDayPlan', 'weekPlan']) as unknown[]) : []).filter(Boolean).length;
+  const defaultedSlots = Math.max(0, 3 - Math.min(summaryFilled, 5)) + Math.max(0, 7 - sectionsWithBody)
+    + Math.max(0, 2 - Math.min(experimentCount, 2)) + Math.max(0, 7 - Math.min(sevenDayCount, 7));
+  const hasCore = summaryFilled >= 2 && sectionsWithBody >= 3;
+  return { hasCore, summaryFilled, sectionsWithBody, experimentCount, sevenDayCount, defaultedSlots };
 }
 
 // ── repair 재시도용 ────────────────────────────────────────────────────────────
@@ -573,14 +585,17 @@ const REPAIR_SYSTEM_PROMPT = `당신은 JSON 교정기입니다. 입력의 '깨�
 
 const SCHEMA_SPEC = `{
   "summaryCard": { "coreNow": string, "biggestRisk": string, "dontDo": string, "doThis": string, "judgeBy": string },
-  "corePatterns": [ { "title": string, "body": string } ] (정확히 3),
-  "blockers": [ { "title": string, "body": string } ] (정확히 3),
-  "strengths": [ { "title": string, "body": string } ] (정확히 3),
-  "risks": [ { "title": string, "body": string } ] (2~3),
-  "monthlyExperiments": [ { "title": string, "body": string, "hypothesis": string, "target": string, "action": string, "successMetric": string, "stopSignal": string, "whyThisFits": string } ] (정확히 3),
+  "currentPosition": { "title": string, "body": string(500~800자) },
+  "whyNow": { "title": string, "body": string(500~800자) },
+  "innerConflict": { "title": string, "body": string(600~900자) },
+  "riskMap": { "title": string, "body": string(600~900자) },
+  "transitionAssets": { "title": string, "body": string(500~800자) },
+  "monthlyExperiment": { "title": string, "body": string(700~1000자), "experiments": [ { "title": string, "body": string, "hypothesis": string, "target": string, "action": string, "successMetric": string, "stopSignal": string, "whyThisFits": string } ] (2~3) },
+  "futureMessage": { "title": string, "body": string(400~700자) },
   "sevenDayPlan": [ string ] (정확히 7),
   "recheckCriteria": [ string ] (정확히 3),
-  "finalMessage": string
+  "ifTwoOrMoreYes": string,
+  "ifAllNo": string
 }`;
 
 function buildRepairInput(brokenRaw: string): string {
@@ -637,20 +652,24 @@ export function buildUserEvidencePack(free: FreeContext, paid: PaidAnswers): Evi
 const GENERIC_PHRASES = ['작은 실험', '방향 감각', '현재 전문성', '에너지', '한 문장으로 적어', '대상 한 명', '초안 만들', '작게 시작', '가장 작은'];
 // normalize/fallback이 채우는 중립 기본 본문의 표식(부분 fallback 감지용).
 const DEFAULT_MARKERS = [
-  '이어지는 섹션과 함께 보면', '지금 결정을 늦추는 요인을 한 번 더', '쌓아온 경험을 다른 형태로 이어 쓸',
-  '실험 크기에 맞춰 조정', '작게 시작해 반응을 확인할 수 있는 실험을 하나 더', '이번 주에 할 수 있는 작은 한 걸음',
-  '이 방향이 나에게 맞았는지 스스로 점검', '지금 고민을 한 문장으로', '도움을 줄 수 있는 대상 한 명', '초안 만들기',
+  '이어지는 섹션과 함께 보면', '이어지는 리스크·자산 섹션과 함께', '리스크·자산 섹션에서 이어집니다',
+  '실험 크기를 정하는 기준으로 이어집니다', '다른 형태로 이어 쓸 수 있는 자산이에요', '작은 검증부터 시작해 보세요',
+  '지금의 한 걸음이 방향을 좁혀줄', '이번 주 검증 루프의 한 단계', '이 방향이 나에게 맞았는지 스스로 점검',
+  '작은 제안을 한 가지 열어두세요',
 ];
 const MONEY_SIGNALS = ['DM', '결제', '구매', '상담', '예약', '이메일', '문의', '주문', '계약', '지불', '유료'];
 function isDefaultBody(s: string): boolean { return DEFAULT_MARKERS.some((m) => s.includes(m)); }
+function narrativeBodies(result: PaidAnalysisResult): string[] {
+  return [result.currentPosition.body, result.whyNow.body, result.innerConflict.body, result.riskMap.body,
+    result.transitionAssets.body, result.monthlyExperiment.body, result.futureMessage.body];
+}
 export function defaultStats(result: PaidAnalysisResult): { defaultBodyCount: number; totalUnits: number; bodyLength: number } {
   const units = [
-    ...result.corePatterns.map((x) => x.body), ...result.blockers.map((x) => x.body),
-    ...result.strengths.map((x) => x.body), ...result.risks.map((x) => x.body),
-    ...result.monthlyExperiments.map((x) => x.body), ...result.sevenDayPlan, ...result.recheckCriteria, result.finalMessage,
+    ...narrativeBodies(result), ...result.monthlyExperiment.experiments.map((x) => x.body),
+    ...result.sevenDayPlan, ...result.recheckCriteria, result.ifTwoOrMoreYes, result.ifAllNo,
   ];
   const defaultBodyCount = units.filter(isDefaultBody).length;
-  const bodyLength = units.reduce((a, b) => a + (b?.length ?? 0), 0);
+  const bodyLength = narrativeBodies(result).reduce((a, b) => a + (b?.length ?? 0), 0);
   return { defaultBodyCount, totalUnits: units.length, bodyLength };
 }
 export function qualityWarnings(result: PaidAnalysisResult, evidence: EvidencePack, source: string): string[] {
@@ -658,27 +677,28 @@ export function qualityWarnings(result: PaidAnalysisResult, evidence: EvidencePa
   const flat = JSON.stringify(result);
   if (source === 'full_fallback_used') w.push('full_fallback');
   if (source === 'partial_fallback_sections') w.push('partial_fallback');
-  // 기본값 본문이 전체의 20% 이상 → 실패 신호.
-  const ds = defaultStats(result);
-  if (ds.defaultBodyCount / Math.max(1, ds.totalUnits) > 0.2) w.push('too_many_defaults');
+  // narrative 본문이 기본값(default)인 섹션이 하나라도 있으면 실패 신호.
+  const nb = narrativeBodies(result);
+  const defaultSections = nb.filter(isDefaultBody).length;
+  if (defaultSections > 0) w.push('default_narrative_bodies');
   // evidence 키워드 반영 부족.
   const kwHit = evidence.keywords.filter((k) => flat.includes(k)).length;
   if (evidence.keywords.length >= 5 && kwHit < 5) w.push('low_evidence_keywords');
-  // golden 밀도 미달(핵심 4섹션 평균).
-  const bodies = [...result.corePatterns, ...result.blockers, ...result.strengths, ...result.risks].map((x) => x.body);
-  const avg = bodies.length ? bodies.reduce((a, b) => a + b.length, 0) / bodies.length : 0;
-  if (avg < 300) w.push('short_bodies');
+  // golden 밀도 미달(7 narrative 본문 평균 450자 이상).
+  const avg = nb.length ? nb.reduce((a, b) => a + b.length, 0) / nb.length : 0;
+  if (avg < 450) w.push('short_bodies');
   // 일반·템플릿 표현 반복.
   const genCount = GENERIC_PHRASES.reduce((n, g) => n + (flat.split(g).length - 1), 0);
   if (genCount >= 4) w.push('generic_repetition');
   // 실험이 구조는 있어도 '돈에 가까운' 검증이 아님.
-  if (result.monthlyExperiments.some((e) => !(e.target && e.action && e.successMetric))) w.push('experiments_missing_fields');
-  const moneyish = result.monthlyExperiments.filter((e) => MONEY_SIGNALS.some((s) => (e.successMetric ?? '').includes(s))).length;
+  const exps = result.monthlyExperiment.experiments;
+  if (exps.some((e) => !(e.target && e.action && e.successMetric))) w.push('experiments_missing_fields');
+  const moneyish = exps.filter((e) => MONEY_SIGNALS.some((s) => (e.successMetric ?? '').includes(s))).length;
   if (moneyish < 2) w.push('experiments_not_monetized');
   // 7일 계획이 감정정리 수준.
   if (result.sevenDayPlan.some((d) => /한 문장으로 적어|지키고 싶은 것.*정하|초안 만들|고민.*적어/.test(d))) w.push('weak_seven_day');
   // 마지막 메시지가 얕음.
-  if ((result.finalMessage ?? '').length < 300) w.push('final_message_thin');
+  if ((result.futureMessage.body ?? '').length < 300) w.push('final_message_thin');
   return w;
 }
 
@@ -723,41 +743,32 @@ export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidA
   const runway = or(paid.runway);
   const energy = or(paid.energyLevel);
 
-  const coreLine = transition
-    ? `지금은 '${occ}'라는 현재 전문성을, 그동안 쌓아온 다른 경험들과 어떻게 이어 붙일지 정리하는 국면이에요.`
-    : `지금은 '${occ}'로 쌓아온 것을 어떤 방향으로 더 키울지 정하는 시점이에요.`;
-
-  const T = (title: string, body: string): TitledItem => ({ title, body });
+  const assetKo = occ.includes('수의') ? '수의학 전문 자격과 도메인 이해, 신뢰 자산' : `'${occ}'로서의 전문성`;
+  const S = (title: string, body: string): NarrativeSection => ({ title, body });
   return {
     summaryCard: {
-      coreNow: coreLine,
+      coreNow: transition
+        ? `전체 경력은 ${totalKo}이지만 현재 '${occ}' 기반 역할은 ${currentKo}로, 지금은 기존 경험과 ${assetKo}을 어떻게 조합할지 정하는 국면이에요.`
+        : `지금은 '${occ}'로 쌓아온 것을 어떤 방향으로 더 키울지 정하는 시점이에요.`,
       biggestRisk: `수입과 시간 여건(버틸 기간: ${runway})을 넘어서는 큰 실험은 지금 리스크가 커요.`,
-      dontDo: '병원 복귀냐 새 방향이냐를 한 번에 확정하려 서두르지 않기.',
+      dontDo: '기존 일 복귀냐 새 방향이냐를 한 번에 확정하려 서두르지 않기.',
       doThis: `이번 달은 '돈을 낼 사람이 실제로 있는가'를 확인하는 작은 검증 하나에 집중하기.`,
       judgeBy: '30일 뒤, DM·상담 요청·소액 결제 같은 돈에 가까운 반응이 하나라도 나왔는지로 판단하기.',
     },
-    corePatterns: [
-      T('무엇을 지킬지 먼저', `바꾸더라도 지키고 싶은 것(${keep})이 분명할수록 결정이 쉬워져요.`),
-      T('한 번에 vs 병행', '전부를 바꾸기보다, 지금을 유지하며 작게 시험하는 쪽이 지금 성향에 맞아요.'),
-      transition
-        ? T('복합 커리어 자산', '여러 경험을 지나 지금에 온 만큼, 하나의 정체성보다 여러 축을 가진 상태로 보는 게 정확해요.')
-        : T('쌓은 것을 잇는 문제', `${mainKo} 성향을 지금 자리에서 어떻게 더 살릴지가 핵심이에요.`),
-    ],
-    blockers: [
-      T('불확실함', '해보기 전엔 답이 안 나오는 영역이라, 정보만으로는 결정이 미뤄져요.'),
-      T('에너지', `요즘 에너지(${energy})를 고려하면, 실험이 또 다른 부담이 되지 않게 크기를 줄이는 게 좋아요.`),
-      T('기준의 부재', '무엇을 중요하게 둘지 순서가 서면 비교가 쉬워져요.'),
-    ],
-    strengths: [
-      T('현재 전문성', `'${occ}'로서의 현재 전문성은 콘텐츠·교육·자문 등으로 확장 가능한 하나의 축이에요.`),
-      T('지나온 경험', '지금까지의 경험은 다른 형태로 이어 쓸 수 있는 자산이에요.'),
-      T('방향 감각', `${mainKo} 성향은 어떤 시도가 나에게 맞는지 빠르게 알아채는 데 도움이 돼요.`),
-    ],
-    risks: [
-      T('수입 방어', `버틸 기간(${runway}) 안에서 수입을 흔들지 않는 범위로 실험을 설계하세요.`),
-      T('회복 우선', `에너지(${energy})가 낮다면 '더 벌기'보다 '회복을 해치지 않는 작은 확인'부터.`),
-    ],
-    monthlyExperiments: [
+    currentPosition: S('지금 당신이 멈춰 선 곳',
+      `전체 경력은 ${totalKo}이지만 현재 '${occ}' 기반 역할은 ${currentKo}로 입력되어 있어, 한 직업을 오래 지속한 사람의 피로감보다는 여러 경험을 지나 지금의 전문성을 어떻게 쓸지 고민하는 전환 국면으로 읽힙니다. 지키고 싶은 것(${keep})과 버틸 기간 ${runway}이라는 조건이 지금 결정의 테두리를 정하고 있어요.`),
+    whyNow: S('왜 하필 지금 이 마음이 왔는지',
+      `수입 여건과 버틸 기간 ${runway}이라는 현실이 다가오면서, '지금 확인하지 않으면 안 된다'는 감각이 커진 시점이에요. ${assetKo}을 가진 상태에서, 그것을 지금의 자리에 묶어둘지 다른 형태로 꺼낼지의 질문이 올라와 있습니다.`),
+    innerConflict: S('두 마음의 줄다리기',
+      `한쪽에는 기존 일을 확대해 안정을 지키려는 마음이, 다른 한쪽에는 ${assetKo}을 새로운 방향으로 꺼내보고 싶은 마음이 있어요. 두 마음이 팽팽한 이유는 어느 쪽도 아직 '돈에 가까운 반응'으로 검증되지 않았기 때문입니다.`),
+    riskMap: S('현실 리스크 지도',
+      `버틸 기간 ${runway}, 최소 필요 수입 ${or(paid.incomeFloor)}, 부양 ${or(paid.dependents)}이라는 조건은 실험의 크기를 정하는 상한입니다. 수입을 흔드는 큰 전환보다, 지금 수입을 지키면서 '살 사람이 있는가'만 확인하는 저리스크 검증이 맞아요.`),
+    transitionAssets: S('당신이 이미 가진 전환 자산',
+      `${assetKo}은 오래 종사한 경력이 아니라 지금 바로 신뢰로 쓸 수 있는 자산이에요. 여기에 지나온 다른 경험을 더하면, 같은 문제를 남과 다른 각도로 풀 수 있는 조합이 만들어집니다.`),
+    monthlyExperiment: {
+      title: '이번 달의 30일 실험',
+      body: `이번 달의 목표는 방향을 확정하는 것이 아니라, ${assetKo}에 '돈을 낼 사람이 있는가'를 30일 안에 확인하는 것입니다. 버틸 기간 ${runway} 안에서 수입을 흔들지 않는 크기로, 아래 실험 중 하나를 골라 실제 반응을 받아 보세요.`,
+      experiments: [
       {
         title: '전문성 기반 짧은 콘텐츠', body: `'${occ}'로서의 전문 지식을 짧은 글/영상으로 옮겨 30일간 반응을 확인합니다.`,
         hypothesis: '내 전문 지식이 특정 대상에게 유용한 콘텐츠로 통하는가',
@@ -785,7 +796,10 @@ export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidA
         stopSignal: '공감이 전혀 없으면 문제 정의를 다시',
         whyThisFits: '복합 커리어 자산을 하나의 각도로 모으는 첫 걸음이라서',
       },
-    ],
+      ],
+    },
+    futureMessage: S('한 달 뒤의 당신에게',
+      `한 달 뒤의 당신은 방향을 확정하지 않았더라도, '누가 무엇에 돈을 낼 수 있는가'에 대해 한 뼘 더 알게 될 거예요. 지금의 질문은 기존 일을 계속할지 말지의 단순한 선택보다, 지금까지의 경험과 ${assetKo}을 어떤 방식으로 조합할지에 더 가깝습니다. 이번 달의 작은 검증 하나가 그 조합의 첫 단서가 되어 줄 거예요.`),
     sevenDayPlan: [
       '1일차: 유료 반응을 확인할 가설 1개를 정의한다(예: 이 대상은 이 문제에 돈을 낼 것이다).',
       '2일차: 실제 구매 가능성이 있는 타깃 10명을 이름/채널까지 리스트업한다.',
@@ -800,7 +814,8 @@ export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidA
       '어떤 대상·제안이 반응했고, 어떤 가설을 버려야 하는지 명확해졌나요?',
       '다음 30일에 더 키워볼 방향이 하나로 좁혀졌나요?',
     ],
-    finalMessage: '지금의 질문은 한 직업을 계속할지 말지의 단순한 선택보다, 지금까지의 경험과 현재 전문성을 어떤 방식으로 조합할지에 더 가까워요. 이번 달은 작게 한 걸음만 내디뎌도 충분합니다.',
+    ifTwoOrMoreYes: '두 가지 이상 예라면, 그 대상·제안을 다음 30일에 조금 더 키워 실제 수익 가능성을 확인해 보세요.',
+    ifAllNo: '모두 아니오라면 전환을 서두르기보다, 대상·제안을 바꿔 다시 검증하거나 잠시 회복과 역할 재설계를 먼저 두세요.',
   };
 }
 
@@ -835,7 +850,7 @@ export function sanitizeCareerPhrasing(result: PaidAnalysisResult, occupation: s
     }
     return s;
   };
-  const t = (it: TitledItem): TitledItem => ({ title: sanitize(it.title), body: sanitize(it.body) });
+  const sec = (n: NarrativeSection): NarrativeSection => ({ title: sanitize(n.title), body: sanitize(n.body) });
   const san = (v: string | undefined): string | undefined => (v === undefined ? undefined : sanitize(v));
   const te = (e: ExperimentItem): ExperimentItem => ({
     title: sanitize(e.title), body: sanitize(e.body),
@@ -847,10 +862,12 @@ export function sanitizeCareerPhrasing(result: PaidAnalysisResult, occupation: s
       coreNow: sanitize(result.summaryCard.coreNow), biggestRisk: sanitize(result.summaryCard.biggestRisk),
       dontDo: sanitize(result.summaryCard.dontDo), doThis: sanitize(result.summaryCard.doThis), judgeBy: sanitize(result.summaryCard.judgeBy),
     },
-    corePatterns: result.corePatterns.map(t), blockers: result.blockers.map(t), strengths: result.strengths.map(t),
-    risks: result.risks.map(t), monthlyExperiments: result.monthlyExperiments.map(te),
+    currentPosition: sec(result.currentPosition), whyNow: sec(result.whyNow), innerConflict: sec(result.innerConflict),
+    riskMap: sec(result.riskMap), transitionAssets: sec(result.transitionAssets),
+    monthlyExperiment: { title: sanitize(result.monthlyExperiment.title), body: sanitize(result.monthlyExperiment.body), experiments: result.monthlyExperiment.experiments.map(te) },
+    futureMessage: sec(result.futureMessage),
     sevenDayPlan: result.sevenDayPlan.map(sanitize), recheckCriteria: result.recheckCriteria.map(sanitize),
-    finalMessage: sanitize(result.finalMessage),
+    ifTwoOrMoreYes: sanitize(result.ifTwoOrMoreYes), ifAllNo: sanitize(result.ifAllNo),
   };
 }
 
@@ -902,7 +919,7 @@ export default async function handler(req: any, res: any): Promise<void> {
     // eslint-disable-next-line no-console
     console.log('[paid] call#1 ms:', ms1, '| rawLen:', raw1.length, '| parseOk:', parsed1 !== null,
       '| topKeys:', topKeys.join(','), '| hasCore:', report.hasCore, '| defaultedSlots:', report.defaultedSlots,
-      '| realCounts:', JSON.stringify(report.realCounts));
+      '| sectionsWithBody:', report.sectionsWithBody, '| experimentCount:', report.experimentCount, '| sevenDayCount:', report.sevenDayCount);
 
     let result: PaidAnalysisResult;
     let finalResultSource = '';

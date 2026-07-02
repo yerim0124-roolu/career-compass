@@ -4,7 +4,7 @@
 // 파일을 통해 계약의 타입·정규화·검증을 사용하며, 서버(api/paid-analysis.ts)는
 // 같은 로직을 인라인 복사해 쓴다(둘의 동등성은 계약 테스트가 보장).
 
-export type { PaidAnalysisResult as PaidResult, TitledItem, ExperimentItem } from '../../shared/paidAnalysisContract.ts';
+export type { PaidAnalysisResult as PaidResult, NarrativeSection, ExperimentItem } from '../../shared/paidAnalysisContract.ts';
 export {
   normalizePaidResult,
   getValidationErrors as validationErrors,

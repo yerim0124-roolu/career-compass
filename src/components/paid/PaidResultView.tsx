@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
 import { readFreeContext } from './freeContext.ts';
 import { logPaidAnalysisFailed } from './paidAnalytics.ts';
-import { validationErrors, normalizePaidResult, type PaidResult } from './resultValidation.ts';
+import { validationErrors, normalizePaidResult, type PaidResult, type NarrativeSection, type ExperimentItem } from './resultValidation.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
@@ -207,9 +207,9 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     );
   }
 
-  // ── 성공 ──
-  const { summaryCard, corePatterns, blockers, strengths, risks, monthlyExperiments,
-    sevenDayPlan, recheckCriteria, finalMessage } = result;
+  // ── 성공 (narrative report) ──
+  const { summaryCard, currentPosition, whyNow, innerConflict, riskMap, transitionAssets,
+    monthlyExperiment, futureMessage, sevenDayPlan, recheckCriteria, ifTwoOrMoreYes, ifAllNo } = result;
 
   const summaryRows: Array<{ label: string; value: string }> = [
     { label: '지금 핵심', value: summaryCard.coreNow },
@@ -219,15 +219,10 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     { label: '30일 뒤 판단 기준', value: summaryCard.judgeBy },
   ];
 
-  // 중단(상담 온기) — 제목+본문 그룹들. (30일 실험은 구조화 필드가 있어 별도 렌더)
-  const titledGroups: Array<{ heading: string; items: typeof corePatterns }> = [
-    { heading: '지금 당신의 핵심 패턴', items: corePatterns },
-    { heading: '당신을 붙잡는 것들', items: blockers },
-    { heading: '당신이 이미 가진 강점', items: strengths },
-    { heading: '현실 리스크', items: risks },
-  ];
+  // 본문 = narrative 섹션들(긴 서사). futureMessage는 지정 순서상 재점검 뒤 마지막에.
+  const narrativeFlow: NarrativeSection[] = [currentPosition, whyNow, innerConflict, riskMap, transitionAssets];
 
-  const expRows: Array<{ label: string; key: keyof (typeof monthlyExperiments)[number] }> = [
+  const expRows: Array<{ label: string; key: keyof ExperimentItem }> = [
     { label: '가설', key: 'hypothesis' },
     { label: '대상', key: 'target' },
     { label: '행동', key: 'action' },
@@ -236,12 +231,19 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     { label: '왜 나에게 맞나', key: 'whyThisFits' },
   ];
 
+  const NarrativeBlock = ({ s }: { s: NarrativeSection }) => (
+    <section className="space-y-2">
+      <h2 className="text-base font-black text-slate-800">【{s.title}】</h2>
+      <p className="text-[15px] leading-[1.85] text-slate-700 whitespace-pre-line">{s.body}</p>
+    </section>
+  );
+
   return (
     <div className="min-h-dvh bg-white">
       <Header />
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-10">
 
-        {/* 상단 — 요약 카드(도구적·명료, 강조 박스) */}
+        {/* 1분 요약(도구적·강조 박스) */}
         <section className="rounded-2xl p-5 space-y-3" style={{ background: BOX_BG, border: `1px solid ${BOX_BORDER}` }}>
           <p className="text-xs font-black tracking-widest uppercase" style={{ color: PURPLE }}>1분 요약</p>
           <ul className="space-y-2.5">
@@ -254,26 +256,15 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           </ul>
         </section>
 
-        {/* 중단 — 제목+본문 그룹(상담 온기, 편한 본문) */}
-        {titledGroups.map((group) => (
-          <section key={group.heading} className="space-y-4">
-            <h2 className="text-base font-black text-slate-800">【{group.heading}】</h2>
-            <div className="space-y-5">
-              {group.items.map((it, i) => (
-                <article key={i} className="space-y-1.5">
-                  <h3 className="text-[15px] font-bold" style={{ color: '#5E5280' }}>{it.title}</h3>
-                  <p className="text-[15px] leading-[1.8] text-slate-700 whitespace-pre-line">{it.body}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
+        {/* 본문 — narrative 섹션(긴 서사 리포트) */}
+        {narrativeFlow.map((s, i) => <NarrativeBlock key={i} s={s} />)}
 
-        {/* 이번 달의 30일 실험 — 검증 설계(제목+본문+구조화 필드) */}
-        <section className="space-y-4">
-          <h2 className="text-base font-black text-slate-800">【이번 달의 30일 실험】</h2>
-          <div className="space-y-4">
-            {monthlyExperiments.map((exp, i) => (
+        {/* 이번 달의 30일 실험 — 서사 본문 + 구조화 실험 카드 */}
+        <section className="space-y-3">
+          <h2 className="text-base font-black text-slate-800">【{monthlyExperiment.title}】</h2>
+          <p className="text-[15px] leading-[1.85] text-slate-700 whitespace-pre-line">{monthlyExperiment.body}</p>
+          <div className="space-y-4 pt-1">
+            {monthlyExperiment.experiments.map((exp, i) => (
               <article key={i} className="rounded-2xl p-4 space-y-2" style={{ background: '#FBFAFE', border: `1px solid ${BOX_BORDER}` }}>
                 <h3 className="text-[15px] font-bold" style={{ color: '#5E5280' }}>{exp.title || `실험 ${i + 1}`}</h3>
                 {exp.body && <p className="text-[14px] leading-[1.75] text-slate-700 whitespace-pre-line">{exp.body}</p>}
@@ -290,7 +281,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           </div>
         </section>
 
-        {/* 7일 실행 계획 — 순서형 목록(도구적, 강조 박스) */}
+        {/* 7일 실행 계획 */}
         <section className="rounded-2xl p-5 space-y-3" style={{ background: BOX_BG, border: `1px solid ${BOX_BORDER}` }}>
           <p className="text-xs font-black tracking-widest uppercase" style={{ color: PURPLE }}>7일 실행 계획</p>
           <ol className="space-y-2.5">
@@ -304,7 +295,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           </ol>
         </section>
 
-        {/* 30일 뒤 판단 기준 — 체크리스트(도구적, 강조 박스) */}
+        {/* 30일 뒤 판단 기준 + 분기 안내 */}
         <section className="rounded-2xl p-5 space-y-3" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
           <p className="text-xs font-black tracking-widest uppercase text-slate-500">30일 뒤 판단 기준</p>
           <ul className="space-y-2 pt-1">
@@ -316,13 +307,14 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
               </li>
             ))}
           </ul>
+          <div className="pt-2 space-y-2 text-[13px] leading-relaxed">
+            <p className="text-slate-700"><span className="font-bold" style={{ color: PURPLE }}>2가지 이상 예라면</span> · {ifTwoOrMoreYes}</p>
+            <p className="text-slate-700"><span className="font-bold text-slate-500">모두 아니오라면</span> · {ifAllNo}</p>
+          </div>
         </section>
 
-        {/* 마무리(상담 온기) */}
-        <section className="space-y-2">
-          <h2 className="text-base font-black text-slate-800">【마지막으로】</h2>
-          <p className="text-[15px] leading-[1.8] text-slate-700 whitespace-pre-line">{finalMessage}</p>
-        </section>
+        {/* 한 달 뒤의 당신에게 — 마지막 서사 */}
+        <NarrativeBlock s={futureMessage} />
 
       </main>
     </div>
