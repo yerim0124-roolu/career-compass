@@ -152,6 +152,13 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
 [추론 원칙] ① 이 직업이 이 연차에 겪는 구조적 현실 ② 왜 하필 지금인지(계기 있으면 중심에, 없으면 연차·나이·고용형태·마찰로 추론) ③ 이 경력이 다른 형태로 전환되는 방식 ④ 현실 리스크 상한(버틸기간·부양·최소소득·나이대·결혼 반영). 모든 추론은 "아마 ~하지 않을까요"처럼 여지를 두어 표현. 단정 금지.
 [고용형태] 회사원(정규직): 현 직장 유지한 채 외부 실험 / 계약직·파견: 다음 계약 안정성 축으로 병행 검증 / 프리랜서·개인사업: 기존 수입 지키며 새 수익원 실험 / 사장님(고용주): 접는 게 아니라 역할 재배치·수익 다각화 / 쉬는 중·구직: 버틸기간 기준 회복·검증·수입회복 순서. 값 없으면 일반적으로.
 [나이대] '남은 커리어 시간' 감각으로만. 20~30대 회복 여유 있어 조금 과감히 / 40대 균형점, 방향 조정 적기 / 그 이상 판 엎기보다 경험 재배치. 값 없으면 나이에 열린 표현. 나이 기반 구체적 숫자("앞으로 30년" 등)는 사용자가 직접 언급했을 때만.
+[경력 해석 — 최우선 규칙] 입력 맨 위 PROFILE_FACTS를 절대 사실로 따를 것.
+- '전체 커리어 기간'과 '현재 직업 경력'은 다른 값이다. 전자는 커리어 전체, 후자는 현재 직업/역할에서의 기간. 두 값이 다르면 전체 기간을 현재 직업 경력으로 바꿔 쓰지 말 것(예: 전체 7~12년·현재 1~3년을 "그 직업 10년 차"로 쓰면 오답).
+- 전체 > 현재이면 현재 직업을 '오래 지속한 사람'으로 해석하지 말 것. 여러 경험을 거쳐 현재 역할에 온, 복합 커리어 자산을 가진 전환 국면으로 다룰 것. 단 이전 직무·전환 경로가 입력에 없으면 단정하지 말고 "전환 가능성이 있는 커리어 구조", "복합 커리어 자산을 가진 상태"처럼 열린 표현을 쓸 것.
+- 이 경우 결과는 '장기 동일 직무 종사자의 번아웃/권태'가 아니라 '기존 커리어 자산 + 현재 전문성을 어떻게 조합·확장할지'의 관점으로 쓸 것. 현재 직업을 유일한 정체성으로 환원하지 말고 전문성의 한 축으로 다룰 것. 단순 정착을 권하지 말고, 성향에 따라 현재 전문성을 한 축으로 두고 다른 가능성을 실험하는 방향도 열어둘 것.
+- PROFILE_FACTS의 '금지 표현' 목록에 있는 문구는 결과 어디에도 쓰지 말 것.
+[결과지 방향] 현재 직업 하나로 환원 금지. ①기존 커리어 자산 ②현재 전문성 ③사용자가 새로 시도하고 싶은 방향 ④테스트에서 나온 성향 — 이 넷을 어떻게 조합할지로 작성. 실험(monthlyExperiments 3개)도 한 형태로 고정하지 말고 서로 다른 축으로 열어둘 것(예: 전문성 활용 콘텐츠 실험 / 특정 타깃 대상 브랜드 메시지 실험 / 기존 기획·경험을 살린 문제정의형 상품 실험 / 현재 전문성을 한 축으로 두고 다른 가능성을 검증하는 실험).
+[문장 품질] 추측형("~일 수 있어요/~하지 않을까요")은 문단당 1회 이내로 절제. 근거 없는 심리 해석 금지 — 반드시 입력 신호에 근거. 강한 명령형을 줄이고 제안형으로. 같은 문구·라벨을 반복하지 말 것. 최종 출력 전 각 문장이 자연스러운 한국어인지 스스로 점검할 것.
 [결혼] 부양 부담 판단 항목 아님. 부담은 부양 항목으로만 판단. 결혼은 "혼자 안는 결정인가, 함께 상의할 사람 있는가" 톤에만 반영.
 [버틸 기간] 실험 공격성의 핵심. 3개월 미만=수입 흔드는 실험 금지, 현 소득 유지한 작은 검증만 / 3~6개월=저리스크 유료 파일럿, 3~5명 검증 / 6개월~1년=한 달 유료 실험·포트폴리오·파트타임 확장 / 1년 이상=비교적 과감하되 단계적 전환. 값 없으면 수입 안 흔드는 실험이 기본값.
 [부양] 크면 수입 방어형 실험. 낮으면 탐색 폭 넓힘. 크다고 도전 포기 권하지 말고 "수입 유지한 채 검증"으로 설계.
@@ -215,7 +222,7 @@ JSON 외 어떤 텍스트도 금지. 마크다운·코드펜스 금지. 순수 J
 
 // ── 요청/응답 타입 ─────────────────────────────────────────────────────────────
 interface FreeContext {
-  occupation: string; experienceLevel: string; ageBand: string;
+  occupation: string; experienceLevel: string; currentOccupationRange: string; ageBand: string;
   mainType: string; primarySubtype: string; secondarySubtype: string;
   subtypeConfidence: number; pullDirection: string; primaryFriction: string;
   readinessLevel: string; userFreeText: string;
@@ -231,6 +238,100 @@ interface PaidAnswers {
 const or = (v: string | undefined | null): string => (v && v.trim().length > 0 ? v : '정보 없음');
 const orList = (v: string[] | undefined | null): string => (v && v.length > 0 ? v.join(', ') : '정보 없음');
 
+// ── 경력 해석: 전체 vs 현재 직업 경력 ─────────────────────────────────────────
+// 근거: UserProfile.currentFieldStage enum(현재 직업/역할에서의 기간).
+const CURRENT_FIELD_STAGE_LABELS: Record<string, string> = {
+  current_under_1: '1년 미만',
+  current_1_3: '1~3년',
+  current_3_7: '3~7년',
+  current_7_plus: '7년 이상',
+  multiple_current_fields: '여러 분야 병행',
+};
+function currentFieldToKorean(code?: string | null): string {
+  if (!code) return '';
+  return CURRENT_FIELD_STAGE_LABELS[code] ?? '';
+}
+// 코드 → [하한, 상한] 연차. 상한 비교로 '전체 > 현재' 여부를 판정한다.
+const TOTAL_BOUNDS: Record<string, [number, number]> = {
+  total_0_3: [0, 3], total_3_7: [3, 7], total_7_12: [7, 12], total_12_plus: [12, 99],
+  no_fulltime_experience: [0, 0],
+};
+const CURRENT_BOUNDS: Record<string, [number, number]> = {
+  current_under_1: [0, 1], current_1_3: [1, 3], current_3_7: [3, 7], current_7_plus: [7, 99],
+};
+
+/** '전환/복합 커리어' 여부: 현재 직업 경력 상한 < 전체 경력 하한이면 명백한 전환 국면. */
+export function isTransitionOrMixed(totalCode: string, currentCode: string): boolean {
+  const t = TOTAL_BOUNDS[totalCode];
+  const c = CURRENT_BOUNDS[currentCode];
+  if (!t || !c) return false;          // 값 없음/모호(병행) → 단정하지 않음
+  return c[1] < t[0];                  // 현재 상한이 전체 하한보다 작다 = 현재 직업이 확실히 더 짧음
+}
+
+/** 프롬프트 맨 위에 붙일 절대 사실 블록 + 금지 표현. 코드값은 한글로. */
+export function buildProfileFacts(free: FreeContext): { text: string; transition: boolean; currentUpper: number; bannedPhrases: string[] } {
+  const occ = or(free.occupation);
+  const totalKo = or(experienceToKorean(free.experienceLevel));
+  const currentKo = or(currentFieldToKorean(free.currentOccupationRange));
+  const transition = isTransitionOrMixed(free.experienceLevel, free.currentOccupationRange);
+  const currentUpper = CURRENT_BOUNDS[free.currentOccupationRange]?.[1] ?? 99;
+
+  const lines = [
+    '[PROFILE_FACTS — 반드시 지킬 절대 사실]',
+    `- 직업: ${occ}`,
+    `- 전체 커리어 기간(totalCareerRange): ${totalKo}`,
+    `- 현재 직업 경력(currentOccupationCareerRange): ${currentKo}`,
+  ];
+  const banned: string[] = [];
+  if (transition) {
+    lines.push(
+      `- careerContext = transition_or_mixed_career. 즉 '${occ}'를 오래 지속한 사람이 아니다. 현재 직업 경력은 ${currentKo}뿐이며, 전체 경력(${totalKo})은 여러 경험을 포함한다.`,
+      `- 절대: '${occ}'를 장기 종사(예 "${occ} ${totalKo}", "${occ} N년 차")로 서술하지 말 것. 전체 기간을 현재 직업 경력으로 바꾸지 말 것. 현재 직업의 장기 번아웃/권태로 해석하지 말 것.`,
+      `- 대신: 기존 커리어 자산 + 현재 '${occ}' 전문성을 어떻게 조합·확장할지의 전환 국면으로 다룰 것. 이전 직무가 입력에 없으면 단정 말고 "복합 커리어 자산을 가진 상태"처럼 열린 표현.`,
+    );
+    // 금지 표현(전환 국면). 직업명 + 전체기간/연차, 경력 포기 서술.
+    banned.push(`${occ} ${totalKo}`, `${occ}로 ${totalKo}`, `${occ} 경력을 접`, `${occ} 경력을 버리`, `${occ} 경력을 포기`);
+    if (occ.includes('수의')) {
+      banned.push('임상 10년', '임상 7~12', '임상 루틴의 천장', '오래 해온 병원', '병원 일을 놓', '면허와 임상 경력');
+    }
+    if (banned.length) lines.push(`- 금지 표현(그대로 쓰지 말 것): ${banned.join(' / ')}`);
+  } else {
+    lines.push('- careerContext = same_field_accumulated_career. 현재 직업을 주 누적 경력으로 다뤄도 된다(단 사실 범위 내에서).');
+  }
+  return { text: lines.join('\n'), transition, currentUpper, bannedPhrases: banned };
+}
+
+/**
+ * 결과 본문의 사실 위반 스캔(전환 국면일 때만 의미). 위반 표현 목록 반환.
+ * 핵심 일반 규칙: "직업명 + N년(N > 현재직업경력 상한)" = 현재 직업을 장기 종사로 서술 → 위반.
+ */
+export function factViolations(result: unknown, occupation: string, currentUpper: number, bannedPhrases: string[]): string[] {
+  const text = JSON.stringify(result ?? '');
+  const flat = text.replace(/\s+/g, '');
+  const hits: string[] = [];
+  const occ = (or(occupation)).replace(/\s+/g, '');
+
+  // 1) 명시적 금지 표현(공백 무시 비교).
+  for (const p of bannedPhrases) {
+    if (flat.includes(p.replace(/\s+/g, ''))) hits.push(p);
+  }
+  // 2) 일반 규칙: 직업(또는 임상) 뒤 N년, N > 현재 상한 → 위반.
+  const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (occ && occ !== '정보없음') {
+    const subjects = occ.includes('수의') ? [occ, '임상'] : [occ];
+    for (const subj of subjects) {
+      const re = new RegExp(`${esc(subj)}(으?로)?\\d{1,2}(~\\d{1,2})?년`, 'g');
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(flat)) !== null) {
+        const nums = (m[0].match(/\d{1,2}/g) ?? []).map(Number);
+        const maxN = nums.length ? Math.max(...nums) : 0;
+        if (maxN > currentUpper) { hits.push(m[0]); }
+      }
+    }
+  }
+  return Array.from(new Set(hits));
+}
+
 // 서술형 입력 압축: 사용자가 아주 길게 써도 프롬프트가 무한히 커지지 않게 자른다.
 // 핵심 표현·감정을 앞부분에서 보존하되 상한을 둔다. 초과분은 '…(생략)'으로 표시.
 const NARRATIVE_MAX = 500;              // 서술형 한 항목 최대 글자
@@ -245,7 +346,8 @@ const clip = (v: string | undefined | null, max: number): string => {
 function assembleUserContent(free: FreeContext, paid: PaidAnswers): string {
   const block = [
     `직업: ${clip(free.occupation, 200)}`,
-    `경력 연차: ${or(experienceToKorean(free.experienceLevel))}`,
+    `전체 커리어 기간: ${or(experienceToKorean(free.experienceLevel))}`,
+    `현재 직업 경력: ${or(currentFieldToKorean(free.currentOccupationRange))}`,
     `나이대: ${or(ageBandToKorean(free.ageBand))}`,
     `주 유형: ${or(mainTypeToKorean(free.mainType))}`,
     `가장 강한 마음: ${or(subtypeToKorean(free.primarySubtype))}`,
@@ -333,6 +435,14 @@ function buildRepairInput(brokenRaw: string): string {
   return `아래는 유효한 JSON을 만들려다 형식이 깨진 출력입니다. 내용은 최대한 보존하되, 지정 스키마에 '정확히' 맞는 순수 JSON만 다시 출력하세요.\n\n[깨진 출력]\n${brokenRaw.slice(0, 8000)}\n\n[반드시 맞출 스키마]\n${SCHEMA_SPEC}`;
 }
 
+// 사실 위반(경력 오해석) 교정용. 긴 원본 입력은 다시 넣지 않고, 사실·위반·기존결과·스키마만.
+const FACT_REPAIR_SYSTEM_PROMPT = `당신은 결과지의 사실 오류를 고치는 교정기입니다. 아래 PROFILE_FACTS를 절대 사실로 삼아, '위반 표현'을 제거하고 그 문장을 사실에 맞게 다시 쓴 순수 JSON을 출력합니다.
+규칙: 마크다운·코드펜스·설명 금지, 순수 JSON만. 스키마의 필드명·타입·배열 개수를 그대로 유지. 위반 표현과 '현재 직업을 장기 종사로 서술하는 뉘앙스'를 모두 제거하되, 나머지 내용·톤·분량은 최대한 보존.`;
+
+function buildFactRepairInput(profileFacts: string, violations: string[], existingJson: string): string {
+  return `${profileFacts}\n\n[위반 표현 — 이 문구/뉘앙스를 결과에서 제거하고 사실에 맞게 고칠 것]\n${violations.join(' / ')}\n\n[고칠 기존 결과 JSON]\n${existingJson.slice(0, 9000)}\n\n[반드시 유지할 스키마]\n${SCHEMA_SPEC}`;
+}
+
 /** Anthropic 비스트리밍 호출. 텍스트 반환, upstream 실패 시 throw. */
 async function callClaude(apiKey: string, system: string, userContent: string, maxTokens: number): Promise<string> {
   const upstream = await fetch('https://api.anthropic.com/v1/messages', {
@@ -375,18 +485,20 @@ export default async function handler(req: any, res: any): Promise<void> {
     res.status(400).json({ error: 'invalid_payload' }); return;
   }
 
-  // 입력 길이 로깅(서술형 원문 총량 vs 압축 후 컨텍스트 길이).
+  // PROFILE_FACTS(경력 사실 + 금지 표현)를 프롬프트 맨 위에 붙인다.
+  const facts = buildProfileFacts(freeContext);
   const rawInputLen =
     (freeContext.occupation?.length ?? 0) + (freeContext.userFreeText?.length ?? 0)
     + (paidAnswers.trigger?.length ?? 0) + (paidAnswers.flowMoment?.length ?? 0);
-  const userContent = assembleUserContent(freeContext, paidAnswers);
+  const userContent = `${facts.text}\n\n${assembleUserContent(freeContext, paidAnswers)}`;
   // eslint-disable-next-line no-console
-  console.log('[paid] input free-text chars:', rawInputLen, '| compact context chars:', userContent.length);
+  console.log('[paid] input free-text chars:', rawInputLen, '| compact context chars:', userContent.length,
+    '| careerContext:', facts.transition ? 'transition_or_mixed' : 'same_or_unknown');
 
-  // ── non-streaming 호출 (+ 1회 repair 재시도) ──────────────────────────────────
-  // 1차 생성이 JSON 파싱/스키마 검증에 실패하면, 원래 긴 입력을 다시 넣지 않고 '깨진
-  // 출력 + 스키마'만 넘겨 교정만 시도한다(빠름). 교정도 실패해야 422. 각 호출 시간을
-  // 로깅해 전체가 프론트 150초/서버 180초 안에 드는지 추적한다.
+  // ── non-streaming 호출 (+ 1회 스키마 repair + 1회 사실 repair) ──────────────────
+  // 1차 생성이 JSON 파싱/스키마 검증에 실패하면 '깨진 출력+스키마'만 넘겨 교정(schema repair).
+  // 스키마가 통과해도 전환 국면(transition)에서 경력 사실 위반이 있으면 '사실+위반+기존JSON+
+  // 스키마'만 넘겨 교정(fact repair). 원본 긴 입력은 재시도에 넣지 않는다. 각 호출 시간 로깅.
   const t0 = Date.now();
   try {
     let raw = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS);
@@ -398,17 +510,41 @@ export default async function handler(req: any, res: any): Promise<void> {
       '| validateOk:', errs.length === 0, errs.length ? `| missing: ${errs.join(',')}` : '');
 
     if (errs.length > 0) {
-      // repair 재시도 1회.
+      // 스키마 repair 1회.
       const tR = Date.now();
       raw = await callClaude(apiKey, REPAIR_SYSTEM_PROMPT, buildRepairInput(raw), MAX_OUTPUT_TOKENS);
-      const msR = Date.now() - tR;
       parsed = extractJson(raw);
       errs = validationErrors(parsed);
       // eslint-disable-next-line no-console
-      console.log('[paid] repair ms:', msR, '| raw len:', raw.length, '| parseOk:', parsed !== null,
-        '| validateOk:', errs.length === 0, errs.length ? `| still missing: ${errs.join(',')}` : '',
-        '| total ms:', Date.now() - t0);
+      console.log('[paid] schema-repair ms:', Date.now() - tR, '| validateOk:', errs.length === 0,
+        errs.length ? `| still missing: ${errs.join(',')}` : '', '| total ms:', Date.now() - t0);
       if (errs.length > 0) { res.status(422).json({ error: 'validation_failed' }); return; }
+    }
+
+    // 사실 일관성 검증 — 전환 국면일 때만. 위반 시 fact repair 1회.
+    if (facts.transition) {
+      let violations = factViolations(parsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+      // eslint-disable-next-line no-console
+      console.log('[paid] factCheck violations:', violations.length ? violations.join(' / ') : 'none');
+      if (violations.length > 0) {
+        const tF = Date.now();
+        const repaired = await callClaude(apiKey, FACT_REPAIR_SYSTEM_PROMPT,
+          buildFactRepairInput(facts.text, violations, JSON.stringify(parsed)), MAX_OUTPUT_TOKENS);
+        const rParsed = extractJson(repaired);
+        const rErrs = validationErrors(rParsed);
+        const rViolations = rErrs.length === 0
+          ? factViolations(rParsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases)
+          : ['schema_broken'];
+        // eslint-disable-next-line no-console
+        console.log('[paid] fact-repair ms:', Date.now() - tF, '| schemaOk:', rErrs.length === 0,
+          '| remaining violations:', rViolations.length ? rViolations.join(' / ') : 'none',
+          '| total ms:', Date.now() - t0);
+        if (rErrs.length === 0 && rViolations.length === 0) {
+          parsed = rParsed; // 교정본 채택
+        } else {
+          res.status(422).json({ error: 'fact_check_failed' }); return;
+        }
+      }
     }
 
     res.status(200).json(parsed);

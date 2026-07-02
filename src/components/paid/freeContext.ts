@@ -30,7 +30,8 @@ export function readFreeAgeBand(): string | undefined {
 // 코드값 → 한글 변환은 서버가 labelMap으로 수행한다(프론트는 형식을 바꾸지 않음).
 export interface FreeContext {
   occupation: string;        // profile.jobRoleRaw (원문)
-  experienceLevel: string;   // profile.totalCareerStage (코드)
+  experienceLevel: string;   // profile.totalCareerStage (코드) — 전체 커리어 기간
+  currentOccupationRange: string; // profile.currentFieldStage (코드) — 현재 직업/역할에서의 기간
   ageBand: string;           // profile.ageBand (코드)
   mainType: string;          // resultContext.mainType (코드)
   primarySubtype: string;    // 코드
@@ -49,7 +50,7 @@ export interface FreeContext {
  */
 export function readFreeContext(): FreeContext {
   const empty: FreeContext = {
-    occupation: '', experienceLevel: '', ageBand: '',
+    occupation: '', experienceLevel: '', currentOccupationRange: '', ageBand: '',
     mainType: '', primarySubtype: '', secondarySubtype: '',
     subtypeConfidence: 0, pullDirection: '', primaryFriction: '',
     readinessLevel: '', userFreeText: '',
@@ -68,6 +69,7 @@ export function readFreeContext(): FreeContext {
     return {
       occupation: parsed.profile.jobRoleRaw ?? '',
       experienceLevel: parsed.profile.totalCareerStage ?? '',
+      currentOccupationRange: parsed.profile.currentFieldStage ?? '',
       ageBand: parsed.profile.ageBand ?? '',
       mainType: rc?.mainType ?? '',
       primarySubtype: rc?.primarySubtype ?? '',
