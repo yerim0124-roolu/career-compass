@@ -110,7 +110,14 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
         // eslint-disable-next-line no-console
         console.log('[paid-analysis] body(0..500):', bodyText.slice(0, 500));
 
-        if (!resp.ok) throw new Error(`http_${status}`);
+        if (!resp.ok) {
+          // 서버가 준 에러 코드(fact_check_failed / validation_failed / upstream_error / not_configured 등)를 분리.
+          let serverErr = '';
+          try { serverErr = String((JSON.parse(bodyText) as { error?: unknown })?.error ?? ''); } catch { /* 비-JSON 본문 */ }
+          // eslint-disable-next-line no-console
+          console.error('[paid-analysis] 서버 에러 — status:', status, '| error:', serverErr || '(본문 없음/비JSON)');
+          throw new Error(`http_${status}${serverErr ? `_${serverErr}` : ''}`);
+        }
 
         let data: unknown = null;
         let parseOk = false;

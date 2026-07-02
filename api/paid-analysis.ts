@@ -522,8 +522,11 @@ export default async function handler(req: any, res: any): Promise<void> {
     }
 
     // 사실 일관성 검증 — 전환 국면일 때만. 위반 시 fact repair 1회.
+    // ★ 절대 원칙: 사실검증은 결과지를 '차단'하지 않는다(품질 넛지이지 게이트가 아님).
+    //   위반이 남아도 200으로 결과지를 반환하고, 잔여 위반은 로그로만 남긴다.
+    //   (교정본이 스키마 유효면 채택, 스키마를 깨면 원본 유지.)
     if (facts.transition) {
-      let violations = factViolations(parsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+      const violations = factViolations(parsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
       // eslint-disable-next-line no-console
       console.log('[paid] factCheck violations:', violations.length ? violations.join(' / ') : 'none');
       if (violations.length > 0) {
@@ -532,21 +535,22 @@ export default async function handler(req: any, res: any): Promise<void> {
           buildFactRepairInput(facts.text, violations, JSON.stringify(parsed)), MAX_OUTPUT_TOKENS);
         const rParsed = extractJson(repaired);
         const rErrs = validationErrors(rParsed);
-        const rViolations = rErrs.length === 0
-          ? factViolations(rParsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases)
-          : ['schema_broken'];
-        // eslint-disable-next-line no-console
-        console.log('[paid] fact-repair ms:', Date.now() - tF, '| schemaOk:', rErrs.length === 0,
-          '| remaining violations:', rViolations.length ? rViolations.join(' / ') : 'none',
-          '| total ms:', Date.now() - t0);
-        if (rErrs.length === 0 && rViolations.length === 0) {
-          parsed = rParsed; // 교정본 채택
+        if (rErrs.length === 0) {
+          const rViolations = factViolations(rParsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+          parsed = rParsed; // 교정본 채택(스키마 유효). 위반이 줄었으면 개선, 아니어도 원본만큼은 됨.
+          // eslint-disable-next-line no-console
+          console.log('[paid] fact-repair applied | remaining violations(non-blocking):',
+            rViolations.length ? rViolations.join(' / ') : 'none', '| ms:', Date.now() - tF, '| total ms:', Date.now() - t0);
         } else {
-          res.status(422).json({ error: 'fact_check_failed' }); return;
+          // 교정본이 스키마를 깨뜨림 → 원본 결과 유지(사실 위반은 로그로만).
+          // eslint-disable-next-line no-console
+          console.log('[paid] fact-repair broke schema — keep original | residual violations(non-blocking):',
+            violations.join(' / '), '| ms:', Date.now() - tF, '| total ms:', Date.now() - t0);
         }
       }
     }
 
+    // 결과지는 항상 반환 — 사실 이유로 422를 내지 않는다.
     res.status(200).json(parsed);
   } catch (e) {
     // eslint-disable-next-line no-console
