@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
 import { readFreeContext } from './freeContext.ts';
 import { logPaidAnalysisFailed } from './paidAnalytics.ts';
-import { validationErrors, type PaidResult } from './resultValidation.ts';
+import { validationErrors, normalizePaidResult, type PaidResult } from './resultValidation.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
@@ -119,30 +119,28 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           throw new Error(`http_${status}${serverErr ? `_${serverErr}` : ''}`);
         }
 
-        let data: unknown = null;
+        let parsedRaw: unknown = null;
         let parseOk = false;
-        try { data = JSON.parse(bodyText); parseOk = true; }
+        try { parsedRaw = JSON.parse(bodyText); parseOk = true; }
         catch (err) {
           // eslint-disable-next-line no-console
           console.error('[paid-analysis] JSON.parse 실패:', err);
         }
+        // 서버가 이미 canonical을 반환하지만, 프론트도 계약의 normalize로 한 번 더 방어.
+        const normalized = parseOk ? normalizePaidResult(parsedRaw) : null;
+        const errs = normalized ? validationErrors(normalized) : ['parse_failed'];
         // eslint-disable-next-line no-console
-        console.log('[paid-analysis] JSON.parse 성공:', parseOk);
-
-        const errs = parseOk ? validationErrors(data) : ['parse_failed'];
-        // eslint-disable-next-line no-console
-        console.log('[paid-analysis] validateResult:', errs.length === 0,
-          errs.length ? `| 누락/불일치 필드: ${errs.join(', ')}` : '');
+        console.log('[paid-analysis] parseOk:', parseOk, '| validateOk(normalized):', errs.length === 0,
+          errs.length ? `| 누락/불일치: ${errs.join(', ')}` : '');
         if (errs.length > 0) {
           if (parseOk) {
             // eslint-disable-next-line no-console
-            console.error('[paid-analysis] 받은 top-level keys:', Object.keys((data ?? {}) as object),
-              '| 기대: [summaryCard, corePatterns, blockers, strengths, risks, monthlyExperiments, sevenDayPlan, recheckCriteria, finalMessage]');
+            console.error('[paid-analysis] 받은 top-level keys:', Object.keys((parsedRaw ?? {}) as object));
           }
           throw new Error(parseOk ? 'validation_failed' : 'parse_failed');
         }
 
-        finishSuccess(data as PaidResult);
+        finishSuccess(normalized as PaidResult);
       } catch (e) {
         // 타임아웃/언마운트로 abort된 경우는 이미 finishError가 처리했거나 stale이므로 무시.
         if (controller.signal.aborted) return;

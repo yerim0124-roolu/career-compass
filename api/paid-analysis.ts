@@ -384,27 +384,106 @@ export function extractJson(text: string): unknown {
   return null;
 }
 
-const isStr = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
-const isTitledArr = (v: unknown, min: number, max: number): boolean =>
-  Array.isArray(v) && v.length >= min && v.length <= max
-  && v.every((x) => { const o = x as Record<string, unknown>; return !!o && isStr(o.title) && isStr(o.body); });
-const isStrArr = (v: unknown, n: number): boolean =>
-  Array.isArray(v) && v.length === n && v.every((x) => isStr(x));
+// ── 계약(normalize + validate) — src/shared/paidAnalysisContract.ts의 '동일 복사' ──
+// Vercel 번들 제약으로 src를 import할 수 없어 여기에 복사한다. 둘의 동등성은
+// src/components/paid/paidAnalysisContract.test.ts가 픽스처로 비교해 드리프트를 막는다.
+export interface TitledItem { title: string; body: string; }
+export interface PaidAnalysisResult {
+  summaryCard: { coreNow: string; biggestRisk: string; dontDo: string; doThis: string; judgeBy: string; };
+  corePatterns: TitledItem[]; blockers: TitledItem[]; strengths: TitledItem[]; risks: TitledItem[];
+  monthlyExperiments: TitledItem[]; sevenDayPlan: string[]; recheckCriteria: string[]; finalMessage: string;
+}
 
-/** 스키마 검증 실패 항목 목록. 비어 있으면 유효. (로깅·진단용) */
+function asStr(v: unknown): string {
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  if (Array.isArray(v)) return v.map(asStr).filter(Boolean).join(' ');
+  return '';
+}
+function rec(v: unknown): Record<string, unknown> { return (v && typeof v === 'object') ? v as Record<string, unknown> : {}; }
+function pick(o: Record<string, unknown>, keys: string[]): unknown {
+  for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k];
+  return undefined;
+}
+function toTitled(v: unknown): TitledItem | null {
+  if (typeof v === 'string') { const b = v.trim(); return b ? { title: '', body: b } : null; }
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const title = asStr(pick(o, ['title', 'heading', 'name', 'label']));
+  let body = asStr(pick(o, ['body', 'text', 'description', 'content', 'interpretation', 'action']));
+  const bullets = pick(o, ['bullets', 'items', 'points']);
+  if (!body && Array.isArray(bullets)) body = bullets.map(asStr).filter(Boolean).join(' ');
+  if (!body && !title) return null;
+  return { title, body: body || title };
+}
+function normTitledArray(raw: unknown, count: number, pad: TitledItem): TitledItem[] {
+  const arr = Array.isArray(raw) ? raw : (raw !== undefined && raw !== null ? [raw] : []);
+  const items = arr.map(toTitled).filter((x): x is TitledItem => x !== null);
+  if (items.length === 0) return [];
+  const out = items.slice(0, count);
+  while (out.length < count) out.push({ ...pad });
+  return out;
+}
+function normStrArray(raw: unknown, count: number, pad: string): string[] {
+  const arr = Array.isArray(raw) ? raw : (raw !== undefined && raw !== null ? [raw] : []);
+  const items = arr.map((x) => (typeof x === 'string' ? x.trim() : asStr(pick(rec(x), ['body', 'text', 'task', 'day', 'title'])))).filter(Boolean);
+  if (items.length === 0) return [];
+  const out = items.slice(0, count);
+  while (out.length < count) out.push(pad);
+  return out;
+}
+
+export function normalizePaidResult(raw: unknown): PaidAnalysisResult {
+  const r = rec(raw);
+  const scRaw = rec(pick(r, ['summaryCard', 'summary_card', 'summary']));
+  const jc = rec(pick(r, ['judgeCriteria', 'judge_criteria']));
+  const summaryCard = {
+    coreNow: asStr(pick(scRaw, ['coreNow', 'core', 'now', 'coreNowLine'])),
+    biggestRisk: asStr(pick(scRaw, ['biggestRisk', 'risk', 'biggest_risk'])),
+    dontDo: asStr(pick(scRaw, ['dontDo', 'avoid', 'dont_do', 'notNow'])),
+    doThis: asStr(pick(scRaw, ['doThis', 'do', 'thisMonth', 'do_this'])),
+    judgeBy: asStr(pick(scRaw, ['judgeBy', 'judge', 'criteria', 'judge_by'])),
+  };
+  const corePatterns = normTitledArray(pick(r, ['corePatterns', 'patterns', 'coreConflicts', 'sections']), 3,
+    { title: '덧붙이는 관점', body: '이 부분은 이어지는 섹션과 함께 보면 더 또렷해져요.' });
+  const blockers = normTitledArray(pick(r, ['blockers', 'obstacles', 'blocks']), 3,
+    { title: '살펴볼 지점', body: '지금 결정을 늦추는 요인을 한 번 더 점검해볼 여지가 있어요.' });
+  const strengths = normTitledArray(pick(r, ['strengths', 'assets', 'transitionAssets']), 3,
+    { title: '가진 자산', body: '지금까지 쌓아온 경험을 다른 형태로 이어 쓸 여지가 있어요.' });
+  const risks = normTitledArray(pick(r, ['risks', 'realRisks', 'riskMap']), 3,
+    { title: '점검할 리스크', body: '수입·시간·상황 조건을 실험 크기에 맞춰 조정해 보세요.' }).slice(0, 3);
+  const monthlyExperiments = normTitledArray(pick(r, ['monthlyExperiments', 'experiments', 'thirtyDayExperiments']), 3,
+    { title: '30일 실험', body: '작게 시작해 반응을 확인할 수 있는 실험을 하나 더 열어두세요.' });
+  const sevenDayPlan = normStrArray(pick(r, ['sevenDayPlan', 'weekPlan', 'sevenDay', 'dailyPlan']), 7,
+    '이번 주에 할 수 있는 작은 한 걸음을 이어가 보세요.');
+  const recheckCriteria = normStrArray(pick(r, ['recheckCriteria', 'checks']) ?? pick(jc, ['checks']), 3,
+    '한 달 뒤, 이 방향이 나에게 맞았는지 스스로 점검해 보세요.');
+  const finalMessage = asStr(pick(r, ['finalMessage', 'closingMessage', 'closing', 'summaryMessage']))
+    || asStr(pick(rec(pick(r, ['closing'])), ['body', 'text']));
+  return { summaryCard, corePatterns, blockers, strengths, risks, monthlyExperiments, sevenDayPlan, recheckCriteria, finalMessage };
+}
+
+const isStr = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
+const okTitled = (v: unknown, min: number, max: number): boolean =>
+  Array.isArray(v) && v.length >= min && v.length <= max
+  && v.every((x) => { const o = x as TitledItem; return !!o && isStr(o.body); });
+const okStrArr = (v: unknown, n: number): boolean => Array.isArray(v) && v.length === n && v.every(isStr);
+
+/** 스키마 검증 실패 항목 목록(진단·로깅용). 비어 있으면 유효. */
 export function validationErrors(o: unknown): string[] {
   const e: string[] = [];
   if (!o || typeof o !== 'object') return ['not_object'];
   const r = o as Record<string, unknown>;
   const sc = r.summaryCard as Record<string, unknown> | undefined;
-  if (!sc || !isStr(sc.coreNow) || !isStr(sc.biggestRisk) || !isStr(sc.dontDo) || !isStr(sc.doThis) || !isStr(sc.judgeBy)) e.push('summaryCard');
-  if (!isTitledArr(r.corePatterns, 3, 3)) e.push('corePatterns(3)');
-  if (!isTitledArr(r.blockers, 3, 3)) e.push('blockers(3)');
-  if (!isTitledArr(r.strengths, 3, 3)) e.push('strengths(3)');
-  if (!isTitledArr(r.risks, 2, 3)) e.push('risks(2-3)');
-  if (!isTitledArr(r.monthlyExperiments, 3, 3)) e.push('monthlyExperiments(3)');
-  if (!isStrArr(r.sevenDayPlan, 7)) e.push('sevenDayPlan(7)');
-  if (!isStrArr(r.recheckCriteria, 3)) e.push('recheckCriteria(3)');
+  const scFilled = sc ? [sc.coreNow, sc.biggestRisk, sc.dontDo, sc.doThis, sc.judgeBy].filter(isStr).length : 0;
+  if (!sc || scFilled < 3) e.push('summaryCard');
+  if (!okTitled(r.corePatterns, 3, 3)) e.push('corePatterns(3)');
+  if (!okTitled(r.blockers, 3, 3)) e.push('blockers(3)');
+  if (!okTitled(r.strengths, 3, 3)) e.push('strengths(3)');
+  if (!okTitled(r.risks, 2, 3)) e.push('risks(2-3)');
+  if (!okTitled(r.monthlyExperiments, 3, 3)) e.push('monthlyExperiments(3)');
+  if (!okStrArr(r.sevenDayPlan, 7)) e.push('sevenDayPlan(7)');
+  if (!okStrArr(r.recheckCriteria, 3)) e.push('recheckCriteria(3)');
   if (!isStr(r.finalMessage)) e.push('finalMessage');
   return e;
 }
@@ -464,6 +543,119 @@ async function callClaude(apiKey: string, system: string, userContent: string, m
   return data.content?.find((c) => c.type === 'text')?.text ?? '';
 }
 
+// ── deterministic fallback builder (Claude 재호출 없이 서버에서 최소 유효 결과) ──
+// 목표: 유료 결제 후 빈/실패 화면을 막는 최후 안전망. 대단히 훌륭하진 않아도 카드
+// 구조는 유지하고, 경력 사실(전환/동일)에 맞춰 안전한 표현으로만 채운다.
+export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidAnalysisResult {
+  const occ = or(free.occupation);
+  const mainKo = or(mainTypeToKorean(free.mainType));
+  const totalKo = or(experienceToKorean(free.experienceLevel));
+  const currentKo = or(currentFieldToKorean(free.currentOccupationRange));
+  const transition = isTransitionOrMixed(free.experienceLevel, free.currentOccupationRange);
+  const keep = orList(paid.mustKeep);
+  const runway = or(paid.runway);
+  const energy = or(paid.energyLevel);
+
+  const coreLine = transition
+    ? `지금은 '${occ}'라는 현재 전문성을, 그동안 쌓아온 다른 경험들과 어떻게 이어 붙일지 정리하는 국면이에요.`
+    : `지금은 '${occ}'로 쌓아온 것을 어떤 방향으로 더 키울지 정하는 시점이에요.`;
+
+  const T = (title: string, body: string): TitledItem => ({ title, body });
+  return {
+    summaryCard: {
+      coreNow: coreLine,
+      biggestRisk: `수입과 시간 여건(버틸 기간: ${runway})을 넘어서는 큰 실험은 지금 리스크가 커요.`,
+      dontDo: '큰 결정을 한 번에 내리려 서두르지 않기.',
+      doThis: '이번 달은 지금 조건을 지키면서 할 수 있는 가장 작은 실험 하나부터.',
+      judgeBy: '30일 뒤, 그 실험이 에너지를 뺏지 않고 방향 감각을 줬는지로 판단하기.',
+    },
+    corePatterns: [
+      T('무엇을 지킬지 먼저', `바꾸더라도 지키고 싶은 것(${keep})이 분명할수록 결정이 쉬워져요.`),
+      T('한 번에 vs 병행', '전부를 바꾸기보다, 지금을 유지하며 작게 시험하는 쪽이 지금 성향에 맞아요.'),
+      transition
+        ? T('복합 커리어 자산', '여러 경험을 지나 지금에 온 만큼, 하나의 정체성보다 여러 축을 가진 상태로 보는 게 정확해요.')
+        : T('쌓은 것을 잇는 문제', `${mainKo} 성향을 지금 자리에서 어떻게 더 살릴지가 핵심이에요.`),
+    ],
+    blockers: [
+      T('불확실함', '해보기 전엔 답이 안 나오는 영역이라, 정보만으로는 결정이 미뤄져요.'),
+      T('에너지', `요즘 에너지(${energy})를 고려하면, 실험이 또 다른 부담이 되지 않게 크기를 줄이는 게 좋아요.`),
+      T('기준의 부재', '무엇을 중요하게 둘지 순서가 서면 비교가 쉬워져요.'),
+    ],
+    strengths: [
+      T('현재 전문성', `'${occ}'로서의 현재 전문성은 콘텐츠·교육·자문 등으로 확장 가능한 하나의 축이에요.`),
+      T('지나온 경험', '지금까지의 경험은 다른 형태로 이어 쓸 수 있는 자산이에요.'),
+      T('방향 감각', `${mainKo} 성향은 어떤 시도가 나에게 맞는지 빠르게 알아채는 데 도움이 돼요.`),
+    ],
+    risks: [
+      T('수입 방어', `버틸 기간(${runway}) 안에서 수입을 흔들지 않는 범위로 실험을 설계하세요.`),
+      T('회복 우선', `에너지(${energy})가 낮다면 '더 벌기'보다 '회복을 해치지 않는 작은 확인'부터.`),
+    ],
+    monthlyExperiments: [
+      T('현재 전문성 콘텐츠', `'${occ}' 전문성을 짧은 콘텐츠로 옮겨 30일간 반응을 확인하는 실험.`),
+      T('대상 좁힌 메시지', '도움을 줄 수 있는 특정 대상을 한 명 정해, 그에게 맞는 메시지를 시험하기.'),
+      T('기존 경험 결합', '지나온 경험과 현재 전문성을 묶어 작은 문제 하나를 정의해 보기.'),
+    ],
+    sevenDayPlan: [
+      '1일차: 지금 고민을 한 문장으로 적어보기.',
+      '2일차: 바꿔도 지키고 싶은 것 2가지를 정하기.',
+      '3일차: 도움을 줄 수 있는 대상 한 명을 구체적으로 정하기.',
+      '4일차: 그 대상에게 전할 짧은 메시지/콘텐츠 초안 만들기.',
+      '5일차: 가장 작은 형태로 실제로 한 번 내보내기.',
+      '6일차: 돌아온 반응(무반응 포함)을 그대로 기록하기.',
+      '7일차: 에너지가 남았는지, 다음에 더 해보고 싶은지 점검하기.',
+    ],
+    recheckCriteria: [
+      '이 실험이 내 에너지를 뺏지 않았나요?',
+      '작게라도 방향 감각이 또렷해졌나요?',
+      '다음 30일에 한 번 더 해보고 싶은가요?',
+    ],
+    finalMessage: '지금의 질문은 한 직업을 계속할지 말지의 단순한 선택보다, 지금까지의 경험과 현재 전문성을 어떤 방식으로 조합할지에 더 가까워요. 이번 달은 작게 한 걸음만 내디뎌도 충분합니다.',
+  };
+}
+
+// ── career sanitizer (차단 대신 위반 표현을 사실에 맞게 치환) ─────────────────
+export function sanitizeCareerPhrasing(result: PaidAnalysisResult, occupation: string, currentUpper: number, bannedPhrases: string[]): PaidAnalysisResult {
+  const occ = or(occupation);
+  const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sanitize = (input: string): string => {
+    let s = input;
+    // 명시 금지 표현 → 중립 표현.
+    for (const p of bannedPhrases) {
+      if (p && s.includes(p)) s = s.split(p).join('현재 전문성을 하나의 축으로 보는 관점');
+    }
+    if (occ && occ !== '정보 없음') {
+      const subjects = occ.includes('수의') ? [occ, '임상'] : [occ];
+      for (const subj of subjects) {
+        // "직업(로) N년" (N>현재상한) → 중립.
+        s = s.replace(new RegExp(`${esc(subj)}(으?로)?\\s*\\d{1,2}(\\s*[~-]\\s*\\d{1,2})?\\s*년(\\s*차)?`, 'g'), (m) => {
+          const maxN = Math.max(...((m.match(/\d{1,2}/g) ?? ['0']).map(Number)));
+          return maxN > currentUpper ? `${subj} 전문성(현재 경력은 길지 않은 편)` : m;
+        });
+        // "직업 경력을 접/버리/포기" → 재배치 관점.
+        s = s.replace(new RegExp(`${esc(subj)}\\s*경력을?\\s*(접|버리|포기)\\S*`, 'g'), `${subj} 전문성을 다른 형태로 재배치하는 선택`);
+      }
+      if (occ.includes('수의')) {
+        s = s.replace(/임상\s*루틴의?\s*천장/g, '지금 역할에서 느끼는 한계')
+             .replace(/오래\s*해온\s*병원/g, '지금의 임상 현장')
+             .replace(/병원\s*일을\s*놓\S*/g, '지금 일을 재구성하는 것')
+             .replace(/면허와\s*임상\s*경력/g, '자격과 현재 전문성');
+      }
+    }
+    return s;
+  };
+  const t = (it: TitledItem): TitledItem => ({ title: sanitize(it.title), body: sanitize(it.body) });
+  return {
+    summaryCard: {
+      coreNow: sanitize(result.summaryCard.coreNow), biggestRisk: sanitize(result.summaryCard.biggestRisk),
+      dontDo: sanitize(result.summaryCard.dontDo), doThis: sanitize(result.summaryCard.doThis), judgeBy: sanitize(result.summaryCard.judgeBy),
+    },
+    corePatterns: result.corePatterns.map(t), blockers: result.blockers.map(t), strengths: result.strengths.map(t),
+    risks: result.risks.map(t), monthlyExperiments: result.monthlyExperiments.map(t),
+    sevenDayPlan: result.sevenDayPlan.map(sanitize), recheckCriteria: result.recheckCriteria.map(sanitize),
+    finalMessage: sanitize(result.finalMessage),
+  };
+}
+
 // ── 핸들러 ─────────────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function handler(req: any, res: any): Promise<void> {
@@ -495,67 +687,97 @@ export default async function handler(req: any, res: any): Promise<void> {
   console.log('[paid] input free-text chars:', rawInputLen, '| compact context chars:', userContent.length,
     '| careerContext:', facts.transition ? 'transition_or_mixed' : 'same_or_unknown');
 
-  // ── non-streaming 호출 (+ 1회 스키마 repair + 1회 사실 repair) ──────────────────
-  // 1차 생성이 JSON 파싱/스키마 검증에 실패하면 '깨진 출력+스키마'만 넘겨 교정(schema repair).
-  // 스키마가 통과해도 전환 국면(transition)에서 경력 사실 위반이 있으면 '사실+위반+기존JSON+
-  // 스키마'만 넘겨 교정(fact repair). 원본 긴 입력은 재시도에 넣지 않는다. 각 호출 시간 로깅.
+  // ── 서버가 스키마의 주인: normalize → (schema repair) → fallback → sanitize → 200 ──
+  // Claude는 내용을 만들고, 서버가 구조를 보장한다. 필드명/개수가 어긋나도 normalize로
+  // 정규화하고, 그래도 안 되면 schema repair 1회, 최종적으로 deterministic fallback으로
+  // '반드시 렌더 가능한' 결과를 만든다. 전환 국면 경력 위반은 차단이 아니라 sanitize한다.
   const t0 = Date.now();
+  const SOFT_DEADLINE = 135000;   // 이 시간을 넘기면 재호출 없이 마무리(프론트 150초 전 확실히 응답)
+  const MAIN_TOO_LONG = 100000;   // main 호출이 이보다 길면 repair 재호출 생략
+  const includeDiag = process.env.VERCEL_ENV !== 'production'; // preview/dev에서만 상세 진단 반환
   try {
-    let raw = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS);
+    const raw1 = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS);
     const ms1 = Date.now() - t0;
-    let parsed = extractJson(raw);
-    let errs = validationErrors(parsed);
+    const parsed1 = extractJson(raw1);
+    const topKeys = parsed1 ? Object.keys(rec(parsed1)) : [];
+    let result: PaidAnalysisResult | null = parsed1 !== null ? normalizePaidResult(parsed1) : null;
+    let errs = result ? validationErrors(result) : ['parse_failed'];
     // eslint-disable-next-line no-console
-    console.log('[paid] call#1 ms:', ms1, '| raw len:', raw.length, '| parseOk:', parsed !== null,
-      '| validateOk:', errs.length === 0, errs.length ? `| missing: ${errs.join(',')}` : '');
+    console.log('[paid] call#1 ms:', ms1, '| rawLen:', raw1.length, '| parseOk:', parsed1 !== null,
+      '| topKeys:', topKeys.join(','), '| validateOk(afterNormalize):', errs.length === 0, errs.length ? `| errs: ${errs.join(',')}` : '');
 
+    let repairAttempted = false; let repairSucceeded = false; let skippedRepairBecauseDeadline = false; let stage = 'main';
     if (errs.length > 0) {
-      // 스키마 repair 1회.
-      const tR = Date.now();
-      raw = await callClaude(apiKey, REPAIR_SYSTEM_PROMPT, buildRepairInput(raw), MAX_OUTPUT_TOKENS);
-      parsed = extractJson(raw);
-      errs = validationErrors(parsed);
-      // eslint-disable-next-line no-console
-      console.log('[paid] schema-repair ms:', Date.now() - tR, '| validateOk:', errs.length === 0,
-        errs.length ? `| still missing: ${errs.join(',')}` : '', '| total ms:', Date.now() - t0);
-      if (errs.length > 0) { res.status(422).json({ error: 'validation_failed' }); return; }
-    }
-
-    // 사실 일관성 검증 — 전환 국면일 때만. 위반 시 fact repair 1회.
-    // ★ 절대 원칙: 사실검증은 결과지를 '차단'하지 않는다(품질 넛지이지 게이트가 아님).
-    //   위반이 남아도 200으로 결과지를 반환하고, 잔여 위반은 로그로만 남긴다.
-    //   (교정본이 스키마 유효면 채택, 스키마를 깨면 원본 유지.)
-    if (facts.transition) {
-      const violations = factViolations(parsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
-      // eslint-disable-next-line no-console
-      console.log('[paid] factCheck violations:', violations.length ? violations.join(' / ') : 'none');
-      if (violations.length > 0) {
-        const tF = Date.now();
-        const repaired = await callClaude(apiKey, FACT_REPAIR_SYSTEM_PROMPT,
-          buildFactRepairInput(facts.text, violations, JSON.stringify(parsed)), MAX_OUTPUT_TOKENS);
-        const rParsed = extractJson(repaired);
-        const rErrs = validationErrors(rParsed);
-        if (rErrs.length === 0) {
-          const rViolations = factViolations(rParsed, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
-          parsed = rParsed; // 교정본 채택(스키마 유효). 위반이 줄었으면 개선, 아니어도 원본만큼은 됨.
-          // eslint-disable-next-line no-console
-          console.log('[paid] fact-repair applied | remaining violations(non-blocking):',
-            rViolations.length ? rViolations.join(' / ') : 'none', '| ms:', Date.now() - tF, '| total ms:', Date.now() - t0);
-        } else {
-          // 교정본이 스키마를 깨뜨림 → 원본 결과 유지(사실 위반은 로그로만).
-          // eslint-disable-next-line no-console
-          console.log('[paid] fact-repair broke schema — keep original | residual violations(non-blocking):',
-            violations.join(' / '), '| ms:', Date.now() - tF, '| total ms:', Date.now() - t0);
-        }
+      const canRepair = (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG;
+      if (canRepair) {
+        stage = 'schema_repair'; repairAttempted = true;
+        const tR = Date.now();
+        const raw2 = await callClaude(apiKey, REPAIR_SYSTEM_PROMPT, buildRepairInput(raw1), MAX_OUTPUT_TOKENS);
+        const parsed2 = extractJson(raw2);
+        const norm2 = parsed2 !== null ? normalizePaidResult(parsed2) : null;
+        const errs2 = norm2 ? validationErrors(norm2) : ['parse_failed'];
+        // eslint-disable-next-line no-console
+        console.log('[paid] schema-repair ms:', Date.now() - tR, '| validateOk:', errs2.length === 0,
+          errs2.length ? `| errs: ${errs2.join(',')}` : '', '| total ms:', Date.now() - t0);
+        if (errs2.length === 0 && norm2) { result = norm2; errs = errs2; repairSucceeded = true; }
+      } else {
+        skippedRepairBecauseDeadline = true;
+        // eslint-disable-next-line no-console
+        console.log('[paid] skippedRepairBecauseDeadline=true | elapsedMs:', Date.now() - t0, '| ms1:', ms1);
       }
     }
 
-    // 결과지는 항상 반환 — 사실 이유로 422를 내지 않는다.
-    res.status(200).json(parsed);
+    // 여전히 무효 → deterministic fallback(항상 유효). 결제 후 빈 화면 방지.
+    if (!result || errs.length > 0) {
+      stage = 'fallback';
+      result = buildFallbackResult(freeContext, paidAnswers);
+      errs = validationErrors(result);
+      // eslint-disable-next-line no-console
+      console.log('[paid] fallback builder used | validateOk:', errs.length === 0, '| total ms:', Date.now() - t0);
+    }
+
+    // 여기까지 왔는데도 무효면(정상적으로는 불가) 진단과 함께 422.
+    if (errs.length > 0) {
+      const sc = rec(pick(rec(parsed1), ['summaryCard']));
+      const diag = {
+        error: 'validation_failed', stage,
+        topLevelKeys: topKeys, missingFields: errs,
+        summaryCardKeys: Object.keys(sc), sectionsLength: Array.isArray((rec(parsed1)).sections) ? ((rec(parsed1)).sections as unknown[]).length : null,
+        repairAttempted, repairSucceeded, skippedRepairBecauseDeadline, elapsedMs: Date.now() - t0,
+      };
+      // eslint-disable-next-line no-console
+      console.error('[paid] UNRECOVERABLE validation_failed', JSON.stringify(diag));
+      res.status(422).json(includeDiag ? diag : { error: 'validation_failed' });
+      return;
+    }
+
+    // ── career sanitize (전환 국면). 차단이 아니라 교정: repair 1회(여유 있을 때) + deterministic sanitize.
+    if (facts.transition) {
+      let violations = factViolations(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+      // eslint-disable-next-line no-console
+      console.log('[paid] factCheck violations:', violations.length ? violations.join(' / ') : 'none');
+      if (violations.length > 0 && (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG) {
+        const tF = Date.now();
+        const repaired = await callClaude(apiKey, FACT_REPAIR_SYSTEM_PROMPT,
+          buildFactRepairInput(facts.text, violations, JSON.stringify(result)), MAX_OUTPUT_TOKENS);
+        const rp = extractJson(repaired);
+        const rn = rp !== null ? normalizePaidResult(rp) : null;
+        if (rn && validationErrors(rn).length === 0) result = rn;
+        // eslint-disable-next-line no-console
+        console.log('[paid] fact-repair ms:', Date.now() - tF, '| total ms:', Date.now() - t0);
+      }
+      // deterministic sanitize — 남은 위반 표현을 사실에 맞게 치환(결과는 항상 반환).
+      result = sanitizeCareerPhrasing(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+      violations = factViolations(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+      // eslint-disable-next-line no-console
+      console.log('[paid] post-sanitize violations(non-blocking):', violations.length ? violations.join(' / ') : 'none',
+        '| final stage:', stage, '| total ms:', Date.now() - t0);
+    }
+
+    res.status(200).json(result);
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error('[paid] upstream/exception:', e instanceof Error ? e.message : 'unknown',
-      '| total ms:', Date.now() - t0);
+    console.error('[paid] upstream/exception:', e instanceof Error ? e.message : 'unknown', '| total ms:', Date.now() - t0);
     res.status(502).json({ error: 'upstream_error' });
   }
 }
