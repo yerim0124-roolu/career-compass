@@ -95,6 +95,14 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     (async () => {
       try {
         const freeContext = readFreeContext();
+        // 진단 — 서버로 보내는 서술형 길이(개인정보 전체는 찍지 않음). free-text 누락 추적용.
+        const clip60 = (v: string) => (v ? v.slice(0, 60).replace(/\n/g, ' ') : '(none)');
+        // eslint-disable-next-line no-console
+        console.log('[paid-analysis] SEND | freeContext keys:', Object.keys(freeContext).join(','),
+          '| occupation len:', freeContext.occupation.length, '| userFreeText len:', freeContext.userFreeText.length,
+          '| paid.trigger len:', paid.trigger.length, `"${clip60(paid.trigger)}"`,
+          '| paid.flowMoment len:', paid.flowMoment.length, `"${clip60(paid.flowMoment)}"`,
+          '| candidateDirection:', paid.candidateDirection, '| mustKeep:', paid.mustKeep.join('/'));
         const resp = await fetch('/api/paid-analysis', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
