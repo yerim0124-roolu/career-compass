@@ -183,8 +183,11 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
 [자기효능감 부족] 흥미가 있어도 '난 못 할 것 같다'가 막음
 [문체] 존댓말, 다정한 상담 톤. "OO형입니다" 규정 금지. "퇴사/창업/이직하세요" 강요 금지. 막연한 위로 반복 금지. 진단명·점수 나열 금지, 일상 언어로 번역. 사용자 직접 문장은 마지막 섹션에서 다시 안아주기.
 [6번 실험 특칙] '고려 방향'이 명확하면 그 방향의 30일 실험 하나. '아직 모르겠음'이거나 비면, 실험 후보 2~3개를 짧게 비교한 뒤 가장 안전·적합한 1개로 좁힐 것. 실험은 반드시 포함: 주제·대상·채널·형식·30일 안에 할 행동·확인할 지표·이 실험으로 알게 될 것. 주차 흐름(1주 정리→2주 대상→3주 실행→4주 반응)을 자연스럽게. "콘텐츠 만들어보세요" 식 금지.
-[근거 반영 — 최우선] 입력의 USER_EVIDENCE_PACK에 있는 '사용자가 실제로 쓴 문장·제약·키워드·하고 싶은 방향'을 각 주요 섹션에 최소 2개 이상 구체적으로 반영하라. 사용자의 사업/콘텐츠/브랜드/직무/수입 관련 맥락이 입력에 있으면 반드시 다룬다. 추상어만으로 섹션을 채우지 말 것. "작은 실험", "방향 감각", "현재 전문성", "에너지" 같은 일반 표현을 반복하지 말 것. 입력에 없는 사실은 지어내지 말 것.
-[분량 — 유료 리포트 수준] 각 섹션 본문을 아래 권장 분량으로 충분히 밀도 있게 쓴다(짧고 얕은 결과 금지).
+[골든 스타일 — 이 톤으로] 분석가가 한 개인의 전환기를 깊게 읽어주는 개인 리포트다(조언 모음 아님). 사용자의 구체 상황을 짚고, 왜 지금 이 고민이 왔는지 설명하고, 현실 리스크를 숫자·기간·소득 조건과 연결하고, "작게 해보세요"가 아니라 "한 달 안에 무엇을 검증할지"를 말한다. 문장은 단정하고 밀도 있게 쓰되 입력에 없는 사실은 단정하지 않는다.
+[근거 반영 — 최우선] USER_EVIDENCE_PACK에서 아래를 반드시 읽어내 각 섹션에 자연스러운 리포트 문장으로 녹여라(키워드 나열 금지). 각 주요 섹션은 evidence에서 최소 2개 이상 사용:
+ · 지금 만들고/하고 싶은 것(브랜드·콘텐츠·사업·상품 아이디어) · 현재 수입 공백 또는 필요한 최소 수입 · 버틸 수 있는 기간 · 기존 직업(병원 취직/임상 확대 등) 복귀에 대한 고민 · 배우자·가족·생활비 압박 · 가장 두려워하는 시나리오 · 이미 반응을 얻은 경험 · 돈을 받을 수 있는지 확인해야 하는 포인트 · 지키고 싶은 것.
+[금지] "작은 실험", "방향 감각", "현재 전문성", "에너지", "고민을 한 문장으로 적어보기", "대상 한 명 정하기", "초안 만들기" 같은 일반·템플릿 표현 반복 금지. 모든 전환자에게 붙일 수 있는 문장 금지 — 이 사용자만의 맥락이 들어가야 한다.
+[분량 — 유료 리포트 수준] 각 섹션 본문을 golden 밀도로: corePatterns/blockers/strengths/risks 각 body 400~700자, monthlyExperiments body 300~500자, finalMessage 400~700자, sevenDayPlan 각 항목 100~180자. 짧고 얕으면 실패.
 ━━ 출력 형식 (반드시 아래 스키마에 '정확히' 맞는 순수 JSON만) ━━
 규칙: 마크다운·코드펜스(\`\`\`)·설명·JSON 앞뒤 텍스트 전부 금지. 배열 개수는 지정 수를 정확히. 아래 필드만 생성.
 {
@@ -209,26 +212,27 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
   ],
   "monthlyExperiments": [
     {
-      "title": "실험 이름",
-      "body": "이 실험의 개요. 200~350자",
-      "hypothesis": "무엇을 검증하는가",
-      "target": "누구에게(구체적 대상)",
-      "action": "실제로 무엇을 하는가(채널·형식 포함)",
-      "successMetric": "성공으로 볼 구체 기준(수치/반응)",
-      "stopSignal": "중단·축소할 신호",
-      "whyThisFits": "왜 이 사용자에게 맞는가(입력 근거)"
+      "title": "실험 이름(무엇을 검증하는지 드러나게)",
+      "body": "이 실험이 무엇을 시장/수익/전환 가능성 차원에서 검증하는지. 300~500자",
+      "hypothesis": "검증할 가설(예: '수의학 전문성을 브랜드 신뢰로 전환해 돈을 받을 수 있는가')",
+      "target": "실제 구매/결제 가능성이 있는 구체 집단",
+      "action": "콘텐츠 N개가 아니라, 구매의사·DM·소액 결제·상담 요청·예약을 유도하는 구체 제안",
+      "successMetric": "저장·좋아요가 아니라 DM·구매의사·소액 결제·상담 요청·예약·이메일 확보 등 '돈에 가까운 반응'의 구체 수치",
+      "stopSignal": "반응 없음뿐 아니라 어떤 가설을 버릴지 명확히",
+      "whyThisFits": "사용자의 수입 공백·버틸 기간·기존 경험·현재 전문성을 연결한 근거"
     }
   ],
   "sevenDayPlan": [
-    "1일차에 할 구체적 한 가지. 100~180자"
+    "1일차: 유료 반응을 확인할 가설 1개 정의(감정정리 아님). 100~180자 — 이후 2일차 타깃 10명 리스트업, 3일차 제안 메시지/랜딩 문구, 4일차 콘텐츠/제안 1개 공개, 5일차 DM/지인 5명 직접 검증, 6일차 반응을 돈/관심/칭찬/무반응으로 분류, 7일차 키울 가설·버릴 가설 결정. 즉 감정정리가 아니라 실제 검증 루프."
   ],
   "recheckCriteria": [
-    "30일 뒤 스스로 점검할 기준(예/아니오로 답할 수 있게). 120~220자"
+    "30일 뒤 스스로 점검할 기준(예/아니오, 돈에 가까운 반응 여부 중심). 120~220자"
   ],
   "finalMessage": "사용자가 직접 쓴 말을 다시 안아주는 마무리. 실제 표현 인용 가능. 400~700자"
 }
-개수 규칙(반드시): corePatterns 3, blockers 3, strengths 3, risks 2~3, monthlyExperiments 3(각 구조화 필드 채움), sevenDayPlan 7(1일차~7일차 순서), recheckCriteria 3.
-[30일 실험] "콘텐츠 올려보세요" 식 금지. 누구에게·어떤 메시지로·어떤 반응을 성공으로 볼지가 반드시 있어야 한다.
+개수 규칙(반드시): corePatterns 3, blockers 3, strengths 3, risks 2~3, monthlyExperiments 3(각 구조화 필드 채움), sevenDayPlan 7(1일차~7일차, 위 검증 루프 흐름), recheckCriteria 3.
+[30일 실험] "콘텐츠 올려보세요/주 2회 올리기/대상 한 명 정하기" 금지. 반드시 '누구에게 무엇을 팔거나 검증할지'와 '돈에 가까운 성공 지표'가 있어야 한다.
+[7일 계획] "고민 적기/지키고 싶은 것 정하기/초안 만들기" 수준 금지. 유료 반응 검증 루프로.
 [수의사 등 전문직] 현재 직업을 '현재 가진 전문 자격·신뢰 자산·도메인 이해'로 구체적으로 다루되, 오래 종사한 것처럼 쓰지 말 것(PROFILE_FACTS 준수). 기존 커리어 자산과 현재 전문성의 조합 가능성을 중심으로.
 JSON 외 어떤 텍스트도 금지. 마크다운·코드펜스 금지. 순수 JSON만.`;
 
@@ -601,7 +605,7 @@ function topKeywords(text: string, n: number): string[] {
   return [...freq.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, n).map(([w]) => w);
 }
 interface EvidencePack { text: string; keywords: string[]; sentenceCount: number; }
-function buildUserEvidencePack(free: FreeContext, paid: PaidAnswers): EvidencePack {
+export function buildUserEvidencePack(free: FreeContext, paid: PaidAnswers): EvidencePack {
   const trigger = or(paid.trigger); const flow = or(paid.flowMoment); const ufree = or(free.userFreeText);
   const rawAll = [ufree, trigger, flow].filter((x) => x !== '정보 없음').join('\n');
   const sentences = Array.from(new Set([
@@ -609,38 +613,72 @@ function buildUserEvidencePack(free: FreeContext, paid: PaidAnswers): EvidencePa
     ...splitSentences(flow === '정보 없음' ? '' : flow),
     ...splitSentences(ufree === '정보 없음' ? '' : ufree),
   ])).slice(0, 10).map((s) => (s.length > 200 ? `${s.slice(0, 200)}…` : s));
-  const keywords = topKeywords(rawAll, 8);
+  const keywords = topKeywords(rawAll, 10);
   const lines = [
-    '[USER_EVIDENCE_PACK — 사용자가 실제로 쓴 말과 맥락. 각 섹션에 이 구체 정보를 반영할 것]',
-    sentences.length ? `· 사용자가 직접 쓴 문장: ${sentences.map((s) => `"${s}"`).join(' / ')}` : '· 사용자가 직접 쓴 문장: 정보 없음',
-    `· 지금 고민의 계기: ${clip(paid.trigger, 400)}`,
-    `· 몰입했던 순간: ${clip(paid.flowMoment, 300)}`,
-    `· 하고 싶은 방향(고려): ${or(paid.candidateDirection)}`,
+    '[USER_EVIDENCE_PACK — 사용자가 실제로 쓴 말과 맥락. 아래 항목을 읽어내 각 섹션에 리포트 문장으로 녹일 것(키워드 나열 금지)]',
+    sentences.length ? `· 사용자가 직접 쓴 문장(고민·두려움·아이디어·이미 얻은 반응이 여기에 있음): ${sentences.map((s) => `"${s}"`).join(' / ')}` : '· 사용자가 직접 쓴 문장: 정보 없음',
+    `· 지금 고민이 커진 계기: ${clip(paid.trigger, 500)}`,
+    `· 시간 가는 줄 모르고 몰입했던 순간(강점·에너지원 단서): ${clip(paid.flowMoment, 400)}`,
+    `· 지금 만들고/하고 싶은 방향(고려): ${or(paid.candidateDirection)}`,
+    `· 필요한 최소 수입(수입 공백 판단): ${or(paid.incomeFloor)}`,
+    `· 수입 끊겨도 버틸 수 있는 기간(실험 공격성의 상한): ${or(paid.runway)}`,
+    `· 가족·생활비 압박: 부양 ${or(paid.dependents)} / 결혼 ${or(paid.maritalStatus)}`,
     `· 지키고 싶은 것: ${orList(paid.mustKeep)}`,
-    `· 현실 제약: 고용형태 ${or(paid.workStatus)} / 버틸 기간 ${or(paid.runway)} / 최소 소득 ${or(paid.incomeFloor)} / 주간 가용시간 ${or(paid.weeklyTime)} / 에너지 ${or(paid.energyLevel)} / 부양 ${or(paid.dependents)} / 결혼 ${or(paid.maritalStatus)}`,
-    keywords.length ? `· 반복 키워드: ${keywords.join(', ')}` : '',
+    `· 그 밖의 현실 조건: 고용형태 ${or(paid.workStatus)} / 주간 가용시간 ${or(paid.weeklyTime)} / 에너지 ${or(paid.energyLevel)}`,
+    keywords.length ? `· 반복 등장 키워드(사용자 세계의 단어): ${keywords.join(', ')}` : '',
+    '· 반드시 다룰 것: 돈을 받을 수 있는지 확인해야 하는 포인트, 기존 직업(병원/임상 등) 복귀 vs 새 방향 사이의 갈등, 가장 두려워하는 시나리오 — 위 문장/조건에서 근거를 찾아 구체화할 것.',
   ].filter(Boolean);
   let text = lines.join('\n');
   if (text.length > 7000) text = `${text.slice(0, 7000)}…`;
   return { text, keywords, sentenceCount: sentences.length };
 }
 
-// ── quality gate — 일반화/근거부족을 감지(차단 아님, content-repair 트리거) ─────
-const GENERIC_PHRASES = ['작은 실험', '방향 감각', '현재 전문성', '에너지'];
-function qualityWarnings(result: PaidAnalysisResult, evidence: EvidencePack, source: string): string[] {
+// ── quality gate — golden 미달을 감지(차단 아님, content-repair 트리거) ─────
+const GENERIC_PHRASES = ['작은 실험', '방향 감각', '현재 전문성', '에너지', '한 문장으로 적어', '대상 한 명', '초안 만들', '작게 시작', '가장 작은'];
+// normalize/fallback이 채우는 중립 기본 본문의 표식(부분 fallback 감지용).
+const DEFAULT_MARKERS = [
+  '이어지는 섹션과 함께 보면', '지금 결정을 늦추는 요인을 한 번 더', '쌓아온 경험을 다른 형태로 이어 쓸',
+  '실험 크기에 맞춰 조정', '작게 시작해 반응을 확인할 수 있는 실험을 하나 더', '이번 주에 할 수 있는 작은 한 걸음',
+  '이 방향이 나에게 맞았는지 스스로 점검', '지금 고민을 한 문장으로', '도움을 줄 수 있는 대상 한 명', '초안 만들기',
+];
+const MONEY_SIGNALS = ['DM', '결제', '구매', '상담', '예약', '이메일', '문의', '주문', '계약', '지불', '유료'];
+function isDefaultBody(s: string): boolean { return DEFAULT_MARKERS.some((m) => s.includes(m)); }
+export function defaultStats(result: PaidAnalysisResult): { defaultBodyCount: number; totalUnits: number; bodyLength: number } {
+  const units = [
+    ...result.corePatterns.map((x) => x.body), ...result.blockers.map((x) => x.body),
+    ...result.strengths.map((x) => x.body), ...result.risks.map((x) => x.body),
+    ...result.monthlyExperiments.map((x) => x.body), ...result.sevenDayPlan, ...result.recheckCriteria, result.finalMessage,
+  ];
+  const defaultBodyCount = units.filter(isDefaultBody).length;
+  const bodyLength = units.reduce((a, b) => a + (b?.length ?? 0), 0);
+  return { defaultBodyCount, totalUnits: units.length, bodyLength };
+}
+export function qualityWarnings(result: PaidAnalysisResult, evidence: EvidencePack, source: string): string[] {
   const w: string[] = [];
   const flat = JSON.stringify(result);
   if (source === 'full_fallback_used') w.push('full_fallback');
-  if (source === 'partial_fallback_sections') w.push('many_defaults');
+  if (source === 'partial_fallback_sections') w.push('partial_fallback');
+  // 기본값 본문이 전체의 20% 이상 → 실패 신호.
+  const ds = defaultStats(result);
+  if (ds.defaultBodyCount / Math.max(1, ds.totalUnits) > 0.2) w.push('too_many_defaults');
+  // evidence 키워드 반영 부족.
   const kwHit = evidence.keywords.filter((k) => flat.includes(k)).length;
   if (evidence.keywords.length >= 5 && kwHit < 5) w.push('low_evidence_keywords');
+  // golden 밀도 미달(핵심 4섹션 평균).
   const bodies = [...result.corePatterns, ...result.blockers, ...result.strengths, ...result.risks].map((x) => x.body);
   const avg = bodies.length ? bodies.reduce((a, b) => a + b.length, 0) / bodies.length : 0;
-  if (avg < 140) w.push('short_bodies');
+  if (avg < 300) w.push('short_bodies');
+  // 일반·템플릿 표현 반복.
   const genCount = GENERIC_PHRASES.reduce((n, g) => n + (flat.split(g).length - 1), 0);
-  if (genCount >= 6) w.push('generic_repetition');
+  if (genCount >= 4) w.push('generic_repetition');
+  // 실험이 구조는 있어도 '돈에 가까운' 검증이 아님.
   if (result.monthlyExperiments.some((e) => !(e.target && e.action && e.successMetric))) w.push('experiments_missing_fields');
-  if ((result.finalMessage ?? '').length < 250) w.push('final_message_thin');
+  const moneyish = result.monthlyExperiments.filter((e) => MONEY_SIGNALS.some((s) => (e.successMetric ?? '').includes(s))).length;
+  if (moneyish < 2) w.push('experiments_not_monetized');
+  // 7일 계획이 감정정리 수준.
+  if (result.sevenDayPlan.some((d) => /한 문장으로 적어|지키고 싶은 것.*정하|초안 만들|고민.*적어/.test(d))) w.push('weak_seven_day');
+  // 마지막 메시지가 얕음.
+  if ((result.finalMessage ?? '').length < 300) w.push('final_message_thin');
   return w;
 }
 
@@ -694,9 +732,9 @@ export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidA
     summaryCard: {
       coreNow: coreLine,
       biggestRisk: `수입과 시간 여건(버틸 기간: ${runway})을 넘어서는 큰 실험은 지금 리스크가 커요.`,
-      dontDo: '큰 결정을 한 번에 내리려 서두르지 않기.',
-      doThis: '이번 달은 지금 조건을 지키면서 할 수 있는 가장 작은 실험 하나부터.',
-      judgeBy: '30일 뒤, 그 실험이 에너지를 뺏지 않고 방향 감각을 줬는지로 판단하기.',
+      dontDo: '병원 복귀냐 새 방향이냐를 한 번에 확정하려 서두르지 않기.',
+      doThis: `이번 달은 '돈을 낼 사람이 실제로 있는가'를 확인하는 작은 검증 하나에 집중하기.`,
+      judgeBy: '30일 뒤, DM·상담 요청·소액 결제 같은 돈에 가까운 반응이 하나라도 나왔는지로 판단하기.',
     },
     corePatterns: [
       T('무엇을 지킬지 먼저', `바꾸더라도 지키고 싶은 것(${keep})이 분명할수록 결정이 쉬워져요.`),
@@ -724,9 +762,9 @@ export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidA
         title: '전문성 기반 짧은 콘텐츠', body: `'${occ}'로서의 전문 지식을 짧은 글/영상으로 옮겨 30일간 반응을 확인합니다.`,
         hypothesis: '내 전문 지식이 특정 대상에게 유용한 콘텐츠로 통하는가',
         target: `${occ} 전문성이 도움이 될 구체적 한 집단(예: 같은 고민을 가진 동료/고객)`,
-        action: '주 2회, 실무에서 자주 받는 질문 하나씩을 짧은 콘텐츠로 공개',
-        successMetric: '저장·문의·팔로우 등 구체 반응이 4주간 누적되는지',
-        stopSignal: '4주간 어떤 반응도 없고 만드는 일이 회복을 해치면 축소',
+        action: '실무 질문에 답하는 콘텐츠 끝에 "상담/소액 유료 자료" 제안을 붙여 실제 반응을 유도',
+        successMetric: 'DM·상담 요청·소액 결제·이메일 확보 같은 돈에 가까운 반응이 4주간 나오는지(저장·좋아요는 제외)',
+        stopSignal: '돈에 가까운 반응이 전혀 없으면 "무료로는 관심, 유료로는 아님" 가설을 채택하고 대상/제안을 교체',
         whyThisFits: `버틸 기간(${runway})·에너지(${energy})를 고려해 수입을 흔들지 않는 작은 검증이라서`,
       },
       {
@@ -749,18 +787,18 @@ export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidA
       },
     ],
     sevenDayPlan: [
-      '1일차: 지금 고민을 한 문장으로 적어보기.',
-      '2일차: 바꿔도 지키고 싶은 것 2가지를 정하기.',
-      '3일차: 도움을 줄 수 있는 대상 한 명을 구체적으로 정하기.',
-      '4일차: 그 대상에게 전할 짧은 메시지/콘텐츠 초안 만들기.',
-      '5일차: 가장 작은 형태로 실제로 한 번 내보내기.',
-      '6일차: 돌아온 반응(무반응 포함)을 그대로 기록하기.',
-      '7일차: 에너지가 남았는지, 다음에 더 해보고 싶은지 점검하기.',
+      '1일차: 유료 반응을 확인할 가설 1개를 정의한다(예: 이 대상은 이 문제에 돈을 낼 것이다).',
+      '2일차: 실제 구매 가능성이 있는 타깃 10명을 이름/채널까지 리스트업한다.',
+      '3일차: 그들에게 보낼 제안 메시지 또는 랜딩 문구를 한 편 작성한다.',
+      '4일차: 콘텐츠 또는 제안 1개를 실제로 공개한다.',
+      '5일차: DM·댓글·지인 5명에게 직접 제안하고 반응을 요청한다.',
+      '6일차: 받은 반응을 돈/관심/칭찬/무반응으로 분류한다.',
+      '7일차: 다음 주에 키울 가설과 버릴 가설을 결정한다.',
     ],
     recheckCriteria: [
-      '이 실험이 내 에너지를 뺏지 않았나요?',
-      '작게라도 방향 감각이 또렷해졌나요?',
-      '다음 30일에 한 번 더 해보고 싶은가요?',
+      '돈에 가까운 반응(DM·상담·소액 결제·예약)이 한 건이라도 나왔나요?',
+      '어떤 대상·제안이 반응했고, 어떤 가설을 버려야 하는지 명확해졌나요?',
+      '다음 30일에 더 키워볼 방향이 하나로 좁혀졌나요?',
     ],
     finalMessage: '지금의 질문은 한 직업을 계속할지 말지의 단순한 선택보다, 지금까지의 경험과 현재 전문성을 어떤 방식으로 조합할지에 더 가까워요. 이번 달은 작게 한 걸음만 내디뎌도 충분합니다.',
   };
@@ -913,23 +951,27 @@ export default async function handler(req: any, res: any): Promise<void> {
       return;
     }
 
-    // ── quality gate: 일반화/근거부족이면 fallback으로 덮지 말고 content-repair로 보강 ──
+    // ── quality gate: golden 미달이면 fallback으로 덮지 말고 content-repair로 보강(fallback도 evidence로 구체화) ──
     const warnings = qualityWarnings(result, evidence, finalResultSource);
     // eslint-disable-next-line no-console
     console.log('[paid] qualityWarnings:', warnings.length ? warnings.join(',') : 'none', '| source(pre-content-repair):', finalResultSource);
-    const shouldContentRepair = warnings.length > 0 && finalResultSource !== 'full_fallback_used'
-      && (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG;
+    let contentRepairAttempted = false; let contentRepairSucceeded = false;
+    const shouldContentRepair = warnings.length > 0 && (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG;
     if (shouldContentRepair) {
+      contentRepairAttempted = true;
       const tC = Date.now();
       const cr = await callClaude(apiKey, CONTENT_REPAIR_SYSTEM_PROMPT,
         buildContentRepairInput(JSON.stringify(result), facts.text, evidence.text, warnings), MAX_OUTPUT_TOKENS);
       const cp = extractJson(cr);
       if (cp !== null && rawContentReport(cp).hasCore) {
         const cn = normalizePaidResult(cp);
-        if (validationErrors(cn).length === 0) { result = cn; finalResultSource = 'content_repair_normalized'; }
+        // 교정본이 유효하고, 남은 quality 경고가 줄었을 때만 채택.
+        if (validationErrors(cn).length === 0 && qualityWarnings(cn, evidence, 'content_repair_normalized').length < warnings.length) {
+          result = cn; finalResultSource = 'content_repair_normalized'; contentRepairSucceeded = true;
+        }
       }
       // eslint-disable-next-line no-console
-      console.log('[paid] content-repair ms:', Date.now() - tC, '| source(after):', finalResultSource, '| total ms:', Date.now() - t0);
+      console.log('[paid] content-repair ms:', Date.now() - tC, '| succeeded:', contentRepairSucceeded, '| source(after):', finalResultSource, '| total ms:', Date.now() - t0);
     }
 
     // ── career sanitize (전환 국면, deterministic). 차단 아님. ──
@@ -940,8 +982,17 @@ export default async function handler(req: any, res: any): Promise<void> {
       console.log('[paid] post-sanitize violations(non-blocking):', v.length ? v.join(' / ') : 'none');
     }
 
+    // ── 완료 지표 로깅(품질 판정용) ──
+    const finalStats = defaultStats(result);
+    const finalWarnings = qualityWarnings(result, evidence, finalResultSource);
+    const evidenceKeywordCount = evidence.keywords.filter((k) => JSON.stringify(result).includes(k)).length;
     // eslint-disable-next-line no-console
-    console.log('[paid] finalResultSource:', finalResultSource, '| warnings:', warnings.length ? warnings.join(',') : 'none',
+    console.log('[paid] DONE | finalResultSource:', finalResultSource,
+      '| rawContentBodyLength:', finalStats.bodyLength, '| defaultBodyCount:', finalStats.defaultBodyCount,
+      '| defaultItemCount:', report.defaultedSlots, '| evidenceKeywordCount:', evidenceKeywordCount,
+      '| qualityWarnings:', finalWarnings.length ? finalWarnings.join(',') : 'none',
+      '| contentRepairAttempted:', contentRepairAttempted, '| contentRepairSucceeded:', contentRepairSucceeded,
+      '| repairAttempted:', repairAttempted, '| skippedRepairBecauseDeadline:', skippedRepairBecauseDeadline,
       '| total ms:', Date.now() - t0);
     res.status(200).json(result);
   } catch (e) {
