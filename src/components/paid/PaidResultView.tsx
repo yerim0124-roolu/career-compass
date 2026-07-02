@@ -219,13 +219,21 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     { label: '30일 뒤 판단 기준', value: summaryCard.judgeBy },
   ];
 
-  // 중단(상담 온기) — 제목+본문 그룹들.
+  // 중단(상담 온기) — 제목+본문 그룹들. (30일 실험은 구조화 필드가 있어 별도 렌더)
   const titledGroups: Array<{ heading: string; items: typeof corePatterns }> = [
     { heading: '지금 당신의 핵심 패턴', items: corePatterns },
     { heading: '당신을 붙잡는 것들', items: blockers },
     { heading: '당신이 이미 가진 강점', items: strengths },
     { heading: '현실 리스크', items: risks },
-    { heading: '이번 달의 30일 실험', items: monthlyExperiments },
+  ];
+
+  const expRows: Array<{ label: string; key: keyof (typeof monthlyExperiments)[number] }> = [
+    { label: '가설', key: 'hypothesis' },
+    { label: '대상', key: 'target' },
+    { label: '행동', key: 'action' },
+    { label: '성공 기준', key: 'successMetric' },
+    { label: '중단 신호', key: 'stopSignal' },
+    { label: '왜 나에게 맞나', key: 'whyThisFits' },
   ];
 
   return (
@@ -260,6 +268,27 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
             </div>
           </section>
         ))}
+
+        {/* 이번 달의 30일 실험 — 검증 설계(제목+본문+구조화 필드) */}
+        <section className="space-y-4">
+          <h2 className="text-base font-black text-slate-800">【이번 달의 30일 실험】</h2>
+          <div className="space-y-4">
+            {monthlyExperiments.map((exp, i) => (
+              <article key={i} className="rounded-2xl p-4 space-y-2" style={{ background: '#FBFAFE', border: `1px solid ${BOX_BORDER}` }}>
+                <h3 className="text-[15px] font-bold" style={{ color: '#5E5280' }}>{exp.title || `실험 ${i + 1}`}</h3>
+                {exp.body && <p className="text-[14px] leading-[1.75] text-slate-700 whitespace-pre-line">{exp.body}</p>}
+                <dl className="grid grid-cols-1 gap-1 pt-1">
+                  {expRows.filter((r) => (exp[r.key] as string | undefined)?.trim()).map((r) => (
+                    <div key={r.key} className="flex gap-2 text-[13px] leading-relaxed">
+                      <dt className="shrink-0 font-bold" style={{ color: PURPLE }}>{r.label}</dt>
+                      <dd className="text-slate-700">{exp[r.key] as string}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </article>
+            ))}
+          </div>
+        </section>
 
         {/* 7일 실행 계획 — 순서형 목록(도구적, 강조 박스) */}
         <section className="rounded-2xl p-5 space-y-3" style={{ background: BOX_BG, border: `1px solid ${BOX_BORDER}` }}>

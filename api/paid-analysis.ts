@@ -137,10 +137,9 @@ function experienceToKorean(code?: string | null): string {
 }
 
 export const MODEL = 'claude-sonnet-4-6';
-// 토큰을 무작정 크게 두면 장문이 늘어 JSON이 안 닫힐 위험이 커진다. 필드별 길이
-// 제한 + 고정 배열 개수 스키마와 함께 3500으로 두면 결과지 분량은 유지하면서
-// JSON이 안정적으로 닫힌다. repair 재시도도 같은 상한을 쓴다.
-const MAX_OUTPUT_TOKENS = 3500;
+// 유료 리포트 수준의 풍성한 분량을 위해 넉넉히 둔다. 고정 배열 개수 + 필드별 길이
+// 상한 + "순수 JSON만" 지시가 함께 있어 무한 장문/미종료를 막는다. repair도 같은 상한.
+const MAX_OUTPUT_TOKENS = 8000;
 
 // ── 시스템 프롬프트 (전문, 그대로) ──────────────────────────────────────────────
 export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람의 마음을 깊이 읽어주는 따뜻한 커리어 안내자입니다. 아래 진단 데이터를 그대로 요약하지 말고, 데이터에 적히지 않은 이 사람의 현실까지 조심스럽게 추론해서 채우세요.
@@ -184,40 +183,53 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
 [자기효능감 부족] 흥미가 있어도 '난 못 할 것 같다'가 막음
 [문체] 존댓말, 다정한 상담 톤. "OO형입니다" 규정 금지. "퇴사/창업/이직하세요" 강요 금지. 막연한 위로 반복 금지. 진단명·점수 나열 금지, 일상 언어로 번역. 사용자 직접 문장은 마지막 섹션에서 다시 안아주기.
 [6번 실험 특칙] '고려 방향'이 명확하면 그 방향의 30일 실험 하나. '아직 모르겠음'이거나 비면, 실험 후보 2~3개를 짧게 비교한 뒤 가장 안전·적합한 1개로 좁힐 것. 실험은 반드시 포함: 주제·대상·채널·형식·30일 안에 할 행동·확인할 지표·이 실험으로 알게 될 것. 주차 흐름(1주 정리→2주 대상→3주 실행→4주 반응)을 자연스럽게. "콘텐츠 만들어보세요" 식 금지.
+[근거 반영 — 최우선] 입력의 USER_EVIDENCE_PACK에 있는 '사용자가 실제로 쓴 문장·제약·키워드·하고 싶은 방향'을 각 주요 섹션에 최소 2개 이상 구체적으로 반영하라. 사용자의 사업/콘텐츠/브랜드/직무/수입 관련 맥락이 입력에 있으면 반드시 다룬다. 추상어만으로 섹션을 채우지 말 것. "작은 실험", "방향 감각", "현재 전문성", "에너지" 같은 일반 표현을 반복하지 말 것. 입력에 없는 사실은 지어내지 말 것.
+[분량 — 유료 리포트 수준] 각 섹션 본문을 아래 권장 분량으로 충분히 밀도 있게 쓴다(짧고 얕은 결과 금지).
 ━━ 출력 형식 (반드시 아래 스키마에 '정확히' 맞는 순수 JSON만) ━━
-규칙: 마크다운·코드펜스(\`\`\`)·설명·JSON 앞뒤 텍스트 전부 금지. 배열 개수는 지정 수를 정확히 지킬 것. 각 필드는 지정 글자 수를 넘기지 말 것(초과하면 JSON이 잘려 실패함). 프론트가 렌더하는 아래 필드만 생성. 자유 형식 장문 금지 — 각 필드는 지정 길이 안에서 밀도 있게.
+규칙: 마크다운·코드펜스(\`\`\`)·설명·JSON 앞뒤 텍스트 전부 금지. 배열 개수는 지정 수를 정확히. 아래 필드만 생성.
 {
   "summaryCard": {
-    "coreNow": "지금 핵심 한 문장(60자 내외)",
-    "biggestRisk": "가장 큰 리스크 한 문장(60자 내외)",
-    "dontDo": "지금 하지 말 것 한 문장(60자 내외)",
-    "doThis": "이번 달 할 것 한 문장(60자 내외)",
-    "judgeBy": "30일 뒤 판단 기준 한 줄(60자 내외)"
+    "coreNow": "지금 핵심 1~2문장",
+    "biggestRisk": "가장 큰 리스크 1~2문장",
+    "dontDo": "지금 하지 말 것 1문장",
+    "doThis": "이번 달 할 것 1문장",
+    "judgeBy": "30일 뒤 판단 기준 1문장"
   },
   "corePatterns": [
-    { "title": "패턴 이름(20자 이내)", "body": "지금 결정을 못 내리게 하는 심리 메커니즘을 이 사람 언어로. 200~300자" }
+    { "title": "패턴 이름", "body": "왜 지금 이 고민이 왔는지 + 결정을 못 내리게 하는 심리 메커니즘을 사용자 언어와 구체 맥락으로. 250~400자" }
   ],
   "blockers": [
-    { "title": "20자 이내", "body": "붙잡는 현실·심리 요인. 150~250자" }
+    { "title": "이름", "body": "붙잡는 현실·심리 요인을 사용자 제약과 연결해. 200~350자" }
   ],
   "strengths": [
-    { "title": "20자 이내", "body": "이미 가진 전환 자산. 150~220자" }
+    { "title": "이름", "body": "기존 커리어 자산 + 현재 전문성을 구체 자산으로. 250~400자" }
   ],
   "risks": [
-    { "title": "20자 이내", "body": "돈·시간·가족·나이 반영한 현실 리스크. 120~200자" }
+    { "title": "이름", "body": "돈·시간·가족·나이를 사용자 실제 수치와 연결한 현실 리스크. 250~400자" }
   ],
   "monthlyExperiments": [
-    { "title": "실험 이름(20자 이내)", "body": "주제·대상·채널·행동·확인지표 포함한 30일 실험. 200~300자" }
+    {
+      "title": "실험 이름",
+      "body": "이 실험의 개요. 200~350자",
+      "hypothesis": "무엇을 검증하는가",
+      "target": "누구에게(구체적 대상)",
+      "action": "실제로 무엇을 하는가(채널·형식 포함)",
+      "successMetric": "성공으로 볼 구체 기준(수치/반응)",
+      "stopSignal": "중단·축소할 신호",
+      "whyThisFits": "왜 이 사용자에게 맞는가(입력 근거)"
+    }
   ],
   "sevenDayPlan": [
-    "1일차에 할 구체적 한 가지. 60~100자"
+    "1일차에 할 구체적 한 가지. 100~180자"
   ],
   "recheckCriteria": [
-    "30일 뒤 스스로 점검할 기준(예/아니오로 답할 수 있게). 80~150자"
+    "30일 뒤 스스로 점검할 기준(예/아니오로 답할 수 있게). 120~220자"
   ],
-  "finalMessage": "사용자가 직접 쓴 말을 다시 안아주는 마무리. 200~300자"
+  "finalMessage": "사용자가 직접 쓴 말을 다시 안아주는 마무리. 실제 표현 인용 가능. 400~700자"
 }
-개수 규칙(반드시): corePatterns 정확히 3개, blockers 정확히 3개, strengths 정확히 3개, risks 2~3개, monthlyExperiments 정확히 3개, sevenDayPlan 정확히 7개(1일차~7일차 순서), recheckCriteria 정확히 3개.
+개수 규칙(반드시): corePatterns 3, blockers 3, strengths 3, risks 2~3, monthlyExperiments 3(각 구조화 필드 채움), sevenDayPlan 7(1일차~7일차 순서), recheckCriteria 3.
+[30일 실험] "콘텐츠 올려보세요" 식 금지. 누구에게·어떤 메시지로·어떤 반응을 성공으로 볼지가 반드시 있어야 한다.
+[수의사 등 전문직] 현재 직업을 '현재 가진 전문 자격·신뢰 자산·도메인 이해'로 구체적으로 다루되, 오래 종사한 것처럼 쓰지 말 것(PROFILE_FACTS 준수). 기존 커리어 자산과 현재 전문성의 조합 가능성을 중심으로.
 JSON 외 어떤 텍스트도 금지. 마크다운·코드펜스 금지. 순수 JSON만.`;
 
 // ── 요청/응답 타입 ─────────────────────────────────────────────────────────────
@@ -388,10 +400,14 @@ export function extractJson(text: string): unknown {
 // Vercel 번들 제약으로 src를 import할 수 없어 여기에 복사한다. 둘의 동등성은
 // src/components/paid/paidAnalysisContract.test.ts가 픽스처로 비교해 드리프트를 막는다.
 export interface TitledItem { title: string; body: string; }
+export interface ExperimentItem {
+  title: string; body: string;
+  hypothesis?: string; target?: string; action?: string; successMetric?: string; stopSignal?: string; whyThisFits?: string;
+}
 export interface PaidAnalysisResult {
   summaryCard: { coreNow: string; biggestRisk: string; dontDo: string; doThis: string; judgeBy: string; };
   corePatterns: TitledItem[]; blockers: TitledItem[]; strengths: TitledItem[]; risks: TitledItem[];
-  monthlyExperiments: TitledItem[]; sevenDayPlan: string[]; recheckCriteria: string[]; finalMessage: string;
+  monthlyExperiments: ExperimentItem[]; sevenDayPlan: string[]; recheckCriteria: string[]; finalMessage: string;
 }
 
 function asStr(v: unknown): string {
@@ -432,6 +448,30 @@ function normStrArray(raw: unknown, count: number, pad: string): string[] {
   while (out.length < count) out.push(pad);
   return out;
 }
+function toExperiment(v: unknown): ExperimentItem | null {
+  const base = toTitled(v);
+  if (typeof v !== 'object' || v === null) return base ? { title: base.title, body: base.body } : null;
+  const o = v as Record<string, unknown>;
+  const hypothesis = asStr(pick(o, ['hypothesis', 'assumption']));
+  const target = asStr(pick(o, ['target', 'who', 'audience']));
+  const action = asStr(pick(o, ['action', 'what', 'doWhat']));
+  const successMetric = asStr(pick(o, ['successMetric', 'success', 'metric']));
+  const stopSignal = asStr(pick(o, ['stopSignal', 'stop', 'abort']));
+  const whyThisFits = asStr(pick(o, ['whyThisFits', 'why', 'fit']));
+  let body = base?.body ?? '';
+  if (!body) body = [action && `무엇: ${action}`, target && `대상: ${target}`, successMetric && `성공 기준: ${successMetric}`].filter(Boolean).join(' · ');
+  const title = base?.title ?? '';
+  if (!body && !title) return null;
+  return { title, body: body || title, hypothesis, target, action, successMetric, stopSignal, whyThisFits };
+}
+function normExperimentArray(raw: unknown, count: number, pad: ExperimentItem): ExperimentItem[] {
+  const arr = Array.isArray(raw) ? raw : (raw !== undefined && raw !== null ? [raw] : []);
+  const items = arr.map(toExperiment).filter((x): x is ExperimentItem => x !== null);
+  if (items.length === 0) return [];
+  const out = items.slice(0, count);
+  while (out.length < count) out.push({ ...pad });
+  return out;
+}
 
 export function normalizePaidResult(raw: unknown): PaidAnalysisResult {
   const r = rec(raw);
@@ -452,7 +492,7 @@ export function normalizePaidResult(raw: unknown): PaidAnalysisResult {
     { title: '가진 자산', body: '지금까지 쌓아온 경험을 다른 형태로 이어 쓸 여지가 있어요.' });
   const risks = normTitledArray(pick(r, ['risks', 'realRisks', 'riskMap']), 3,
     { title: '점검할 리스크', body: '수입·시간·상황 조건을 실험 크기에 맞춰 조정해 보세요.' }).slice(0, 3);
-  const monthlyExperiments = normTitledArray(pick(r, ['monthlyExperiments', 'experiments', 'thirtyDayExperiments']), 3,
+  const monthlyExperiments = normExperimentArray(pick(r, ['monthlyExperiments', 'experiments', 'thirtyDayExperiments']), 3,
     { title: '30일 실험', body: '작게 시작해 반응을 확인할 수 있는 실험을 하나 더 열어두세요.' });
   const sevenDayPlan = normStrArray(pick(r, ['sevenDayPlan', 'weekPlan', 'sevenDay', 'dailyPlan']), 7,
     '이번 주에 할 수 있는 작은 한 걸음을 이어가 보세요.');
@@ -492,6 +532,35 @@ export function validateResult(o: unknown): boolean {
   return validationErrors(o).length === 0;
 }
 
+// rawContentReport — src/shared/paidAnalysisContract.ts와 동일 복사(드리프트 테스트로 보장).
+export interface RawContentReport {
+  hasCore: boolean; summaryFilled: number; realCounts: Record<string, number>; hasFinalMessage: boolean; defaultedSlots: number;
+}
+export function rawContentReport(raw: unknown): RawContentReport {
+  const r = rec(raw);
+  const sc = rec(pick(r, ['summaryCard', 'summary_card', 'summary']));
+  const summaryFilled = ['coreNow', 'core', 'now', 'biggestRisk', 'risk', 'dontDo', 'avoid', 'doThis', 'do', 'thisMonth', 'judgeBy', 'judge', 'criteria']
+    .reduce((n, k) => (asStr(sc[k]) ? n + 1 : n), 0);
+  const realTitled = (v: unknown) => (Array.isArray(v) ? v : []).map(toTitled).filter(Boolean).length;
+  const realStr = (v: unknown) => (Array.isArray(v) ? v : []).map((x) => (typeof x === 'string' ? x.trim() : asStr(pick(rec(x), ['body', 'text', 'task', 'day', 'title'])))).filter(Boolean).length;
+  const realCounts = {
+    corePatterns: realTitled(pick(r, ['corePatterns', 'patterns', 'coreConflicts', 'sections'])),
+    blockers: realTitled(pick(r, ['blockers', 'obstacles', 'blocks'])),
+    strengths: realTitled(pick(r, ['strengths', 'assets', 'transitionAssets'])),
+    risks: realTitled(pick(r, ['risks', 'realRisks', 'riskMap'])),
+    monthlyExperiments: realTitled(pick(r, ['monthlyExperiments', 'experiments', 'thirtyDayExperiments'])),
+    sevenDayPlan: realStr(pick(r, ['sevenDayPlan', 'weekPlan', 'sevenDay', 'dailyPlan'])),
+    recheckCriteria: realStr(pick(r, ['recheckCriteria', 'checks']) ?? pick(rec(pick(r, ['judgeCriteria', 'judge_criteria'])), ['checks'])),
+  };
+  const hasFinalMessage = !!asStr(pick(r, ['finalMessage', 'closingMessage', 'closing', 'summaryMessage']));
+  const need = { corePatterns: 3, blockers: 3, strengths: 3, risks: 2, monthlyExperiments: 3, sevenDayPlan: 7, recheckCriteria: 3 };
+  let defaultedSlots = Math.max(0, 3 - Math.min(summaryFilled, 5)) + (hasFinalMessage ? 0 : 1);
+  for (const k of Object.keys(need) as (keyof typeof need)[]) defaultedSlots += Math.max(0, need[k] - Math.min(realCounts[k], need[k]));
+  const bodyTotal = realCounts.corePatterns + realCounts.blockers + realCounts.strengths + realCounts.risks + realCounts.monthlyExperiments;
+  const hasCore = summaryFilled >= 2 && realCounts.corePatterns >= 1 && bodyTotal >= 4;
+  return { hasCore, summaryFilled, realCounts, hasFinalMessage, defaultedSlots };
+}
+
 // ── repair 재시도용 ────────────────────────────────────────────────────────────
 // 1차 출력이 파싱/검증에 실패하면, 원래 긴 사용자 입력을 다시 넣지 않고 '깨진 출력 +
 // 스키마'만 넘겨 교정만 시킨다(빠르고 저렴). 교정도 실패하면 그때만 422.
@@ -504,7 +573,7 @@ const SCHEMA_SPEC = `{
   "blockers": [ { "title": string, "body": string } ] (정확히 3),
   "strengths": [ { "title": string, "body": string } ] (정확히 3),
   "risks": [ { "title": string, "body": string } ] (2~3),
-  "monthlyExperiments": [ { "title": string, "body": string } ] (정확히 3),
+  "monthlyExperiments": [ { "title": string, "body": string, "hypothesis": string, "target": string, "action": string, "successMetric": string, "stopSignal": string, "whyThisFits": string } ] (정확히 3),
   "sevenDayPlan": [ string ] (정확히 7),
   "recheckCriteria": [ string ] (정확히 3),
   "finalMessage": string
@@ -520,6 +589,66 @@ const FACT_REPAIR_SYSTEM_PROMPT = `당신은 결과지의 사실 오류를 고�
 
 function buildFactRepairInput(profileFacts: string, violations: string[], existingJson: string): string {
   return `${profileFacts}\n\n[위반 표현 — 이 문구/뉘앙스를 결과에서 제거하고 사실에 맞게 고칠 것]\n${violations.join(' / ')}\n\n[고칠 기존 결과 JSON]\n${existingJson.slice(0, 9000)}\n\n[반드시 유지할 스키마]\n${SCHEMA_SPEC}`;
+}
+
+// ── USER_EVIDENCE_PACK — 사용자의 실제 서술을 truncate로 날리지 않고 보존 ─────────
+function splitSentences(text: string): string[] {
+  return text.split(/[\n.!?]|다\.|요\.|음\./).map((s) => s.trim()).filter((s) => s.length >= 5);
+}
+function topKeywords(text: string, n: number): string[] {
+  const freq = new Map<string, number>();
+  for (const w of text.split(/[^가-힣A-Za-z0-9]+/)) if (w.length >= 2) freq.set(w, (freq.get(w) ?? 0) + 1);
+  return [...freq.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, n).map(([w]) => w);
+}
+interface EvidencePack { text: string; keywords: string[]; sentenceCount: number; }
+function buildUserEvidencePack(free: FreeContext, paid: PaidAnswers): EvidencePack {
+  const trigger = or(paid.trigger); const flow = or(paid.flowMoment); const ufree = or(free.userFreeText);
+  const rawAll = [ufree, trigger, flow].filter((x) => x !== '정보 없음').join('\n');
+  const sentences = Array.from(new Set([
+    ...splitSentences(trigger === '정보 없음' ? '' : trigger),
+    ...splitSentences(flow === '정보 없음' ? '' : flow),
+    ...splitSentences(ufree === '정보 없음' ? '' : ufree),
+  ])).slice(0, 10).map((s) => (s.length > 200 ? `${s.slice(0, 200)}…` : s));
+  const keywords = topKeywords(rawAll, 8);
+  const lines = [
+    '[USER_EVIDENCE_PACK — 사용자가 실제로 쓴 말과 맥락. 각 섹션에 이 구체 정보를 반영할 것]',
+    sentences.length ? `· 사용자가 직접 쓴 문장: ${sentences.map((s) => `"${s}"`).join(' / ')}` : '· 사용자가 직접 쓴 문장: 정보 없음',
+    `· 지금 고민의 계기: ${clip(paid.trigger, 400)}`,
+    `· 몰입했던 순간: ${clip(paid.flowMoment, 300)}`,
+    `· 하고 싶은 방향(고려): ${or(paid.candidateDirection)}`,
+    `· 지키고 싶은 것: ${orList(paid.mustKeep)}`,
+    `· 현실 제약: 고용형태 ${or(paid.workStatus)} / 버틸 기간 ${or(paid.runway)} / 최소 소득 ${or(paid.incomeFloor)} / 주간 가용시간 ${or(paid.weeklyTime)} / 에너지 ${or(paid.energyLevel)} / 부양 ${or(paid.dependents)} / 결혼 ${or(paid.maritalStatus)}`,
+    keywords.length ? `· 반복 키워드: ${keywords.join(', ')}` : '',
+  ].filter(Boolean);
+  let text = lines.join('\n');
+  if (text.length > 7000) text = `${text.slice(0, 7000)}…`;
+  return { text, keywords, sentenceCount: sentences.length };
+}
+
+// ── quality gate — 일반화/근거부족을 감지(차단 아님, content-repair 트리거) ─────
+const GENERIC_PHRASES = ['작은 실험', '방향 감각', '현재 전문성', '에너지'];
+function qualityWarnings(result: PaidAnalysisResult, evidence: EvidencePack, source: string): string[] {
+  const w: string[] = [];
+  const flat = JSON.stringify(result);
+  if (source === 'full_fallback_used') w.push('full_fallback');
+  if (source === 'partial_fallback_sections') w.push('many_defaults');
+  const kwHit = evidence.keywords.filter((k) => flat.includes(k)).length;
+  if (evidence.keywords.length >= 5 && kwHit < 5) w.push('low_evidence_keywords');
+  const bodies = [...result.corePatterns, ...result.blockers, ...result.strengths, ...result.risks].map((x) => x.body);
+  const avg = bodies.length ? bodies.reduce((a, b) => a + b.length, 0) / bodies.length : 0;
+  if (avg < 140) w.push('short_bodies');
+  const genCount = GENERIC_PHRASES.reduce((n, g) => n + (flat.split(g).length - 1), 0);
+  if (genCount >= 6) w.push('generic_repetition');
+  if (result.monthlyExperiments.some((e) => !(e.target && e.action && e.successMetric))) w.push('experiments_missing_fields');
+  if ((result.finalMessage ?? '').length < 250) w.push('final_message_thin');
+  return w;
+}
+
+// content-repair: 구조는 유지하고 body/items/실험필드를 유료 리포트 수준으로 구체화(fallback으로 덮지 않음).
+const CONTENT_REPAIR_SYSTEM_PROMPT = `당신은 유료 리포트 편집자입니다. 아래 결과 JSON의 '구조는 그대로 두고' 각 섹션 body·items·finalMessage·실험 필드를 유료 리포트 수준으로 구체화합니다.
+규칙: 순수 JSON만(마크다운·설명 금지). 스키마의 필드명·타입·배열 개수 유지. USER_EVIDENCE_PACK의 실제 표현·제약·키워드를 각 섹션에 반영하고 구체화. "작은 실험/방향 감각/현재 전문성/에너지" 같은 일반 표현 반복 금지. 각 30일 실험의 hypothesis/target/action/successMetric/stopSignal/whyThisFits를 채울 것. PROFILE_FACTS의 경력 사실을 지킬 것. 기존에 좋은 문장은 살리되 얕은 문장은 근거로 두껍게.`;
+function buildContentRepairInput(currentJson: string, profileFacts: string, evidence: string, warnings: string[]): string {
+  return `${profileFacts}\n\n${evidence}\n\n[품질 경고 — 아래를 보완]\n${warnings.join(', ')}\n\n[구체화할 현재 결과 JSON(구조 유지)]\n${currentJson.slice(0, 12000)}\n\n[유지할 스키마]\n${SCHEMA_SPEC}`;
 }
 
 /** Anthropic 비스트리밍 호출. 텍스트 반환, upstream 실패 시 throw. */
@@ -591,9 +720,33 @@ export function buildFallbackResult(free: FreeContext, paid: PaidAnswers): PaidA
       T('회복 우선', `에너지(${energy})가 낮다면 '더 벌기'보다 '회복을 해치지 않는 작은 확인'부터.`),
     ],
     monthlyExperiments: [
-      T('현재 전문성 콘텐츠', `'${occ}' 전문성을 짧은 콘텐츠로 옮겨 30일간 반응을 확인하는 실험.`),
-      T('대상 좁힌 메시지', '도움을 줄 수 있는 특정 대상을 한 명 정해, 그에게 맞는 메시지를 시험하기.'),
-      T('기존 경험 결합', '지나온 경험과 현재 전문성을 묶어 작은 문제 하나를 정의해 보기.'),
+      {
+        title: '전문성 기반 짧은 콘텐츠', body: `'${occ}'로서의 전문 지식을 짧은 글/영상으로 옮겨 30일간 반응을 확인합니다.`,
+        hypothesis: '내 전문 지식이 특정 대상에게 유용한 콘텐츠로 통하는가',
+        target: `${occ} 전문성이 도움이 될 구체적 한 집단(예: 같은 고민을 가진 동료/고객)`,
+        action: '주 2회, 실무에서 자주 받는 질문 하나씩을 짧은 콘텐츠로 공개',
+        successMetric: '저장·문의·팔로우 등 구체 반응이 4주간 누적되는지',
+        stopSignal: '4주간 어떤 반응도 없고 만드는 일이 회복을 해치면 축소',
+        whyThisFits: `버틸 기간(${runway})·에너지(${energy})를 고려해 수입을 흔들지 않는 작은 검증이라서`,
+      },
+      {
+        title: '대상 좁힌 메시지 테스트', body: '도움을 줄 대상을 한 명으로 좁혀, 그에게 맞는 제안 메시지를 시험합니다.',
+        hypothesis: '좁힌 대상에게 내 제안이 실제로 필요한가',
+        target: '지금 바로 도움을 줄 수 있는 구체적인 한 사람/집단',
+        action: '그 대상에게 맞춘 1:1 제안을 직접 전하고 반응을 듣기',
+        successMetric: '대화가 다음 단계(질문·요청)로 이어지는지',
+        stopSignal: '세 번 시도해도 무반응이면 대상/메시지를 바꾸기',
+        whyThisFits: `지키고 싶은 것(${keep})을 해치지 않는 범위의 실험이라서`,
+      },
+      {
+        title: '기존 경험 결합 문제정의', body: '지나온 경험과 현재 전문성을 묶어 작은 문제 하나를 정의해 봅니다.',
+        hypothesis: '두 경험의 교집합에서 나만의 각도가 나오는가',
+        target: '그 문제를 실제로 겪는 사람',
+        action: '문제·해결 가설을 한 장으로 적어 3명에게 검증',
+        successMetric: '"그거 나도 필요해"라는 구체 공감이 나오는지',
+        stopSignal: '공감이 전혀 없으면 문제 정의를 다시',
+        whyThisFits: '복합 커리어 자산을 하나의 각도로 모으는 첫 걸음이라서',
+      },
     ],
     sevenDayPlan: [
       '1일차: 지금 고민을 한 문장으로 적어보기.',
@@ -626,10 +779,11 @@ export function sanitizeCareerPhrasing(result: PaidAnalysisResult, occupation: s
     if (occ && occ !== '정보 없음') {
       const subjects = occ.includes('수의') ? [occ, '임상'] : [occ];
       for (const subj of subjects) {
-        // "직업(로) N년" (N>현재상한) → 중립.
+        // "직업(로) N년" (N>현재상한) → 도메인 자산 표현으로.
+        const asset = occ.includes('수의') ? `${subj} 전문 자격과 도메인 이해` : `${subj} 전문성`;
         s = s.replace(new RegExp(`${esc(subj)}(으?로)?\\s*\\d{1,2}(\\s*[~-]\\s*\\d{1,2})?\\s*년(\\s*차)?`, 'g'), (m) => {
           const maxN = Math.max(...((m.match(/\d{1,2}/g) ?? ['0']).map(Number)));
-          return maxN > currentUpper ? `${subj} 전문성(현재 경력은 길지 않은 편)` : m;
+          return maxN > currentUpper ? asset : m;
         });
         // "직업 경력을 접/버리/포기" → 재배치 관점.
         s = s.replace(new RegExp(`${esc(subj)}\\s*경력을?\\s*(접|버리|포기)\\S*`, 'g'), `${subj} 전문성을 다른 형태로 재배치하는 선택`);
@@ -638,19 +792,25 @@ export function sanitizeCareerPhrasing(result: PaidAnalysisResult, occupation: s
         s = s.replace(/임상\s*루틴의?\s*천장/g, '지금 역할에서 느끼는 한계')
              .replace(/오래\s*해온\s*병원/g, '지금의 임상 현장')
              .replace(/병원\s*일을\s*놓\S*/g, '지금 일을 재구성하는 것')
-             .replace(/면허와\s*임상\s*경력/g, '자격과 현재 전문성');
+             .replace(/면허와\s*임상\s*경력/g, '수의학 전문 자격과 도메인 신뢰 자산');
       }
     }
     return s;
   };
   const t = (it: TitledItem): TitledItem => ({ title: sanitize(it.title), body: sanitize(it.body) });
+  const san = (v: string | undefined): string | undefined => (v === undefined ? undefined : sanitize(v));
+  const te = (e: ExperimentItem): ExperimentItem => ({
+    title: sanitize(e.title), body: sanitize(e.body),
+    hypothesis: san(e.hypothesis), target: san(e.target), action: san(e.action),
+    successMetric: san(e.successMetric), stopSignal: san(e.stopSignal), whyThisFits: san(e.whyThisFits),
+  });
   return {
     summaryCard: {
       coreNow: sanitize(result.summaryCard.coreNow), biggestRisk: sanitize(result.summaryCard.biggestRisk),
       dontDo: sanitize(result.summaryCard.dontDo), doThis: sanitize(result.summaryCard.doThis), judgeBy: sanitize(result.summaryCard.judgeBy),
     },
     corePatterns: result.corePatterns.map(t), blockers: result.blockers.map(t), strengths: result.strengths.map(t),
-    risks: result.risks.map(t), monthlyExperiments: result.monthlyExperiments.map(t),
+    risks: result.risks.map(t), monthlyExperiments: result.monthlyExperiments.map(te),
     sevenDayPlan: result.sevenDayPlan.map(sanitize), recheckCriteria: result.recheckCriteria.map(sanitize),
     finalMessage: sanitize(result.finalMessage),
   };
@@ -677,72 +837,74 @@ export default async function handler(req: any, res: any): Promise<void> {
     res.status(400).json({ error: 'invalid_payload' }); return;
   }
 
-  // PROFILE_FACTS(경력 사실 + 금지 표현)를 프롬프트 맨 위에 붙인다.
+  // PROFILE_FACTS(경력 사실) + USER_EVIDENCE_PACK(실제 서술 보존)을 프롬프트 맨 위에.
   const facts = buildProfileFacts(freeContext);
+  const evidence = buildUserEvidencePack(freeContext, paidAnswers);
   const rawInputLen =
     (freeContext.occupation?.length ?? 0) + (freeContext.userFreeText?.length ?? 0)
     + (paidAnswers.trigger?.length ?? 0) + (paidAnswers.flowMoment?.length ?? 0);
-  const userContent = `${facts.text}\n\n${assembleUserContent(freeContext, paidAnswers)}`;
+  const userContent = `${facts.text}\n\n${evidence.text}\n\n${assembleUserContent(freeContext, paidAnswers)}`;
   // eslint-disable-next-line no-console
-  console.log('[paid] input free-text chars:', rawInputLen, '| compact context chars:', userContent.length,
-    '| careerContext:', facts.transition ? 'transition_or_mixed' : 'same_or_unknown');
+  console.log('[paid] input free-text chars:', rawInputLen, '| context chars:', userContent.length,
+    '| careerContext:', facts.transition ? 'transition_or_mixed' : 'same_or_unknown',
+    '| evidence sentences:', evidence.sentenceCount, '| keywords:', evidence.keywords.join(','));
 
-  // ── 서버가 스키마의 주인: normalize → (schema repair) → fallback → sanitize → 200 ──
-  // Claude는 내용을 만들고, 서버가 구조를 보장한다. 필드명/개수가 어긋나도 normalize로
-  // 정규화하고, 그래도 안 되면 schema repair 1회, 최종적으로 deterministic fallback으로
-  // '반드시 렌더 가능한' 결과를 만든다. 전환 국면 경력 위반은 차단이 아니라 sanitize한다.
+  // ── 원칙: Claude의 rich primary를 유지. fallback은 catastrophic일 때만. normalize는 구조
+  //   보정용(본문 대체 아님). quality warning이면 fallback으로 덮지 말고 content-repair로 보강.
   const t0 = Date.now();
-  const SOFT_DEADLINE = 135000;   // 이 시간을 넘기면 재호출 없이 마무리(프론트 150초 전 확실히 응답)
-  const MAIN_TOO_LONG = 100000;   // main 호출이 이보다 길면 repair 재호출 생략
-  const includeDiag = process.env.VERCEL_ENV !== 'production'; // preview/dev에서만 상세 진단 반환
+  const SOFT_DEADLINE = 135000;
+  const MAIN_TOO_LONG = 100000;
+  const includeDiag = process.env.VERCEL_ENV !== 'production';
   try {
     const raw1 = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS);
     const ms1 = Date.now() - t0;
     const parsed1 = extractJson(raw1);
+    const report = rawContentReport(parsed1);
     const topKeys = parsed1 ? Object.keys(rec(parsed1)) : [];
-    let result: PaidAnalysisResult | null = parsed1 !== null ? normalizePaidResult(parsed1) : null;
-    let errs = result ? validationErrors(result) : ['parse_failed'];
     // eslint-disable-next-line no-console
     console.log('[paid] call#1 ms:', ms1, '| rawLen:', raw1.length, '| parseOk:', parsed1 !== null,
-      '| topKeys:', topKeys.join(','), '| validateOk(afterNormalize):', errs.length === 0, errs.length ? `| errs: ${errs.join(',')}` : '');
+      '| topKeys:', topKeys.join(','), '| hasCore:', report.hasCore, '| defaultedSlots:', report.defaultedSlots,
+      '| realCounts:', JSON.stringify(report.realCounts));
 
-    let repairAttempted = false; let repairSucceeded = false; let skippedRepairBecauseDeadline = false; let stage = 'main';
-    if (errs.length > 0) {
-      const canRepair = (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG;
-      if (canRepair) {
-        stage = 'schema_repair'; repairAttempted = true;
-        const tR = Date.now();
-        const raw2 = await callClaude(apiKey, REPAIR_SYSTEM_PROMPT, buildRepairInput(raw1), MAX_OUTPUT_TOKENS);
-        const parsed2 = extractJson(raw2);
-        const norm2 = parsed2 !== null ? normalizePaidResult(parsed2) : null;
-        const errs2 = norm2 ? validationErrors(norm2) : ['parse_failed'];
-        // eslint-disable-next-line no-console
-        console.log('[paid] schema-repair ms:', Date.now() - tR, '| validateOk:', errs2.length === 0,
-          errs2.length ? `| errs: ${errs2.join(',')}` : '', '| total ms:', Date.now() - t0);
-        if (errs2.length === 0 && norm2) { result = norm2; errs = errs2; repairSucceeded = true; }
-      } else {
-        skippedRepairBecauseDeadline = true;
-        // eslint-disable-next-line no-console
-        console.log('[paid] skippedRepairBecauseDeadline=true | elapsedMs:', Date.now() - t0, '| ms1:', ms1);
+    let result: PaidAnalysisResult;
+    let finalResultSource = '';
+    let repairAttempted = false; let repairSucceeded = false; let skippedRepairBecauseDeadline = false;
+
+    if (parsed1 === null || !report.hasCore) {
+      // catastrophic: 파싱 불가 또는 본문이 거의 없음 → 전체 fallback.
+      result = buildFallbackResult(freeContext, paidAnswers);
+      finalResultSource = 'full_fallback_used';
+      // eslint-disable-next-line no-console
+      console.log('[paid] catastrophic (no parse/no core) → full_fallback_used | total ms:', Date.now() - t0);
+    } else {
+      // primary 유지. 부족 필드만 normalize가 보완(내용 대체 아님).
+      result = normalizePaidResult(parsed1);
+      let errs = validationErrors(result);
+      if (errs.length > 0) {
+        const canRepair = (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG;
+        if (canRepair) {
+          repairAttempted = true;
+          const tR = Date.now();
+          const raw2 = await callClaude(apiKey, REPAIR_SYSTEM_PROMPT, buildRepairInput(raw1), MAX_OUTPUT_TOKENS);
+          const p2 = extractJson(raw2);
+          const n2 = p2 !== null ? normalizePaidResult(p2) : null;
+          if (n2 && validationErrors(n2).length === 0) { result = n2; errs = []; repairSucceeded = true; finalResultSource = 'schema_repair_normalized'; }
+          // eslint-disable-next-line no-console
+          console.log('[paid] schema-repair ms:', Date.now() - tR, '| ok:', repairSucceeded, '| total ms:', Date.now() - t0);
+        } else { skippedRepairBecauseDeadline = true; }
+        if (errs.length > 0) { result = buildFallbackResult(freeContext, paidAnswers); finalResultSource = 'full_fallback_used'; }
+      }
+      if (!finalResultSource) {
+        finalResultSource = report.defaultedSlots === 0 ? 'primary_normalized'
+          : (report.defaultedSlots <= 4 ? 'primary_with_minor_defaults' : 'partial_fallback_sections');
       }
     }
 
-    // 여전히 무효 → deterministic fallback(항상 유효). 결제 후 빈 화면 방지.
-    if (!result || errs.length > 0) {
-      stage = 'fallback';
-      result = buildFallbackResult(freeContext, paidAnswers);
-      errs = validationErrors(result);
-      // eslint-disable-next-line no-console
-      console.log('[paid] fallback builder used | validateOk:', errs.length === 0, '| total ms:', Date.now() - t0);
-    }
-
-    // 여기까지 왔는데도 무효면(정상적으로는 불가) 진단과 함께 422.
-    if (errs.length > 0) {
-      const sc = rec(pick(rec(parsed1), ['summaryCard']));
+    // 최종 유효성(정상적으로 fallback도 유효). 그래도 무효면 진단 422.
+    const finalErrs = validationErrors(result);
+    if (finalErrs.length > 0) {
       const diag = {
-        error: 'validation_failed', stage,
-        topLevelKeys: topKeys, missingFields: errs,
-        summaryCardKeys: Object.keys(sc), sectionsLength: Array.isArray((rec(parsed1)).sections) ? ((rec(parsed1)).sections as unknown[]).length : null,
+        error: 'validation_failed', stage: 'final', topLevelKeys: topKeys, missingFields: finalErrs,
         repairAttempted, repairSucceeded, skippedRepairBecauseDeadline, elapsedMs: Date.now() - t0,
       };
       // eslint-disable-next-line no-console
@@ -751,29 +913,36 @@ export default async function handler(req: any, res: any): Promise<void> {
       return;
     }
 
-    // ── career sanitize (전환 국면). 차단이 아니라 교정: repair 1회(여유 있을 때) + deterministic sanitize.
-    if (facts.transition) {
-      let violations = factViolations(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
-      // eslint-disable-next-line no-console
-      console.log('[paid] factCheck violations:', violations.length ? violations.join(' / ') : 'none');
-      if (violations.length > 0 && (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG) {
-        const tF = Date.now();
-        const repaired = await callClaude(apiKey, FACT_REPAIR_SYSTEM_PROMPT,
-          buildFactRepairInput(facts.text, violations, JSON.stringify(result)), MAX_OUTPUT_TOKENS);
-        const rp = extractJson(repaired);
-        const rn = rp !== null ? normalizePaidResult(rp) : null;
-        if (rn && validationErrors(rn).length === 0) result = rn;
-        // eslint-disable-next-line no-console
-        console.log('[paid] fact-repair ms:', Date.now() - tF, '| total ms:', Date.now() - t0);
+    // ── quality gate: 일반화/근거부족이면 fallback으로 덮지 말고 content-repair로 보강 ──
+    const warnings = qualityWarnings(result, evidence, finalResultSource);
+    // eslint-disable-next-line no-console
+    console.log('[paid] qualityWarnings:', warnings.length ? warnings.join(',') : 'none', '| source(pre-content-repair):', finalResultSource);
+    const shouldContentRepair = warnings.length > 0 && finalResultSource !== 'full_fallback_used'
+      && (Date.now() - t0) < SOFT_DEADLINE && ms1 < MAIN_TOO_LONG;
+    if (shouldContentRepair) {
+      const tC = Date.now();
+      const cr = await callClaude(apiKey, CONTENT_REPAIR_SYSTEM_PROMPT,
+        buildContentRepairInput(JSON.stringify(result), facts.text, evidence.text, warnings), MAX_OUTPUT_TOKENS);
+      const cp = extractJson(cr);
+      if (cp !== null && rawContentReport(cp).hasCore) {
+        const cn = normalizePaidResult(cp);
+        if (validationErrors(cn).length === 0) { result = cn; finalResultSource = 'content_repair_normalized'; }
       }
-      // deterministic sanitize — 남은 위반 표현을 사실에 맞게 치환(결과는 항상 반환).
-      result = sanitizeCareerPhrasing(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
-      violations = factViolations(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
       // eslint-disable-next-line no-console
-      console.log('[paid] post-sanitize violations(non-blocking):', violations.length ? violations.join(' / ') : 'none',
-        '| final stage:', stage, '| total ms:', Date.now() - t0);
+      console.log('[paid] content-repair ms:', Date.now() - tC, '| source(after):', finalResultSource, '| total ms:', Date.now() - t0);
     }
 
+    // ── career sanitize (전환 국면, deterministic). 차단 아님. ──
+    if (facts.transition) {
+      result = sanitizeCareerPhrasing(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+      const v = factViolations(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
+      // eslint-disable-next-line no-console
+      console.log('[paid] post-sanitize violations(non-blocking):', v.length ? v.join(' / ') : 'none');
+    }
+
+    // eslint-disable-next-line no-console
+    console.log('[paid] finalResultSource:', finalResultSource, '| warnings:', warnings.length ? warnings.join(',') : 'none',
+      '| total ms:', Date.now() - t0);
     res.status(200).json(result);
   } catch (e) {
     // eslint-disable-next-line no-console

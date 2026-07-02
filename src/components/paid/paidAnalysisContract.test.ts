@@ -98,4 +98,30 @@ const sanitized = server.sanitizeCareerPhrasing(violating, '수의사', factsB.c
 ok('sanitize 후 위반 제거', server.factViolations(sanitized, '수의사', factsB.currentUpper, factsB.bannedPhrases).length === 0);
 ok('sanitize 후에도 스키마 유효', shared.validatePaidAnalysisResult(sanitized));
 
+// ── rawContentReport 드리프트(서버==계약) + 의미 ──
+for (const f of fixtures) {
+  ok('rawContentReport 동등: ' + JSON.stringify(f).slice(0, 30),
+    JSON.stringify(server.rawContentReport(f)) === JSON.stringify(shared.rawContentReport(f)));
+}
+ok('goodCanonical hasCore=true, defaultedSlots=0', (() => { const r = shared.rawContentReport(goodCanonical); return r.hasCore && r.defaultedSlots === 0; })());
+ok('빈 객체 hasCore=false', !shared.rawContentReport({}).hasCore);
+ok('부분 결과 defaultedSlots>0', shared.rawContentReport(messy).defaultedSlots > 0);
+
+// ── 구조화 실험 normalize ──
+const withExp = shared.normalizePaidResult({
+  ...goodCanonical,
+  monthlyExperiments: [1, 2, 3].map((i) => ({
+    title: 'e' + i, body: 'b' + i, hypothesis: 'h' + i, target: 't' + i, action: 'a' + i, successMetric: 'm' + i, stopSignal: 's' + i, whyThisFits: 'w' + i,
+  })),
+});
+ok('실험 구조화 필드 보존', withExp.monthlyExperiments.every((e) => !!e.target && !!e.action && !!e.successMetric && !!e.hypothesis));
+// 실험이 문자열/부분필드로 와도 normalize (monthlyExperiments 없이 experiments alias만)
+const { monthlyExperiments: _omitExp, ...goodNoExp } = goodCanonical;
+void _omitExp;
+const expLoose = shared.normalizePaidResult({ ...goodNoExp, experiments: ['콘텐츠 실험', { title: 'x', what: '무엇', who: '누구', success: '기준' }] });
+ok('실험 alias/부분 normalize', expLoose.monthlyExperiments.length === 3 && expLoose.monthlyExperiments[1].action === '무엇');
+
+// Case B fallback 실험도 구조화 필드 있음
+ok('Case B fallback 실험 구조화', fbB.monthlyExperiments.every((e) => !!e.target && !!e.action && !!e.successMetric));
+
 console.log(`✓ paidAnalysisContract: ${passed} checks passed`);
