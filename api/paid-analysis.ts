@@ -137,7 +137,10 @@ function experienceToKorean(code?: string | null): string {
 }
 
 export const MODEL = 'claude-sonnet-4-6';
-const MAX_OUTPUT_TOKENS = 4096;
+// 토큰을 무작정 크게 두면 장문이 늘어 JSON이 안 닫힐 위험이 커진다. 필드별 길이
+// 제한 + 고정 배열 개수 스키마와 함께 3500으로 두면 결과지 분량은 유지하면서
+// JSON이 안정적으로 닫힌다. repair 재시도도 같은 상한을 쓴다.
+const MAX_OUTPUT_TOKENS = 3500;
 
 // ── 시스템 프롬프트 (전문, 그대로) ──────────────────────────────────────────────
 export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람의 마음을 깊이 읽어주는 따뜻한 커리어 안내자입니다. 아래 진단 데이터를 그대로 요약하지 말고, 데이터에 적히지 않은 이 사람의 현실까지 조심스럽게 추론해서 채우세요.
@@ -174,32 +177,41 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
 [자기효능감 부족] 흥미가 있어도 '난 못 할 것 같다'가 막음
 [문체] 존댓말, 다정한 상담 톤. "OO형입니다" 규정 금지. "퇴사/창업/이직하세요" 강요 금지. 막연한 위로 반복 금지. 진단명·점수 나열 금지, 일상 언어로 번역. 사용자 직접 문장은 마지막 섹션에서 다시 안아주기.
 [6번 실험 특칙] '고려 방향'이 명확하면 그 방향의 30일 실험 하나. '아직 모르겠음'이거나 비면, 실험 후보 2~3개를 짧게 비교한 뒤 가장 안전·적합한 1개로 좁힐 것. 실험은 반드시 포함: 주제·대상·채널·형식·30일 안에 할 행동·확인할 지표·이 실험으로 알게 될 것. 주차 흐름(1주 정리→2주 대상→3주 실행→4주 반응)을 자연스럽게. "콘텐츠 만들어보세요" 식 금지.
-━━ 출력 형식 (반드시 아래 JSON만 출력, 그 외 텍스트·마크다운·설명 금지) ━━
+━━ 출력 형식 (반드시 아래 스키마에 '정확히' 맞는 순수 JSON만) ━━
+규칙: 마크다운·코드펜스(\`\`\`)·설명·JSON 앞뒤 텍스트 전부 금지. 배열 개수는 지정 수를 정확히 지킬 것. 각 필드는 지정 글자 수를 넘기지 말 것(초과하면 JSON이 잘려 실패함). 프론트가 렌더하는 아래 필드만 생성. 자유 형식 장문 금지 — 각 필드는 지정 길이 안에서 밀도 있게.
 {
   "summaryCard": {
-    "coreNow": "지금 핵심을 한 문장",
-    "biggestRisk": "가장 큰 리스크 한 문장",
-    "dontDo": "지금 하지 말 것 한 문장",
-    "doThis": "이번 달 할 것 한 문장",
-    "judgeBy": "30일 뒤 판단 기준 한 줄"
+    "coreNow": "지금 핵심 한 문장(60자 내외)",
+    "biggestRisk": "가장 큰 리스크 한 문장(60자 내외)",
+    "dontDo": "지금 하지 말 것 한 문장(60자 내외)",
+    "doThis": "이번 달 할 것 한 문장(60자 내외)",
+    "judgeBy": "30일 뒤 판단 기준 한 줄(60자 내외)"
   },
-  "sections": [
-    { "title": "지금 당신이 멈춰 선 곳", "body": "4~6문장" },
-    { "title": "왜 하필 지금 이 마음이 왔는지", "body": "4~6문장" },
-    { "title": "두 마음의 줄다리기", "body": "5~7문장, 심리 메커니즘 최대 2개" },
-    { "title": "현실 리스크 지도", "body": "5~7문장" },
-    { "title": "당신이 이미 가진 전환 자산", "body": "3갈래 포함 5~7문장" },
-    { "title": "이번 달의 30일 실험", "body": "7요소+주차흐름 포함 6~9문장" },
-    { "title": "한 달 뒤의 당신에게", "body": "userFreeText 다시 해석, 4~6문장" }
+  "corePatterns": [
+    { "title": "패턴 이름(20자 이내)", "body": "지금 결정을 못 내리게 하는 심리 메커니즘을 이 사람 언어로. 200~300자" }
   ],
-  "judgeCriteria": {
-    "intro": "실험 후 아래를 스스로 점검하라는 한 문장",
-    "checks": ["체크1(예/아니오)", "체크2", "체크3"],
-    "ifYes": "2개 이상 예일 때 안내",
-    "ifNo": "모두 아니오일 때 안내(전환 말고 휴식·역할재설계)"
-  }
+  "blockers": [
+    { "title": "20자 이내", "body": "붙잡는 현실·심리 요인. 150~250자" }
+  ],
+  "strengths": [
+    { "title": "20자 이내", "body": "이미 가진 전환 자산. 150~220자" }
+  ],
+  "risks": [
+    { "title": "20자 이내", "body": "돈·시간·가족·나이 반영한 현실 리스크. 120~200자" }
+  ],
+  "monthlyExperiments": [
+    { "title": "실험 이름(20자 이내)", "body": "주제·대상·채널·행동·확인지표 포함한 30일 실험. 200~300자" }
+  ],
+  "sevenDayPlan": [
+    "1일차에 할 구체적 한 가지. 60~100자"
+  ],
+  "recheckCriteria": [
+    "30일 뒤 스스로 점검할 기준(예/아니오로 답할 수 있게). 80~150자"
+  ],
+  "finalMessage": "사용자가 직접 쓴 말을 다시 안아주는 마무리. 200~300자"
 }
-JSON 외의 어떤 텍스트도 출력하지 마세요. 마크다운 코드펜스(\`\`\`)도 쓰지 마세요. 순수 JSON만.`;
+개수 규칙(반드시): corePatterns 정확히 3개, blockers 정확히 3개, strengths 정확히 3개, risks 2~3개, monthlyExperiments 정확히 3개, sevenDayPlan 정확히 7개(1일차~7일차 순서), recheckCriteria 정확히 3개.
+JSON 외 어떤 텍스트도 금지. 마크다운·코드펜스 금지. 순수 JSON만.`;
 
 // ── 요청/응답 타입 ─────────────────────────────────────────────────────────────
 interface FreeContext {
@@ -219,10 +231,20 @@ interface PaidAnswers {
 const or = (v: string | undefined | null): string => (v && v.trim().length > 0 ? v : '정보 없음');
 const orList = (v: string[] | undefined | null): string => (v && v.length > 0 ? v.join(', ') : '정보 없음');
 
-/** 코드값을 한글로 변환하며 사용자 데이터 블록을 조립. */
+// 서술형 입력 압축: 사용자가 아주 길게 써도 프롬프트가 무한히 커지지 않게 자른다.
+// 핵심 표현·감정을 앞부분에서 보존하되 상한을 둔다. 초과분은 '…(생략)'으로 표시.
+const NARRATIVE_MAX = 500;              // 서술형 한 항목 최대 글자
+const TOTAL_CONTEXT_MAX = 5000;         // 사용자 데이터 블록 전체 상한
+const clip = (v: string | undefined | null, max: number): string => {
+  const s = or(v);
+  if (s === '정보 없음') return s;
+  return s.length > max ? `${s.slice(0, max)}…(생략)` : s;
+};
+
+/** 코드값을 한글로 변환하고 서술형을 압축하며 사용자 데이터 블록을 조립. 총량도 캡. */
 function assembleUserContent(free: FreeContext, paid: PaidAnswers): string {
-  return [
-    `직업: ${or(free.occupation)}`,
+  const block = [
+    `직업: ${clip(free.occupation, 200)}`,
     `경력 연차: ${or(experienceToKorean(free.experienceLevel))}`,
     `나이대: ${or(ageBandToKorean(free.ageBand))}`,
     `주 유형: ${or(mainTypeToKorean(free.mainType))}`,
@@ -232,19 +254,20 @@ function assembleUserContent(free: FreeContext, paid: PaidAnswers): string {
     `마음이 기우는 방향: ${or(pullDirectionToKorean(free.pullDirection))}`,
     `핵심 마찰: ${or(frictionToKorean(free.primaryFriction))}`,
     `준비도: ${or(readinessToKorean(free.readinessLevel))}`,
-    `사용자가 직접 쓴 말: ${or(free.userFreeText)}`,
+    `사용자가 직접 쓴 말: ${clip(free.userFreeText, NARRATIVE_MAX)}`,
     `[유료] 고용형태: ${or(paid.workStatus)}`,
     `[유료] 결혼: ${or(paid.maritalStatus)}`,
     `[유료] 부양: ${or(paid.dependents)}`,
-    `[유료] 계기: ${or(paid.trigger)}`,
+    `[유료] 계기: ${clip(paid.trigger, NARRATIVE_MAX)}`,
     `[유료] 고려 방향: ${or(paid.candidateDirection)}`,
     `[유료] 버틸 기간: ${or(paid.runway)}`,
     `[유료] 최소 소득: ${or(paid.incomeFloor)}`,
     `[유료] 쓸 수 있는 시간: ${or(paid.weeklyTime)}`,
     `[유료] 에너지: ${or(paid.energyLevel)}`,
-    `[유료] 몰입 순간: ${or(paid.flowMoment)}`,
+    `[유료] 몰입 순간: ${clip(paid.flowMoment, NARRATIVE_MAX)}`,
     `[유료] 지키고 싶은 것: ${orList(paid.mustKeep)}`,
   ].join('\n');
+  return block.length > TOTAL_CONTEXT_MAX ? `${block.slice(0, TOTAL_CONTEXT_MAX)}…(생략)` : block;
 }
 
 // ── 출력 JSON 추출·검증 ────────────────────────────────────────────────────────
@@ -260,21 +283,75 @@ export function extractJson(text: string): unknown {
 }
 
 const isStr = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+const isTitledArr = (v: unknown, min: number, max: number): boolean =>
+  Array.isArray(v) && v.length >= min && v.length <= max
+  && v.every((x) => { const o = x as Record<string, unknown>; return !!o && isStr(o.title) && isStr(o.body); });
+const isStrArr = (v: unknown, n: number): boolean =>
+  Array.isArray(v) && v.length === n && v.every((x) => isStr(x));
 
-export function validateResult(o: unknown): boolean {
-  if (!o || typeof o !== 'object') return false;
+/** 스키마 검증 실패 항목 목록. 비어 있으면 유효. (로깅·진단용) */
+export function validationErrors(o: unknown): string[] {
+  const e: string[] = [];
+  if (!o || typeof o !== 'object') return ['not_object'];
   const r = o as Record<string, unknown>;
   const sc = r.summaryCard as Record<string, unknown> | undefined;
-  if (!sc || !isStr(sc.coreNow) || !isStr(sc.biggestRisk) || !isStr(sc.dontDo) || !isStr(sc.doThis) || !isStr(sc.judgeBy)) return false;
-  if (!Array.isArray(r.sections) || r.sections.length !== 7) return false;
-  for (const s of r.sections) {
-    const sec = s as Record<string, unknown>;
-    if (!isStr(sec.title) || !isStr(sec.body)) return false;
-  }
-  const jc = r.judgeCriteria as Record<string, unknown> | undefined;
-  if (!jc || !isStr(jc.intro) || !isStr(jc.ifYes) || !isStr(jc.ifNo)) return false;
-  if (!Array.isArray(jc.checks) || jc.checks.length === 0 || jc.checks.some((c) => !isStr(c))) return false;
-  return true;
+  if (!sc || !isStr(sc.coreNow) || !isStr(sc.biggestRisk) || !isStr(sc.dontDo) || !isStr(sc.doThis) || !isStr(sc.judgeBy)) e.push('summaryCard');
+  if (!isTitledArr(r.corePatterns, 3, 3)) e.push('corePatterns(3)');
+  if (!isTitledArr(r.blockers, 3, 3)) e.push('blockers(3)');
+  if (!isTitledArr(r.strengths, 3, 3)) e.push('strengths(3)');
+  if (!isTitledArr(r.risks, 2, 3)) e.push('risks(2-3)');
+  if (!isTitledArr(r.monthlyExperiments, 3, 3)) e.push('monthlyExperiments(3)');
+  if (!isStrArr(r.sevenDayPlan, 7)) e.push('sevenDayPlan(7)');
+  if (!isStrArr(r.recheckCriteria, 3)) e.push('recheckCriteria(3)');
+  if (!isStr(r.finalMessage)) e.push('finalMessage');
+  return e;
+}
+
+export function validateResult(o: unknown): boolean {
+  return validationErrors(o).length === 0;
+}
+
+// ── repair 재시도용 ────────────────────────────────────────────────────────────
+// 1차 출력이 파싱/검증에 실패하면, 원래 긴 사용자 입력을 다시 넣지 않고 '깨진 출력 +
+// 스키마'만 넘겨 교정만 시킨다(빠르고 저렴). 교정도 실패하면 그때만 422.
+const REPAIR_SYSTEM_PROMPT = `당신은 JSON 교정기입니다. 입력의 '깨진 출력'을 아래 스키마에 정확히 맞는 순수 JSON으로 고쳐서 출력합니다.
+규칙: 마크다운·코드펜스·설명 절대 금지, 순수 JSON만. 필드명·타입·배열 개수를 스키마에 정확히 맞출 것. 누락 필드는 기존 내용에서 자연스럽게 채우되 새 주제를 지어내지 말 것. 각 필드 길이는 스키마 지시를 따를 것.`;
+
+const SCHEMA_SPEC = `{
+  "summaryCard": { "coreNow": string, "biggestRisk": string, "dontDo": string, "doThis": string, "judgeBy": string },
+  "corePatterns": [ { "title": string, "body": string } ] (정확히 3),
+  "blockers": [ { "title": string, "body": string } ] (정확히 3),
+  "strengths": [ { "title": string, "body": string } ] (정확히 3),
+  "risks": [ { "title": string, "body": string } ] (2~3),
+  "monthlyExperiments": [ { "title": string, "body": string } ] (정확히 3),
+  "sevenDayPlan": [ string ] (정확히 7),
+  "recheckCriteria": [ string ] (정확히 3),
+  "finalMessage": string
+}`;
+
+function buildRepairInput(brokenRaw: string): string {
+  return `아래는 유효한 JSON을 만들려다 형식이 깨진 출력입니다. 내용은 최대한 보존하되, 지정 스키마에 '정확히' 맞는 순수 JSON만 다시 출력하세요.\n\n[깨진 출력]\n${brokenRaw.slice(0, 8000)}\n\n[반드시 맞출 스키마]\n${SCHEMA_SPEC}`;
+}
+
+/** Anthropic 비스트리밍 호출. 텍스트 반환, upstream 실패 시 throw. */
+async function callClaude(apiKey: string, system: string, userContent: string, maxTokens: number): Promise<string> {
+  const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: userContent }],
+    }),
+  });
+  if (!upstream.ok) throw new Error(`upstream_${upstream.status}`);
+  const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
+  return data.content?.find((c) => c.type === 'text')?.text ?? '';
 }
 
 // ── 핸들러 ─────────────────────────────────────────────────────────────────────
@@ -298,37 +375,47 @@ export default async function handler(req: any, res: any): Promise<void> {
     res.status(400).json({ error: 'invalid_payload' }); return;
   }
 
+  // 입력 길이 로깅(서술형 원문 총량 vs 압축 후 컨텍스트 길이).
+  const rawInputLen =
+    (freeContext.occupation?.length ?? 0) + (freeContext.userFreeText?.length ?? 0)
+    + (paidAnswers.trigger?.length ?? 0) + (paidAnswers.flowMoment?.length ?? 0);
   const userContent = assembleUserContent(freeContext, paidAnswers);
+  // eslint-disable-next-line no-console
+  console.log('[paid] input free-text chars:', rawInputLen, '| compact context chars:', userContent.length);
 
-  // ── non-streaming 호출 ─────────────────────────────────────────────────────
-  // Claude 응답을 서버가 전부 받은 뒤, 검증을 통과한 순수 JSON을 한 번에 반환한다.
-  // Vercel 함수 실행시간 한도(Fluid Compute: Hobby 기본 300초 / legacy: maxDuration
-  // 최대 60초) 안에서 15~35초 생성이 끝나므로 스트리밍의 first-byte 불안정성 없이
-  // 안정적으로 동작한다. 실패/파싱실패/검증실패는 명확한 상태코드로 프론트에 알린다.
+  // ── non-streaming 호출 (+ 1회 repair 재시도) ──────────────────────────────────
+  // 1차 생성이 JSON 파싱/스키마 검증에 실패하면, 원래 긴 입력을 다시 넣지 않고 '깨진
+  // 출력 + 스키마'만 넘겨 교정만 시도한다(빠름). 교정도 실패해야 422. 각 호출 시간을
+  // 로깅해 전체가 프론트 150초/서버 180초 안에 드는지 추적한다.
+  const t0 = Date.now();
   try {
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_OUTPUT_TOKENS,
-        system: PAID_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    });
-    if (!upstream.ok) { res.status(502).json({ error: 'upstream_error' }); return; }
+    let raw = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS);
+    const ms1 = Date.now() - t0;
+    let parsed = extractJson(raw);
+    let errs = validationErrors(parsed);
+    // eslint-disable-next-line no-console
+    console.log('[paid] call#1 ms:', ms1, '| raw len:', raw.length, '| parseOk:', parsed !== null,
+      '| validateOk:', errs.length === 0, errs.length ? `| missing: ${errs.join(',')}` : '');
 
-    const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
-    const text = data.content?.find((c) => c.type === 'text')?.text ?? '';
-    const parsed = extractJson(text);
-    if (!validateResult(parsed)) { res.status(422).json({ error: 'validation_failed' }); return; }
+    if (errs.length > 0) {
+      // repair 재시도 1회.
+      const tR = Date.now();
+      raw = await callClaude(apiKey, REPAIR_SYSTEM_PROMPT, buildRepairInput(raw), MAX_OUTPUT_TOKENS);
+      const msR = Date.now() - tR;
+      parsed = extractJson(raw);
+      errs = validationErrors(parsed);
+      // eslint-disable-next-line no-console
+      console.log('[paid] repair ms:', msR, '| raw len:', raw.length, '| parseOk:', parsed !== null,
+        '| validateOk:', errs.length === 0, errs.length ? `| still missing: ${errs.join(',')}` : '',
+        '| total ms:', Date.now() - t0);
+      if (errs.length > 0) { res.status(422).json({ error: 'validation_failed' }); return; }
+    }
 
     res.status(200).json(parsed);
-  } catch {
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[paid] upstream/exception:', e instanceof Error ? e.message : 'unknown',
+      '| total ms:', Date.now() - t0);
     res.status(502).json({ error: 'upstream_error' });
   }
 }

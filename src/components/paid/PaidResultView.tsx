@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
 import { readFreeContext } from './freeContext.ts';
 import { logPaidAnalysisFailed } from './paidAnalytics.ts';
-import { validateResult, type PaidResult } from './resultValidation.ts';
+import { validationErrors, type PaidResult } from './resultValidation.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
@@ -122,27 +122,15 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
         // eslint-disable-next-line no-console
         console.log('[paid-analysis] JSON.parse 성공:', parseOk);
 
-        const valid = parseOk && validateResult(data);
+        const errs = parseOk ? validationErrors(data) : ['parse_failed'];
         // eslint-disable-next-line no-console
-        console.log('[paid-analysis] validateResult:', valid);
-
-        if (!valid) {
+        console.log('[paid-analysis] validateResult:', errs.length === 0,
+          errs.length ? `| 누락/불일치 필드: ${errs.join(', ')}` : '');
+        if (errs.length > 0) {
           if (parseOk) {
-            // 서버가 준 실제 스키마와 프론트 기대의 차이를 출력.
-            const d = (data ?? {}) as Record<string, unknown>;
-            const sc = d.summaryCard as Record<string, unknown> | undefined;
-            const jc = d.judgeCriteria as Record<string, unknown> | undefined;
             // eslint-disable-next-line no-console
-            console.error('[paid-analysis] 스키마 불일치 — 받은 top-level keys:', Object.keys(d),
-              '| 기대: [summaryCard, sections, judgeCriteria]');
-            // eslint-disable-next-line no-console
-            console.error('[paid-analysis] summaryCard keys:', sc ? Object.keys(sc) : '(없음)',
-              '| 기대: [coreNow, biggestRisk, dontDo, doThis, judgeBy]');
-            // eslint-disable-next-line no-console
-            console.error('[paid-analysis] sections:',
-              Array.isArray(d.sections) ? `array(len=${(d.sections as unknown[]).length}) (기대 7)` : '(배열 아님)',
-              '| judgeCriteria keys:', jc ? Object.keys(jc) : '(없음)',
-              '(기대: [intro, checks, ifYes, ifNo])');
+            console.error('[paid-analysis] 받은 top-level keys:', Object.keys((data ?? {}) as object),
+              '| 기대: [summaryCard, corePatterns, blockers, strengths, risks, monthlyExperiments, sevenDayPlan, recheckCriteria, finalMessage]');
           }
           throw new Error(parseOk ? 'validation_failed' : 'parse_failed');
         }
@@ -215,13 +203,24 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   }
 
   // ── 성공 ──
-  const { summaryCard, sections, judgeCriteria } = result;
+  const { summaryCard, corePatterns, blockers, strengths, risks, monthlyExperiments,
+    sevenDayPlan, recheckCriteria, finalMessage } = result;
+
   const summaryRows: Array<{ label: string; value: string }> = [
     { label: '지금 핵심', value: summaryCard.coreNow },
     { label: '가장 큰 리스크', value: summaryCard.biggestRisk },
     { label: '지금 하지 말 것', value: summaryCard.dontDo },
     { label: '이번 달 할 것', value: summaryCard.doThis },
     { label: '30일 뒤 판단 기준', value: summaryCard.judgeBy },
+  ];
+
+  // 중단(상담 온기) — 제목+본문 그룹들.
+  const titledGroups: Array<{ heading: string; items: typeof corePatterns }> = [
+    { heading: '지금 당신의 핵심 패턴', items: corePatterns },
+    { heading: '당신을 붙잡는 것들', items: blockers },
+    { heading: '당신이 이미 가진 강점', items: strengths },
+    { heading: '현실 리스크', items: risks },
+    { heading: '이번 달의 30일 실험', items: monthlyExperiments },
   ];
 
   return (
@@ -242,33 +241,53 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           </ul>
         </section>
 
-        {/* 중단 — 7섹션(상담 온기, 편한 본문) */}
-        <section className="space-y-7">
-          {sections.map((s, i) => (
-            <article key={i} className="space-y-2">
-              <h2 className="text-base font-black text-slate-800">【{s.title}】</h2>
-              <p className="text-[15px] leading-[1.8] text-slate-700 whitespace-pre-line">{s.body}</p>
-            </article>
-          ))}
+        {/* 중단 — 제목+본문 그룹(상담 온기, 편한 본문) */}
+        {titledGroups.map((group) => (
+          <section key={group.heading} className="space-y-4">
+            <h2 className="text-base font-black text-slate-800">【{group.heading}】</h2>
+            <div className="space-y-5">
+              {group.items.map((it, i) => (
+                <article key={i} className="space-y-1.5">
+                  <h3 className="text-[15px] font-bold" style={{ color: '#5E5280' }}>{it.title}</h3>
+                  <p className="text-[15px] leading-[1.8] text-slate-700 whitespace-pre-line">{it.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {/* 7일 실행 계획 — 순서형 목록(도구적, 강조 박스) */}
+        <section className="rounded-2xl p-5 space-y-3" style={{ background: BOX_BG, border: `1px solid ${BOX_BORDER}` }}>
+          <p className="text-xs font-black tracking-widest uppercase" style={{ color: PURPLE }}>7일 실행 계획</p>
+          <ol className="space-y-2.5">
+            {sevenDayPlan.map((step, i) => (
+              <li key={i} className="flex items-start gap-3 text-[14px] text-slate-800 leading-relaxed">
+                <span aria-hidden className="mt-0.5 shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[11px] font-bold"
+                  style={{ background: PURPLE }}>{i + 1}</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
         </section>
 
-        {/* 하단 — 판단 기준 체크리스트(도구적, 강조 박스) */}
+        {/* 30일 뒤 판단 기준 — 체크리스트(도구적, 강조 박스) */}
         <section className="rounded-2xl p-5 space-y-3" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
           <p className="text-xs font-black tracking-widest uppercase text-slate-500">30일 뒤 판단 기준</p>
-          <p className="text-[14px] text-slate-700 leading-relaxed">{judgeCriteria.intro}</p>
           <ul className="space-y-2 pt-1">
-            {judgeCriteria.checks.map((c, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-[14px] text-slate-800">
+            {recheckCriteria.map((c, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-[14px] text-slate-800 leading-relaxed">
                 <span aria-hidden className="mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded border text-[10px]"
                   style={{ borderColor: PURPLE, color: PURPLE }}>✓</span>
                 <span>{c}</span>
               </li>
             ))}
           </ul>
-          <div className="pt-2 space-y-2 text-[13px] leading-relaxed">
-            <p className="text-slate-700"><span className="font-bold" style={{ color: PURPLE }}>2개 이상 예라면</span> · {judgeCriteria.ifYes}</p>
-            <p className="text-slate-700"><span className="font-bold text-slate-500">모두 아니오라면</span> · {judgeCriteria.ifNo}</p>
-          </div>
+        </section>
+
+        {/* 마무리(상담 온기) */}
+        <section className="space-y-2">
+          <h2 className="text-base font-black text-slate-800">【마지막으로】</h2>
+          <p className="text-[15px] leading-[1.8] text-slate-700 whitespace-pre-line">{finalMessage}</p>
         </section>
 
       </main>
