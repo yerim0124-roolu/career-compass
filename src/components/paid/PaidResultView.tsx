@@ -16,9 +16,7 @@ interface Props {
 
 type Phase = 'loading' | 'success' | 'error' | 'no_answers' | 'insufficient_input';
 
-// 입력 품질 게이트: 서술형이 이보다 짧으면 Claude를 호출하지 않고 추가 입력을 요청한다.
-const MIN_FREE_TEXT_CHARS = 500;
-const MIN_FREE_TEXT_SENTENCES = 5;
+// 서술형 길이로는 절대 막지 않는다(맥락은 대부분 구조화 답변에 있음). 문장 수는 진단 로그용.
 function countSentences(text: string): number {
   return text.split(/[\n.!?]|다\.|요\.|음\./).map((s) => s.trim()).filter((s) => s.length >= 5).length;
 }
@@ -105,25 +103,26 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
         const clip60 = (v: string) => (v ? v.slice(0, 60).replace(/\n/g, ' ') : '(none)');
         const freeTextChars = freeContext.occupation.length + freeContext.userFreeText.length + paid.trigger.length + paid.flowMoment.length;
         const sentenceCount = countSentences(`${paid.trigger}\n${paid.flowMoment}\n${freeContext.userFreeText}`);
+        // 답변 개수(구조화) — 맥락이 실제로 얼마나 채워졌는지.
+        const answerVals = Object.values(paid).flatMap((v) => (Array.isArray(v) ? v : [v]));
+        const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
         // eslint-disable-next-line no-console
         console.log('[paid-analysis] SEND | freeContext keys:', Object.keys(freeContext).join(','),
-          '| occupation len:', freeContext.occupation.length, '| userFreeText len:', freeContext.userFreeText.length,
           '| paid.trigger len:', paid.trigger.length, `"${clip60(paid.trigger)}"`,
           '| paid.flowMoment len:', paid.flowMoment.length, `"${clip60(paid.flowMoment)}"`,
           '| freeTextChars:', freeTextChars, '| sentenceCount:', sentenceCount,
           '| candidateDirection:', paid.candidateDirection, '| mustKeep:', paid.mustKeep.join('/'));
-
-        // 입력 품질 게이트: 서술형이 부족하면 Claude를 호출하지 않고 추가 입력을 요청한다.
-        if (freeTextChars < MIN_FREE_TEXT_CHARS || sentenceCount < MIN_FREE_TEXT_SENTENCES) {
-          if (!isActive()) return;
-          settled = true;
-          window.clearTimeout(timeout);
-          // eslint-disable-next-line no-console
-          console.warn('[paid-analysis] insufficient_input — Claude 호출 생략. freeTextChars:', freeTextChars, 'sentences:', sentenceCount);
-          setPhase('insufficient_input');
-          return;
-        }
-
+        // eslint-disable-next-line no-console
+        console.log('[paid-analysis] PAYLOAD_SHAPE', {
+          topLevelKeys: ['freeContext', 'paidAnswers'],
+          hasResult: !!(freeContext.mainType || freeContext.primarySubtype),
+          hasScores: typeof freeContext.subtypeConfidence === 'number',
+          hasAnswers: answerCount > 0, answerCount,
+          hasFreeContext: Object.keys(freeContext).length > 0,
+          freeContextKeys: Object.keys(freeContext),
+          freeTextChars,
+        });
+        // 서술형이 짧아도 절대 막지 않는다 — 구조화 답변으로 서버가 분석을 진행한다.
         const resp = await fetch('/api/paid-analysis', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -145,6 +144,14 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           try { serverErr = String((JSON.parse(bodyText) as { error?: unknown })?.error ?? ''); } catch { /* 비-JSON 본문 */ }
           // eslint-disable-next-line no-console
           console.error('[paid-analysis] 서버 에러 — status:', status, '| error:', serverErr || '(본문 없음/비JSON)');
+          // 서버가 '입력이 극단적으로 부족'하다고 판단한 경우에만 추가 입력 화면을 띄운다(차단 아님).
+          if (serverErr === 'insufficient_input') {
+            if (!isActive()) return;
+            settled = true;
+            window.clearTimeout(timeout);
+            setPhase('insufficient_input');
+            return;
+          }
           throw new Error(`http_${status}${serverErr ? `_${serverErr}` : ''}`);
         }
 
@@ -190,15 +197,14 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
         <Header />
         <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">
           <p className="text-2xl" aria-hidden>✍️</p>
-          <p className="text-base font-black text-slate-800">조금만 더 들려주세요</p>
+          <p className="text-base font-black text-slate-800">답변을 조금만 더 채워 주세요</p>
           <p className="text-sm text-slate-600 leading-relaxed">
-            지금 서술형 답변이 짧아서, 당신의 상황에 꼭 맞는 깊은 분석을 만들기 어려워요.<br />
-            <span className="font-semibold">'요즘 이 고민이 커진 계기'</span>와 <span className="font-semibold">'몰입했던 순간'</span>을
-            2~3문장씩만 더 구체적으로 적어 주시면, 훨씬 정확한 리포트를 드릴 수 있어요.
+            분석에 필요한 정보가 아직 충분하지 않아요. 심화 문항을 한 번 더 확인해 채워 주시면
+            당신의 상황에 맞는 리포트를 만들어 드릴게요.
           </p>
           <button type="button" onClick={() => { window.location.hash = '#paid-questions'; }}
             className="px-6 py-3 rounded-2xl text-white font-bold" style={{ background: PURPLE }}>
-            답변 보완하러 가기 <span aria-hidden>→</span>
+            심화 문항 확인하기 <span aria-hidden>→</span>
           </button>
         </div>
       </div>

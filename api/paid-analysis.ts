@@ -189,8 +189,8 @@ export const PAID_SYSTEM_PROMPT = `당신은 커리어 갈림길에 선 사람�
 [문체] 존댓말, 다정한 상담 톤. "OO형입니다" 규정 금지. "퇴사/창업/이직하세요" 강요 금지. 막연한 위로 반복 금지. 진단명·점수 나열 금지, 일상 언어로 번역. 사용자 직접 문장은 마지막 섹션에서 다시 안아주기.
 [6번 실험 특칙] '고려 방향'이 명확하면 그 방향의 30일 실험 하나. '아직 모르겠음'이거나 비면, 실험 후보 2~3개를 짧게 비교한 뒤 가장 안전·적합한 1개로 좁힐 것. 실험은 반드시 포함: 주제·대상·채널·형식·30일 안에 할 행동·확인할 지표·이 실험으로 알게 될 것. 주차 흐름(1주 정리→2주 대상→3주 실행→4주 반응)을 자연스럽게. "콘텐츠 만들어보세요" 식 금지.
 [골든 스타일 — 이 톤으로] 분석가가 한 개인의 전환기를 깊게 읽어주는 개인 리포트다(조언 모음 아님). 사용자의 구체 상황을 짚고, 왜 지금 이 고민이 왔는지 설명하고, 현실 리스크를 숫자·기간·소득 조건과 연결하고, "작게 해보세요"가 아니라 "한 달 안에 무엇을 검증할지"를 말한다. 문장은 단정하고 밀도 있게 쓰되 입력에 없는 사실은 단정하지 않는다.
-[근거 반영 — 최우선] USER_EVIDENCE_PACK에서 아래를 반드시 읽어내 각 섹션에 자연스러운 리포트 문장으로 녹여라(키워드 나열 금지). 각 주요 섹션은 evidence에서 최소 2개 이상 사용:
- · 지금 만들고/하고 싶은 것(브랜드·콘텐츠·사업·상품 아이디어) · 현재 수입 공백 또는 필요한 최소 수입 · 버틸 수 있는 기간 · 기존 직업(병원 취직/임상 확대 등) 복귀에 대한 고민 · 배우자·가족·생활비 압박 · 가장 두려워하는 시나리오 · 이미 반응을 얻은 경험 · 돈을 받을 수 있는지 확인해야 하는 포인트 · 지키고 싶은 것.
+[근거 반영 — 최우선] EVIDENCE_PACK(hardFacts/careerContext/decisionTension/constraints/assets/risks/validationSignals/freeTextSignals)에서 맥락을 읽어내 각 섹션에 자연스러운 리포트 문장으로 녹여라(키워드 나열 금지). 각 주요 섹션은 서로 다른 evidence 최소 2개 이상 사용. 다룰 소재: 하고 싶은 방향, 수입 공백·필요 수입, 버틸 기간, 기존 직업 복귀 vs 새 방향, 가족·생활비 압박, 돈을 받을 수 있는지 확인 포인트, 지키고 싶은 것.
+[서술형이 짧아도] 사용자가 긴 서술형을 쓰지 않았어도, 구조화 답변(decisionTension·constraints·assets 등)에서 맥락을 '재구성'해 개인화하라. 단 EVIDENCE_PACK에 없는 구체적 사실은 지어내지 말 것. missingSignals에 있는 항목은 일반론으로 뭉개지 말고 "이 부분은 아직 정보가 적어, ~라면 이렇게 볼 수 있습니다"처럼 한계를 드러내며 다뤄라.
 [금지] "작은 실험", "방향 감각", "현재 전문성", "에너지", "고민을 한 문장으로 적어보기", "대상 한 명 정하기", "초안 만들기" 같은 일반·템플릿 표현 반복 금지. 모든 전환자에게 붙일 수 있는 문장 금지 — 이 사용자만의 맥락이 들어가야 한다.
 [구조 — narrative report, 태그 출력] 결과지는 카드형 목록이 아니라 '긴 서사 리포트'다. JSON을 만들지 말고, 아래 '태그 블록'으로만 출력한다. 각 섹션은 이어지는 긴 한국어 문단으로, 지정 분량으로 밀도 있게 쓰고, evidence pack의 구체 정보를 최소 2개 이상 자연스럽게 녹인다.
 ━━ 출력 형식 (반드시 아래 태그만 사용. JSON·중괄호·따옴표 이스케이프 금지. 태그 밖 설명·마크다운 금지) ━━
@@ -693,7 +693,12 @@ function topKeywords(text: string, n: number): string[] {
   for (const w of text.split(/[^가-힣A-Za-z0-9]+/)) if (w.length >= 2) freq.set(w, (freq.get(w) ?? 0) + 1);
   return [...freq.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, n).map(([w]) => w);
 }
-interface EvidencePack { text: string; keywords: string[]; sentenceCount: number; }
+interface EvidencePack {
+  text: string; keywords: string[]; sentenceCount: number;
+  structuredEvidenceCount: number; highSignalEvidenceCount: number;
+  missingSignals: string[]; freeTextChars: number; evidenceSourceBreakdown: Record<string, number>;
+}
+// 맥락은 대부분 '구조화 답변'에 있다. 서술형이 짧아도 여기서 재구성해 rich EvidencePack을 만든다.
 export function buildUserEvidencePack(free: FreeContext, paid: PaidAnswers): EvidencePack {
   const trigger = or(paid.trigger); const flow = or(paid.flowMoment); const ufree = or(free.userFreeText);
   const rawAll = [ufree, trigger, flow].filter((x) => x !== '정보 없음').join('\n');
@@ -703,23 +708,47 @@ export function buildUserEvidencePack(free: FreeContext, paid: PaidAnswers): Evi
     ...splitSentences(ufree === '정보 없음' ? '' : ufree),
   ])).slice(0, 10).map((s) => (s.length > 200 ? `${s.slice(0, 200)}…` : s));
   const keywords = topKeywords(rawAll, 10);
+  const freeTextChars = (free.occupation?.length ?? 0) + (free.userFreeText?.length ?? 0) + (paid.trigger?.length ?? 0) + (paid.flowMoment?.length ?? 0);
+  const transition = isTransitionOrMixed(free.experienceLevel, free.currentOccupationRange);
+
+  const has = (v?: string): boolean => !!v && v.trim().length > 0 && v !== '정보 없음';
+  const present: Record<string, boolean> = {
+    occupation: has(free.occupation), experience: has(free.experienceLevel), currentRange: has(free.currentOccupationRange),
+    mainType: has(free.mainType), subtype: has(free.primarySubtype), pull: has(free.pullDirection),
+    friction: has(free.primaryFriction), readiness: has(free.readinessLevel),
+    candidateDirection: has(paid.candidateDirection) && !paid.candidateDirection.includes('모르겠'),
+    runway: has(paid.runway), incomeFloor: has(paid.incomeFloor), weeklyTime: has(paid.weeklyTime),
+    energy: has(paid.energyLevel), dependents: has(paid.dependents), marital: has(paid.maritalStatus),
+    mustKeep: (paid.mustKeep?.length ?? 0) > 0, flowMoment: has(paid.flowMoment), trigger: has(paid.trigger),
+  };
+  const structuredEvidenceCount = Object.values(present).filter(Boolean).length;
+  // high-signal: 결과지 개인화에 결정적인 신호들.
+  const highKeys = ['candidateDirection', 'runway', 'incomeFloor', 'dependents', 'energy', 'mustKeep', 'flowMoment', 'trigger', 'occupation'];
+  const highSignalEvidenceCount = highKeys.filter((k) => present[k]).length;
+  const missingSignals: string[] = [];
+  if (!present.candidateDirection) missingSignals.push('하고 싶은 방향');
+  if (!present.runway) missingSignals.push('버틸 기간');
+  if (!present.incomeFloor) missingSignals.push('필요 최소 수입');
+  if (!present.trigger && !present.flowMoment) missingSignals.push('사용자 서술(계기/몰입)');
+  if (!present.mustKeep) missingSignals.push('지키고 싶은 것');
+  const evidenceSourceBreakdown = { structured: structuredEvidenceCount, freeTextSentences: sentences.length, keywords: keywords.length };
+
   const lines = [
-    '[USER_EVIDENCE_PACK — 사용자가 실제로 쓴 말과 맥락. 아래 항목을 읽어내 각 섹션에 리포트 문장으로 녹일 것(키워드 나열 금지)]',
-    sentences.length ? `· 사용자가 직접 쓴 문장(고민·두려움·아이디어·이미 얻은 반응이 여기에 있음): ${sentences.map((s) => `"${s}"`).join(' / ')}` : '· 사용자가 직접 쓴 문장: 정보 없음',
-    `· 지금 고민이 커진 계기: ${clip(paid.trigger, 500)}`,
-    `· 시간 가는 줄 모르고 몰입했던 순간(강점·에너지원 단서): ${clip(paid.flowMoment, 400)}`,
-    `· 지금 만들고/하고 싶은 방향(고려): ${or(paid.candidateDirection)}`,
-    `· 필요한 최소 수입(수입 공백 판단): ${or(paid.incomeFloor)}`,
-    `· 수입 끊겨도 버틸 수 있는 기간(실험 공격성의 상한): ${or(paid.runway)}`,
-    `· 가족·생활비 압박: 부양 ${or(paid.dependents)} / 결혼 ${or(paid.maritalStatus)}`,
-    `· 지키고 싶은 것: ${orList(paid.mustKeep)}`,
-    `· 그 밖의 현실 조건: 고용형태 ${or(paid.workStatus)} / 주간 가용시간 ${or(paid.weeklyTime)} / 에너지 ${or(paid.energyLevel)}`,
-    keywords.length ? `· 반복 등장 키워드(사용자 세계의 단어): ${keywords.join(', ')}` : '',
-    '· 반드시 다룰 것: 돈을 받을 수 있는지 확인해야 하는 포인트, 기존 직업(병원/임상 등) 복귀 vs 새 방향 사이의 갈등, 가장 두려워하는 시나리오 — 위 문장/조건에서 근거를 찾아 구체화할 것.',
+    '[EVIDENCE_PACK — 구조화 답변에서 재구성한 근거. 서술형이 짧아도 아래 신호로 맥락을 복원해 각 섹션에 녹일 것. 각 섹션은 서로 다른 evidence 2개 이상 사용. 없는 사실은 지어내지 말 것.]',
+    `[hardFacts] 직업 ${or(free.occupation)} / 전체 경력 ${or(experienceToKorean(free.experienceLevel))} / 현재 직업 경력 ${or(currentFieldToKorean(free.currentOccupationRange))} / 나이대 ${or(ageBandToKorean(free.ageBand))}`,
+    `[careerContext] ${transition ? '전환·복합 커리어(현재 직업 경력이 전체보다 짧음)' : '동일 분야 누적 커리어'}`,
+    `[decisionTension] 주 유형 ${or(mainTypeToKorean(free.mainType))} / 강한 마음 ${or(subtypeToKorean(free.primarySubtype))} / 둘째 마음 ${or(subtypeToKorean(free.secondarySubtype))} / 기우는 방향 ${or(pullDirectionToKorean(free.pullDirection))} / 하고 싶은 방향 ${or(paid.candidateDirection)}`,
+    `[constraints] 버틸 기간 ${or(paid.runway)} / 최소 수입 ${or(paid.incomeFloor)} / 부양 ${or(paid.dependents)} / 결혼 ${or(paid.maritalStatus)} / 주간 시간 ${or(paid.weeklyTime)} / 에너지 ${or(paid.energyLevel)} / 고용형태 ${or(paid.workStatus)}`,
+    `[assets] 현재 전문성 '${or(free.occupation)}' / 몰입했던 순간 "${clip(paid.flowMoment, 300)}" / 지키고 싶은 것 ${orList(paid.mustKeep)}`,
+    `[risks] 핵심 마찰 ${or(frictionToKorean(free.primaryFriction))} / 준비도 ${or(readinessToKorean(free.readinessLevel))} / 버틸 기간 ${or(paid.runway)}`,
+    `[validationSignals] 입력의 서술에서 이미 얻은 시장 반응/검증 경험이 있으면 근거로 쓸 것; 명시가 없으면 '아직 유료 반응은 검증되지 않은 상태'로 다룰 것.`,
+    `[freeTextSignals] ${sentences.length ? sentences.map((s) => `"${s}"`).join(' / ') : '(짧음 — 구조화 답변으로 재구성)'} / 계기: "${clip(paid.trigger, 400)}" / 몰입: "${clip(paid.flowMoment, 300)}"`,
+    missingSignals.length ? `[missingSignals] ${missingSignals.join(', ')} — 이 부분은 정보가 적으니 일반론으로 뭉개지 말고 "이 부분은 아직 정보가 적다"고 한계를 드러낼 것.` : '',
+    keywords.length ? `[keywords] ${keywords.join(', ')}` : '',
   ].filter(Boolean);
   let text = lines.join('\n');
   if (text.length > 7000) text = `${text.slice(0, 7000)}…`;
-  return { text, keywords, sentenceCount: sentences.length };
+  return { text, keywords, sentenceCount: sentences.length, structuredEvidenceCount, highSignalEvidenceCount, missingSignals, freeTextChars, evidenceSourceBreakdown };
 }
 
 // ── quality gate — golden 미달을 감지(차단 아님, content-repair 트리거) ─────
@@ -983,10 +1012,42 @@ export default async function handler(req: any, res: any): Promise<void> {
   if (!freeContext || !paidAnswers || typeof paidAnswers !== 'object') {
     res.status(400).json({ error: 'invalid_payload' }); return;
   }
+  const includeDiag0 = process.env.VERCEL_ENV !== 'production';
 
-  // PROFILE_FACTS(경력 사실) + USER_EVIDENCE_PACK(실제 서술 보존)을 프롬프트 맨 위에.
+  // payload shape 확인 — raw answers/scores/result/freeContext가 실제로 들어왔는지.
+  const answerVals = Object.values(paidAnswers).flatMap((v) => (Array.isArray(v) ? v : [v]));
+  const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
+  // eslint-disable-next-line no-console
+  console.log('[paid] PAYLOAD_SHAPE', {
+    topLevelKeys: Object.keys(body ?? {}),
+    answerCount,
+    scoreKeys: typeof freeContext.subtypeConfidence === 'number' ? ['subtypeConfidence'] : [],
+    resultKeys: [freeContext.mainType && 'mainType', freeContext.primarySubtype && 'primarySubtype', freeContext.secondarySubtype && 'secondarySubtype', freeContext.pullDirection && 'pullDirection'].filter(Boolean),
+    freeContextKeys: Object.keys(freeContext),
+    profileFactKeys: [freeContext.experienceLevel && 'experienceLevel', freeContext.currentOccupationRange && 'currentOccupationRange', freeContext.occupation && 'occupation', freeContext.ageBand && 'ageBand'].filter(Boolean),
+  });
+
+  // PROFILE_FACTS(경력 사실) + EVIDENCE_PACK(구조화 답변에서 재구성)을 프롬프트 맨 위에.
   const facts = buildProfileFacts(freeContext);
   const evidence = buildUserEvidencePack(freeContext, paidAnswers);
+  // eslint-disable-next-line no-console
+  console.log('[paid] EVIDENCE_PACK', {
+    structuredEvidenceCount: evidence.structuredEvidenceCount,
+    highSignalEvidenceCount: evidence.highSignalEvidenceCount,
+    freeTextChars: evidence.freeTextChars,
+    missingSignals: evidence.missingSignals,
+    evidenceSourceBreakdown: evidence.evidenceSourceBreakdown,
+  });
+
+  // insufficient_input은 '극단'에서만 — 결과 유형도 없고, 구조화 답변도 거의 없을 때.
+  // 일반 테스트 완료자(mainType/subtype 있음)는 절대 차단하지 않는다.
+  const hasResultSignal = (freeContext.mainType?.trim().length ?? 0) > 0 || (freeContext.primarySubtype?.trim().length ?? 0) > 0;
+  if (!hasResultSignal && evidence.structuredEvidenceCount < 3 && answerCount < 3) {
+    // eslint-disable-next-line no-console
+    console.warn('[paid] insufficient_input (extreme): no result signal & almost no answers | answerCount:', answerCount, '| structured:', evidence.structuredEvidenceCount);
+    res.status(422).json(includeDiag0 ? { error: 'insufficient_input', answerCount, structuredEvidenceCount: evidence.structuredEvidenceCount } : { error: 'insufficient_input' });
+    return;
+  }
   const rawInputLen =
     (freeContext.occupation?.length ?? 0) + (freeContext.userFreeText?.length ?? 0)
     + (paidAnswers.trigger?.length ?? 0) + (paidAnswers.flowMoment?.length ?? 0);
@@ -998,11 +1059,13 @@ export default async function handler(req: any, res: any): Promise<void> {
     '| occupation len:', (freeContext.occupation ?? '').length, '| userFreeText len:', (freeContext.userFreeText ?? '').length,
     '| trigger len:', (paidAnswers.trigger ?? '').length, `"${preview(paidAnswers.trigger)}"`,
     '| flowMoment len:', (paidAnswers.flowMoment ?? '').length, `"${preview(paidAnswers.flowMoment)}"`,
-    '| freeTextChars:', rawInputLen, '| evidence sentences:', evidence.sentenceCount, '| keywords:', evidence.keywords.join(','),
+    '| freeTextChars:', rawInputLen, '| evidence sentences:', evidence.sentenceCount, '| structuredEvidence:', evidence.structuredEvidenceCount,
+    '| highSignalEvidence:', evidence.highSignalEvidenceCount, '| keywords:', evidence.keywords.join(','),
     '| careerContext:', facts.transition ? 'transition_or_mixed' : 'same_or_unknown');
-  if (rawInputLen < 500) {
+  // 서술형이 짧아도 구조화 신호가 충분하면 진행한다(차단 아님). 참고 로그만.
+  if (evidence.highSignalEvidenceCount < 4) {
     // eslint-disable-next-line no-console
-    console.warn('[paid] input_context_insufficient — freeTextChars < 500. 서술형 맥락이 부족해 golden 품질이 어려움. payload 조립/freeContext 생성 확인 필요.');
+    console.warn('[paid] low_high_signal_evidence — highSignalEvidenceCount < 4. 구조화 답변이 적어 개인화가 약할 수 있음(차단하지 않음).');
   }
 
   // ── 원칙: Claude는 태그 텍스트를 만들고, 서버가 canonical을 조립한다. rich primary 유지,
@@ -1084,6 +1147,7 @@ export default async function handler(req: any, res: any): Promise<void> {
     console.log('[paid] DONE | finalResultSource:', finalResultSource,
       '| extractedSections:', tag.sectionCount, '| rawContentBodyLength:', finalStats.bodyLength,
       '| defaultBodyCount:', finalStats.defaultBodyCount, '| evidenceKeywordCount:', evidenceKeywordCount,
+      '| highSignalEvidenceCount:', evidence.highSignalEvidenceCount,
       '| qualityWarnings:', finalWarnings.length ? finalWarnings.join(',') : 'none',
       '| contentRepairAttempted:', contentRepairAttempted, '| contentRepairSucceeded:', contentRepairSucceeded,
       '| total ms:', Date.now() - t0);
