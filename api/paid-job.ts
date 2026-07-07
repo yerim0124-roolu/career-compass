@@ -24,7 +24,23 @@ function parseBody(req: any): any {
   catch { return null; }
 }
 
+// polling 응답이 CDN/브라우저 캐시로 304가 되면 프론트가 결과를 못 읽는다. 절대 캐시 금지.
+const NO_STORE_HEADERS: Record<string, string> = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'CDN-Cache-Control': 'no-store',
+  'Vercel-CDN-Cache-Control': 'no-store',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+};
+function applyNoStore(res: any): void {
+  Object.entries(NO_STORE_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+  // 조건부 요청이 304로 떨어지지 않도록 ETag/Last-Modified 검증 자체를 무력화.
+  res.removeHeader?.('ETag');
+  res.removeHeader?.('Last-Modified');
+}
+
 export default async function handler(req: any, res: any): Promise<void> {
+  applyNoStore(res);
   const includeDiag = process.env.VERCEL_ENV !== 'production';
   const sb = sbClient();
   if (!sb) { res.status(503).json({ error: 'not_configured', detail: 'supabase env missing' }); return; }

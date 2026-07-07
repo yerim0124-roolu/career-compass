@@ -197,8 +197,13 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           if (!isActive()) return;
           let pollResp: Response;
           try {
-            pollResp = await fetch(`/api/paid-job?id=${encodeURIComponent(jobId)}`, { signal: controller.signal });
+            // cache-busting(&t=) + no-store — 폴링이 304로 떨어지면 상태를 못 읽는다.
+            pollResp = await fetch(`/api/paid-job?id=${encodeURIComponent(jobId)}&t=${Date.now()}`, {
+              method: 'GET', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' }, signal: controller.signal,
+            });
           } catch { continue; /* 일시적 네트워크 오류 → 다음 폴링 */ }
+          // 304가 오더라도(중간 프록시 등) 절대 fatal로 처리하지 않고 다음 폴링으로 넘어간다.
+          if (pollResp.status === 304) { continue; }
           if (!pollResp.ok) { if (pollResp.status === 404) { finishError('job_not_found'); return; } continue; }
           const poll = await pollResp.json() as { status?: string; result_json?: unknown; error_json?: { error?: string; errorType?: string } };
           // eslint-disable-next-line no-console

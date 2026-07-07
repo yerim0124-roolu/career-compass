@@ -1226,8 +1226,18 @@ async function runJob(res: any, apiKey: string, jobId: string, includeDiag: bool
   }
 }
 
+const NO_STORE_HEADERS: Record<string, string> = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'CDN-Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'no-store', 'Pragma': 'no-cache', 'Expires': '0',
+};
+function applyNoStore(res: any): void {
+  Object.entries(NO_STORE_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+  res.removeHeader?.('ETag'); res.removeHeader?.('Last-Modified');
+}
+
 // ── 엔드포인트: POST { jobId } → run worker / POST { freeContext, paidAnswers } → 하위호환 sync ──
 export default async function handler(req: any, res: any): Promise<void> {
+  applyNoStore(res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'method_not_allowed' }); return; }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) { res.status(503).json({ error: 'not_configured' }); return; }
