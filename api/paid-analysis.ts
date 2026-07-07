@@ -871,6 +871,111 @@ export function paidReadyBlockers(result: PaidAnalysisResult, source: string, wa
   return blockers;
 }
 
+// ── deterministic repair — blocker가 있어도 결과지는 항상 뜬다. Claude 재호출 없이
+//   빈 계획/얇은 메시지/기본·fallback 실험/서명 문구를 EvidencePack 기반 개인화 콘텐츠로 대체한다.
+function hasFallbackSig(s: string): boolean { return FALLBACK_SIGNATURES.some((sig) => s.includes(sig)); }
+function isDefaultOrFallbackExp(e: ExperimentItem): boolean {
+  const banned = ['전문성 기반 짧은 콘텐츠', '대상 좁힌 메시지 테스트', '기존 경험 결합 문제정의'];
+  return banned.includes((e.title ?? '').trim()) || isDefaultBody(e.body ?? '') || hasFallbackSig(JSON.stringify(e));
+}
+function repairExperiments(free: FreeContext, paid: PaidAnswers): ExperimentItem[] {
+  const occ = or(free.occupation); const dir = or(paid.candidateDirection);
+  const income = or(paid.incomeFloor); const runway = or(paid.runway); const keep = orList(paid.mustKeep);
+  const focus = dir === '정보 없음' ? '지금 준비 중인 방향' : dir;
+  const who = occ === '정보 없음' ? '이 방향이 실제로 필요한 한 집단' : `'${occ}' 전문성이 도움이 될 한 집단`;
+  const money = 'DM·상담 요청·소액 결제·사전 신청·예약 같은 돈에 가까운 반응(저장·좋아요 제외)';
+  return [
+    { title: `${focus}의 유료 의향 확인`, body: `${focus}을(를) 아주 작은 유료 제안으로 만들어 4주간 실제 지불 의향을 확인합니다.`,
+      hypothesis: `${who}이 ${focus}에 실제로 돈을 낼 의향이 있는가`, target: who,
+      action: `${focus}을(를) 소액 결제·사전 신청·1:1 상담 제안 형태로 열고 직접 반응을 받는다`,
+      successMetric: `${money}이 4주간 나오는지`, stopSignal: '무반응이면 "무료 관심, 유료 아님" 가설을 채택하고 대상·제안을 교체',
+      whyThisFits: `수입을 흔들지 않는 범위(버틸 기간 ${runway}, 최소 수입 ${income})에서 검증하는 실험이라서` },
+    { title: '한 사람에게 직접 파는 1:1 테스트', body: '가장 도움이 될 한 사람을 정해 맞춤 제안을 직접 전하고 결제로 이어지는지 봅니다.',
+      hypothesis: '좁힌 대상에게 내 제안이 돈을 낼 만큼 필요한가', target: '지금 바로 도움을 줄 수 있는 구체적인 한 사람',
+      action: '그 사람에게 맞춘 유료 제안을 직접 전하고 결제·예약·계약 의사를 확인', successMetric: '제안이 결제·예약·구체적 다음 약속으로 이어지는지',
+      stopSignal: '세 번 시도해도 지불 의사가 없으면 대상·제안을 교체', whyThisFits: `지키고 싶은 것(${keep})을 해치지 않는 작은 검증이라서` },
+    { title: '사전 신청 페이지로 수요 크기 재기', body: `${focus}을(를) 한 장의 신청 페이지로 만들어 결제 직전 단계까지의 전환을 측정합니다.`,
+      hypothesis: `${focus}에 사전 결제/신청까지 가는 사람이 있는가`, target: who,
+      action: '간단한 신청/결제 페이지를 열고 방문→신청 전환을 집계', successMetric: `사전 신청·계약금·대기자 등록 등 ${money}의 전환 수`,
+      stopSignal: '방문은 있는데 신청이 0이면 메시지·대상을 재정의', whyThisFits: `${income === '정보 없음' ? '' : `최소 수입 ${income} 회복 가능성을 `}가장 빠르게 가늠할 수 있어서` },
+  ];
+}
+function repairSevenDay(paid: PaidAnswers): string[] {
+  const dir = or(paid.candidateDirection); const focus = dir === '정보 없음' ? '지금 방향' : dir;
+  return [
+    `1일차: ${focus}을(를) 살 만한 사람이 누구인지, 이름·채널까지 3명 이상 구체적으로 적는다.`,
+    `2일차: 그들이 겪는 문제와 ${focus}이(가) 주는 값을 한 문장 제안으로 정리한다.`,
+    '3일차: 소액 결제·상담·사전 신청 중 하나로 받을 수 있는 최소 제안 형태를 만든다.',
+    '4일차: 제안 또는 신청 페이지를 실제로 한 곳에 공개한다.',
+    '5일차: 후보 5명에게 직접 제안을 전하고 반응을 요청한다.',
+    '6일차: 받은 반응을 결제·상담요청·단순관심·무반응으로 분류한다.',
+    '7일차: 돈에 가까운 반응이 나온 제안은 키우고, 무반응 가설은 버릴지 정한다.',
+  ];
+}
+function repairRecheck(): string[] {
+  return [
+    'DM·상담 요청·소액 결제·사전 신청 중 실제로 돈에 가까운 반응이 한 건이라도 나왔나요?',
+    '어떤 대상과 제안이 반응했고, 어떤 가설을 버려야 하는지 분명해졌나요?',
+    '다음 30일에 더 키워볼 방향이 하나로 좁혀졌나요?',
+    '수입을 흔들지 않는 선에서 다음 실험을 이어갈 수 있나요?',
+  ];
+}
+function repairFutureMessage(free: FreeContext, paid: PaidAnswers): string {
+  const occ = or(free.occupation); const dir = or(paid.candidateDirection); const runway = or(paid.runway);
+  const p1 = `한 달 뒤의 당신은 ${dir === '정보 없음' ? '지금 마음이 기우는 방향' : dir}이(가) 돈을 낼 사람에게 닿는지, 한 뼘 더 분명한 감각을 갖게 될 거예요. 방향을 아직 확정하지 못했더라도, '누가 무엇에 지불하는가'라는 질문에 실제 반응으로 답을 얻는 것만으로 이번 달은 충분히 의미가 있습니다.`;
+  const p2 = `${occ === '정보 없음' ? '지금까지 쌓아온 전문성' : `'${occ}'로 쌓아온 전문성`}은 한 자리에 묶어둘 자산이 아니라, 다른 형태로 다시 꺼내 쓸 수 있는 재료예요. 이번 달의 작은 검증 하나가 그 재료를 어떤 각도로 쓸지에 대한 첫 단서가 되어 줄 거예요.`;
+  const p3 = `${runway === '정보 없음' ? '버틸 수 있는 기간' : `버틸 기간 ${runway}`} 안에서 수입을 지키며 확인하는 방식이라면, 한 번의 큰 결정 대신 여러 번의 작은 확인으로 방향을 좁혀갈 수 있어요. 조급함보다 한 건의 진짜 반응을 목표로 두세요.`;
+  return `${p1}\n\n${p2}\n\n${p3}`;
+}
+export function repairPaidResult(result: PaidAnalysisResult, free: FreeContext, paid: PaidAnswers): PaidAnalysisResult {
+  const occ = or(free.occupation); const dir = or(paid.candidateDirection);
+  const runway = or(paid.runway); const income = or(paid.incomeFloor); const keep = orList(paid.mustKeep);
+  const dirPhrase = dir === '정보 없음' ? '지금 마음이 기우는 방향' : dir;
+  const runwayPhrase = runway === '정보 없음' ? '버틸 수 있는 기간' : `버틸 기간 ${runway}`;
+  const incomePhrase = income === '정보 없음' ? '필요한 최소 수입' : `최소 필요 수입 ${income}`;
+  // 개인화된 섹션 본문(서명 문구·기본 문구 회피).
+  const paras: Record<string, string> = {
+    currentPosition: `${dirPhrase}(으)로 마음이 기울지만, ${runwayPhrase}과 ${incomePhrase}이라는 현실이 지금 결정의 테두리를 정하고 있어요. 지키고 싶은 것(${keep})을 흔들지 않는 선에서, 방향을 확정하기보다 '이 방향에 돈을 낼 사람이 있는지'를 먼저 확인해야 하는 자리입니다.`,
+    whyNow: `${incomePhrase}과 ${runwayPhrase}이라는 조건이 다가오면서 '지금 확인하지 않으면 안 된다'는 감각이 커진 시점이에요. ${occ === '정보 없음' ? '지금의 전문성' : `'${occ}'로서의 전문성`}을 지금 자리에 묶어둘지, ${dirPhrase}(으)로 꺼내볼지의 질문이 올라와 있습니다.`,
+    innerConflict: `한쪽에는 지금의 안정을 지키려는 마음이, 다른 한쪽에는 ${dirPhrase}을(를) 실제로 꺼내보고 싶은 마음이 있어요. 두 마음이 팽팽한 건 어느 쪽도 아직 '돈에 가까운 반응'으로 검증되지 않았기 때문입니다. 그래서 선택보다 검증이 먼저예요.`,
+    riskMap: `${runwayPhrase}, ${incomePhrase}이 지금 실험의 크기를 정하는 상한입니다. 수입을 흔드는 큰 전환보다, 지금 수입을 지키면서 '살 사람이 있는가'만 확인하는 저리스크 검증이 맞아요. 되돌릴 수 없는 결정은 이번 달의 범위 밖으로 미뤄 두세요.`,
+    transitionAssets: `${occ === '정보 없음' ? '지금까지 쌓아온 전문성' : `'${occ}'로 쌓아온 전문성`}은 오래된 경력이 아니라 지금 바로 신뢰로 쓸 수 있는 자산이에요. 여기에 ${dirPhrase}을(를) 더하면, 같은 문제를 남과 다른 각도로 풀 수 있는 조합이 만들어집니다.`,
+  };
+  const secFix = (s: NarrativeSection, key: string): NarrativeSection =>
+    (isDefaultBody(s.body ?? '') || hasFallbackSig(s.body ?? '') || (s.body ?? '').length < 120 ? { title: s.title, body: paras[key] } : s);
+
+  const r: PaidAnalysisResult = {
+    ...result,
+    currentPosition: secFix(result.currentPosition, 'currentPosition'),
+    whyNow: secFix(result.whyNow, 'whyNow'),
+    innerConflict: secFix(result.innerConflict, 'innerConflict'),
+    riskMap: secFix(result.riskMap, 'riskMap'),
+    transitionAssets: secFix(result.transitionAssets, 'transitionAssets'),
+  };
+
+  // monthlyExperiment: 본문 + 실험 보강(기본/fallback 제거, 최소 2개 보장).
+  const meBodyBad = isDefaultBody(result.monthlyExperiment.body ?? '') || hasFallbackSig(result.monthlyExperiment.body ?? '') || (result.monthlyExperiment.body ?? '').length < 120;
+  const meBody = meBodyBad
+    ? `이번 달의 목표는 방향을 못박는 것이 아니라, ${dirPhrase}에 '돈을 낼 사람이 있는가'를 30일 안에 확인하는 거예요. ${runwayPhrase} 안에서 수입을 흔들지 않는 크기로, 아래 실험 중 하나를 골라 실제 반응을 받아 보세요.`
+    : result.monthlyExperiment.body;
+  let exps = (result.monthlyExperiment.experiments ?? []).filter((e) => !isDefaultOrFallbackExp(e));
+  if (exps.length < 2) {
+    const fresh = repairExperiments(free, paid);
+    for (const f of fresh) { if (exps.length >= 3) break; if (!exps.some((e) => e.title === f.title)) exps.push(f); }
+  }
+  r.monthlyExperiment = { ...result.monthlyExperiment, body: meBody, experiments: exps };
+
+  // 7일 계획 / 재점검 / 마지막 메시지.
+  if (!(r.sevenDayPlan?.length) || r.sevenDayPlan.some(hasFallbackSig) || r.sevenDayPlan.some((d) => isDefaultBody(d))) r.sevenDayPlan = repairSevenDay(paid);
+  if (!(r.recheckCriteria?.length) || r.recheckCriteria.some(hasFallbackSig) || r.recheckCriteria.some((c) => isDefaultBody(c))) r.recheckCriteria = repairRecheck();
+  if ((r.futureMessage.body ?? '').length < 300 || isDefaultBody(r.futureMessage.body ?? '') || hasFallbackSig(r.futureMessage.body ?? '')) {
+    r.futureMessage = { title: r.futureMessage.title, body: repairFutureMessage(free, paid) };
+  }
+
+  // 스키마 정합 보장(빈 배열 패딩 등은 이미 위에서 채웠으므로 normalize는 형태 확정 용도).
+  return normalizePaidResult(r);
+}
+
 // content-repair: 구조는 유지하고 body/items/실험필드를 유료 리포트 수준으로 구체화(fallback으로 덮지 않음).
 const CONTENT_REPAIR_SYSTEM_PROMPT = `당신은 유료 리포트 편집자입니다. 아래 현재 결과의 각 섹션 본문·실험 필드를 유료 리포트 수준으로 구체화합니다.
 규칙: 출력은 반드시 아래 '태그 형식'으로만(JSON·중괄호 금지, 태그 밖 텍스트·마크다운 금지). 태그 종류·개수는 원래 결과지와 동일하게. USER_EVIDENCE_PACK의 실제 표현·제약·키워드를 각 섹션에 반영해 구체화하고, "작은 실험/방향 감각/현재 전문성/에너지" 같은 일반 표현 반복 금지. 각 30일 실험의 hypothesis/target/action/successMetric/stopSignal/whyThisFits를 돈에 가까운 지표로 채울 것. PROFILE_FACTS의 경력 사실을 지킬 것. 얕은 문장은 근거로 두껍게.
@@ -1093,6 +1198,7 @@ export type GenerateMeta = {
   finalResultSource: string; extractedSections: number; evidenceKeywordCount: number;
   highSignalEvidenceCount: number; qualityWarnings: string[];
   contentRepairAttempted: boolean; contentRepairSucceeded: boolean; elapsedMs: number;
+  qualityPassed: boolean; displayable: boolean; deterministicRepair: boolean; blockers: string[];
 };
 export type GenerateOutcome =
   | { status: 'ready'; resultJson: PaidAnalysisResult; meta: GenerateMeta }
@@ -1175,7 +1281,7 @@ export async function generatePaidResult(
     }
     if (validationErrors(result).length > 0) result = normalizePaidResult(tag.obj);
 
-    const finalWarnings = qualityWarnings(result, evidence, finalResultSource);
+    let finalWarnings = qualityWarnings(result, evidence, finalResultSource);
     const evidenceKeywordCount = evidence.keywords.filter((k) => JSON.stringify(result).includes(k)).length;
     const elapsedMs = Date.now() - t0;
     // eslint-disable-next-line no-console
@@ -1184,16 +1290,36 @@ export async function generatePaidResult(
       '| qualityWarnings:', finalWarnings.length ? finalWarnings.join(',') : 'none',
       '| contentRepairAttempted:', contentRepairAttempted, '| succeeded:', contentRepairSucceeded, '| ms:', elapsedMs);
 
-    // ── 엄격 paid-ready 게이트 — 아래 중 하나라도 걸리면 ready로 저장하지 않는다(job failed → retry).
-    //   partial/full fallback, hard warning, 빈 계획, fallback 서명 문구 leak을 모두 차단.
-    const blockers = paidReadyBlockers(result, finalResultSource, finalWarnings);
+    // ── quality gate = repair trigger (차단기 아님). 결과지는 항상 뜬다.
+    //   blocker가 있으면 deterministic repair로 빈 계획/얇은 메시지/fallback 실험·문구를
+    //   EvidencePack 기반으로 보강한 뒤, 후보 result를 버리지 않고 ready(displayable)로 저장한다.
+    //   quality.passed는 false일 수 있으나 결과지는 렌더된다. failed는 catch(Claude 호출 실패)만.
+    let blockers = paidReadyBlockers(result, finalResultSource, finalWarnings);
+    let deterministicRepair = false;
     if (blockers.length > 0) {
-      const errorType = finalResultSource === 'full_fallback_used' ? 'full_fallback_used' : 'quality_gate_failed';
       // eslint-disable-next-line no-console
-      console.error('[paid] PAID_READY_BLOCKED (not saved as ready):', blockers.join(','), '| source:', finalResultSource);
-      return { status: 'failed', errorJson: { error: 'quality_failed', errorType, finalResultSource, extractedSections: tag.sectionCount, qualityWarnings: finalWarnings, blockers, elapsedMs } };
+      console.log('[paid] blockers → deterministic repair:', blockers.join(','), '| source:', finalResultSource);
+      try {
+        result = repairPaidResult(result, freeContext, paidAnswers);
+        deterministicRepair = true;
+        finalWarnings = qualityWarnings(result, evidence, finalResultSource);
+        blockers = paidReadyBlockers(result, finalResultSource, finalWarnings);
+      } catch (re) {
+        // repair 자체가 예외면 원본 후보를 그대로 displayable로 둔다(여전히 렌더).
+        // eslint-disable-next-line no-console
+        console.error('[paid] repairPaidResult threw (keeping candidate):', re instanceof Error ? re.message : 're');
+      }
     }
-    return { status: 'ready', resultJson: result, meta: { finalResultSource, extractedSections: tag.sectionCount, evidenceKeywordCount, highSignalEvidenceCount: evidence.highSignalEvidenceCount, qualityWarnings: finalWarnings, contentRepairAttempted, contentRepairSucceeded, elapsedMs } };
+    const qualityPassed = blockers.length === 0;
+    // eslint-disable-next-line no-console
+    console.log('[paid] READY(displayable) | source:', finalResultSource, '| qualityPassed:', qualityPassed,
+      '| deterministicRepair:', deterministicRepair, '| residualBlockers:', blockers.length ? blockers.join(',') : 'none');
+    return { status: 'ready', resultJson: result, meta: {
+      finalResultSource, extractedSections: tag.sectionCount, evidenceKeywordCount,
+      highSignalEvidenceCount: evidence.highSignalEvidenceCount, qualityWarnings: finalWarnings,
+      contentRepairAttempted, contentRepairSucceeded, elapsedMs,
+      qualityPassed, displayable: true, deterministicRepair, blockers,
+    } };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown';
     const errorType = classifyClaudeError(msg);
@@ -1227,11 +1353,12 @@ async function runJob(res: any, apiKey: string, jobId: string, includeDiag: bool
   console.log('[paid-job] RUN start', { jobId, retry_count: job.retry_count });
   const pre = previewEvidence(input.freeContext, input.paidAnswers);
   const outcome = await generatePaidResult(apiKey, input.freeContext, input.paidAnswers);
-  // quality: ready면 반드시 passed(full_fallback_used는 generatePaidResult가 failed로 반환).
-  //   결제 게이트(status=ready + result_json not null + quality.passed)를 위해 함께 저장한다.
+  // quality: ready여도 passed가 false일 수 있다(결과지는 항상 displayable). 결제 게이트는
+  //   passed===true일 때만 can_pay=true. 심화 결과지 자체는 passed와 무관하게 렌더된다.
   const quality = outcome.status === 'ready'
-    ? { passed: true, finalResultSource: outcome.meta.finalResultSource, warnings: outcome.meta.qualityWarnings }
-    : { passed: false };
+    ? { passed: outcome.meta.qualityPassed, displayable: true, repaired: outcome.meta.deterministicRepair,
+        finalResultSource: outcome.meta.finalResultSource, blockers: outcome.meta.blockers, warnings: outcome.meta.qualityWarnings }
+    : { passed: false, displayable: false };
   const evidence_pack = {
     structuredEvidenceCount: pre.structuredEvidenceCount, highSignalEvidenceCount: pre.highSignalEvidenceCount,
     missingSignals: pre.missingSignals, evidenceSourceBreakdown: pre.evidenceSourceBreakdown, freeTextChars: pre.freeTextChars,

@@ -25,7 +25,7 @@ interface PollResponse {
   status?: 'queued' | 'processing' | 'ready' | 'failed' | string;
   result_json?: unknown;
   result?: unknown; // 별칭 방어
-  quality?: { passed?: boolean; finalResultSource?: string; warnings?: string[] } | null;
+  quality?: { passed?: boolean; displayable?: boolean; repaired?: boolean; finalResultSource?: string; blockers?: string[]; warnings?: string[] } | null;
   can_pay?: boolean;
   payment_status?: string;
   retry_count?: number;
@@ -122,19 +122,20 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     // 프론트 validationErrors는 '경고'일 뿐 차단 사유가 아니다(shape 라운드트립 차이로 인한
     // false negative 방지). Hard fail은 아래만: result_json 없음 / quality.passed===false /
     // finalResultSource === full_fallback_used.
+    // 결제 완료 사용자는 반드시 결과지를 받는다. result_json이 있으면 무조건 렌더한다.
+    //   quality.passed가 false여도(내부 품질 지표) 렌더한다 — 사용자 차단용이 아니다.
+    //   유일한 실패 사유: result_json 자체가 없음.
     const renderStoredResult = (poll: PollResponse): boolean => {
       const resultJson = poll.result_json ?? poll.result ?? null;
-      const finalSource = poll.quality?.finalResultSource;
       try {
         if (!resultJson) throw new Error('ready_without_result_json');
-        if (poll.quality && poll.quality.passed === false) throw new Error('quality_not_passed');
-        // 서버가 이미 막지만, 이중 방어: fallback source는 결제 품질이 아니다.
-        if (finalSource === 'full_fallback_used' || finalSource === 'partial_fallback_sections') throw new Error(`fallback_source_${finalSource}`);
         // normalize는 렌더 shape 보장용(배열/섹션 기본값 채움). 결과가 비어도 터지지 않게.
         const normalized = normalizePaidResult(resultJson);
         const warns = validationErrors(normalized);
         // eslint-disable-next-line no-console
-        console.log('[paid-job] READY render | can_pay:', poll.can_pay, '| finalSource:', finalSource,
+        console.log('[paid-job] READY render | quality.passed:', poll.quality?.passed,
+          '| repaired:', poll.quality?.repaired, '| can_pay:', poll.can_pay,
+          '| finalSource:', poll.quality?.finalResultSource,
           '| validation warnings(non-blocking):', warns.length ? warns.join(', ') : 'none');
         finishSuccess(normalized as PaidResult);
         return true;

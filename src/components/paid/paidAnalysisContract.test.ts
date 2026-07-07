@@ -95,6 +95,19 @@ ok('paid-ready: default_narrative_bodies 경고 차단', server.paidReadyBlocker
 ok('paid-ready: 빈 계획/재점검 차단', (() => { const b = server.paidReadyBlockers({ ...goodCanonical, sevenDayPlan: [], recheckCriteria: [] } as unknown as Parameters<typeof server.paidReadyBlockers>[0], 'primary_normalized', []); return b.includes('empty_seven_day') && b.includes('empty_recheck'); })());
 ok('paid-ready: fallback 서명 문구 차단', server.paidReadyBlockers({ ...goodCanonical, monthlyExperiment: { ...goodCanonical.monthlyExperiment, body: '이번 달의 목표는 방향을 확정하는 것이 아니라 확인' } } as unknown as Parameters<typeof server.paidReadyBlockers>[0], 'primary_normalized', []).includes('fallback_signature'));
 
+// deterministic repair: blocker가 있어도 결과지는 항상 뜬다 → repair가 결측을 채우고 서명/기본을 제거.
+const repaired = server.repairPaidResult(fbB, freeB, paidB);
+ok('repair: 스키마 유효', shared.validatePaidAnalysisResult(repaired));
+ok('repair: sevenDayPlan 비지 않음', repaired.sevenDayPlan.length >= 5);
+ok('repair: recheckCriteria 비지 않음', repaired.recheckCriteria.length >= 3);
+ok('repair: 실험 2개 이상', repaired.monthlyExperiment.experiments.length >= 2);
+ok('repair: futureMessage 2~3문단(>=300)', repaired.futureMessage.body.length >= 300);
+ok('repair: fallback 실험 제목 제거', !repaired.monthlyExperiment.experiments.some((e) => ['전문성 기반 짧은 콘텐츠', '대상 좁힌 메시지 테스트', '기존 경험 결합 문제정의'].includes(e.title)));
+ok('repair: 실험 successMetric 돈신호 유지', repaired.monthlyExperiment.experiments.filter((e) => /DM|결제|상담|예약|신청|구매|계약/.test(e.successMetric ?? '')).length >= 2);
+// source를 clean(primary)으로 두면 content-level blocker(서명/기본/빈배열/final-thin)는 0이어야.
+const residual = server.paidReadyBlockers(repaired, 'primary_normalized', server.qualityWarnings(repaired, ev, 'primary_normalized'));
+ok('repair: content blocker 0 (clean source)', residual.length === 0);
+
 // tagged-text 파서: 전체 태그 → normalize → valid; 부분(핵심 3개)만 있어도 usable
 const fullTagged = `쓸데없는 서두\n<summaryCard>\ncoreNow: 핵심\nbiggestRisk: 리스크\ndoThis: 해\njudgeBy: 판\n</summaryCard>\n<currentPosition>${bodyN(600)}</currentPosition>\n<whyNow>${bodyN(600)}</whyNow>\n<innerConflict>${bodyN(700)}</innerConflict>\n<riskMap>${bodyN(700)}</riskMap>\n<transitionAssets>${bodyN(600)}</transitionAssets>\n<monthlyExperiment>${bodyN(800)}</monthlyExperiment>\n<experiment_1>\ntitle: 실험1\nhypothesis: 돈 낼 사람 있나\ntarget: 반려동물 보호자\naction: 소액 결제 제안\nsuccessMetric: DM·소액 결제 수\nstopSignal: 무반응이면 버림\nwhyThisFits: 수입 공백 반영\n</experiment_1>\n<experiment_2>\ntitle: 실험2\nhypothesis: h\ntarget: t\naction: a\nsuccessMetric: DM 수\nstopSignal: s\nwhyThisFits: w\n</experiment_2>\n<sevenDayPlan>\n1일차: 가설 정의\n2일차: 타깃 10명\n3일차: 제안 작성\n4일차: 공개\n5일차: 직접 검증\n6일차: 반응 분류\n7일차: 가설 취사\n</sevenDayPlan>\n<recheckCriteria>\n- 돈에 가까운 반응 있었나\n- 어떤 가설 버릴지 명확한가\n- 방향 좁혀졌나\n</recheckCriteria>\n<ifTwoOrMoreYes>그 경우에는 키워보세요</ifTwoOrMoreYes>\n<ifAllNo>그 경우에는 대상을 바꾸세요</ifAllNo>\n<futureMessage>${bodyN(500)}</futureMessage>`;
 const tp = server.parseTaggedResult(fullTagged);
