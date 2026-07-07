@@ -128,7 +128,8 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
       try {
         if (!resultJson) throw new Error('ready_without_result_json');
         if (poll.quality && poll.quality.passed === false) throw new Error('quality_not_passed');
-        if (finalSource === 'full_fallback_used') throw new Error('full_fallback_used');
+        // 서버가 이미 막지만, 이중 방어: fallback source는 결제 품질이 아니다.
+        if (finalSource === 'full_fallback_used' || finalSource === 'partial_fallback_sections') throw new Error(`fallback_source_${finalSource}`);
         // normalize는 렌더 shape 보장용(배열/섹션 기본값 채움). 결과가 비어도 터지지 않게.
         const normalized = normalizePaidResult(resultJson);
         const warns = validationErrors(normalized);

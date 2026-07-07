@@ -844,6 +844,33 @@ export function qualityWarnings(result: PaidAnalysisResult, evidence: EvidencePa
   return w;
 }
 
+// ── 엄격 paid-ready 게이트 — ready로 저장·결제 가능해도 되는지 판정(blocker 있으면 실패 처리) ──
+// fallback(buildFallbackResult)의 고정 서술은 골든 결과에 verbatim으로 나올 수 없는 고유 문구다.
+// 이 문구가 최종 결과에 남아 있으면 = fallback 내용이 leak된 것 → paid-ready 금지.
+const FALLBACK_SIGNATURES = [
+  '그래서 한 직업을 오래 지속한 사람의 피로감보다는',
+  '이번 달의 목표는 방향을 확정하는 것이 아니라',
+  '1일차: 유료 반응을 확인할 가설 1개를 정의한다',
+  '돈에 가까운 반응(DM·상담·소액 결제·예약)이 한 건이라도 나왔나요',
+  '전문성 기반 짧은 콘텐츠', '대상 좁힌 메시지 테스트', '기존 경험 결합 문제정의',
+];
+// ready를 막는 hard warning(얕음/기본본문/부분·전체 fallback).
+const HARD_BLOCKING_WARNINGS = ['full_fallback', 'partial_fallback', 'default_narrative_bodies', 'final_message_thin'];
+export function paidReadyBlockers(result: PaidAnalysisResult, source: string, warnings: string[]): string[] {
+  const blockers: string[] = [];
+  // 1) 부분/전체 fallback source는 결제 품질이 아니다.
+  if (source === 'partial_fallback_sections' || source === 'full_fallback_used') blockers.push(`source_${source}`);
+  // 2) hard warning이 하나라도 있으면 차단(→ can_pay=false, ready 금지).
+  for (const w of warnings) if (HARD_BLOCKING_WARNINGS.includes(w)) blockers.push(`warn_${w}`);
+  // 3) 7일 계획 / 재점검 기준이 비어 있으면 차단.
+  if ((result.sevenDayPlan?.length ?? 0) === 0) blockers.push('empty_seven_day');
+  if ((result.recheckCriteria?.length ?? 0) === 0) blockers.push('empty_recheck');
+  // 4) fallback 서명 문구가 남아 있으면 차단.
+  const flat = JSON.stringify(result);
+  if (FALLBACK_SIGNATURES.some((s) => flat.includes(s))) blockers.push('fallback_signature');
+  return blockers;
+}
+
 // content-repair: 구조는 유지하고 body/items/실험필드를 유료 리포트 수준으로 구체화(fallback으로 덮지 않음).
 const CONTENT_REPAIR_SYSTEM_PROMPT = `당신은 유료 리포트 편집자입니다. 아래 현재 결과의 각 섹션 본문·실험 필드를 유료 리포트 수준으로 구체화합니다.
 규칙: 출력은 반드시 아래 '태그 형식'으로만(JSON·중괄호 금지, 태그 밖 텍스트·마크다운 금지). 태그 종류·개수는 원래 결과지와 동일하게. USER_EVIDENCE_PACK의 실제 표현·제약·키워드를 각 섹션에 반영해 구체화하고, "작은 실험/방향 감각/현재 전문성/에너지" 같은 일반 표현 반복 금지. 각 30일 실험의 hypothesis/target/action/successMetric/stopSignal/whyThisFits를 돈에 가까운 지표로 채울 것. PROFILE_FACTS의 경력 사실을 지킬 것. 얕은 문장은 근거로 두껍게.
@@ -1069,7 +1096,7 @@ export type GenerateMeta = {
 };
 export type GenerateOutcome =
   | { status: 'ready'; resultJson: PaidAnalysisResult; meta: GenerateMeta }
-  | { status: 'failed'; errorJson: { error: string; errorType?: string; finalResultSource?: string; extractedSections?: number; qualityWarnings?: string[]; elapsedMs?: number } };
+  | { status: 'failed'; errorJson: { error: string; errorType?: string; finalResultSource?: string; extractedSections?: number; qualityWarnings?: string[]; blockers?: string[]; elapsedMs?: number } };
 
 /**
  * 순수 생성 코어 — Claude 호출→파싱→quality gate→sanitize를 수행하고
@@ -1157,11 +1184,14 @@ export async function generatePaidResult(
       '| qualityWarnings:', finalWarnings.length ? finalWarnings.join(',') : 'none',
       '| contentRepairAttempted:', contentRepairAttempted, '| succeeded:', contentRepairSucceeded, '| ms:', elapsedMs);
 
-    // full_fallback_used는 결과지가 아니다 → job failed로 저장(렌더 금지).
-    if (finalResultSource === 'full_fallback_used') {
+    // ── 엄격 paid-ready 게이트 — 아래 중 하나라도 걸리면 ready로 저장하지 않는다(job failed → retry).
+    //   partial/full fallback, hard warning, 빈 계획, fallback 서명 문구 leak을 모두 차단.
+    const blockers = paidReadyBlockers(result, finalResultSource, finalWarnings);
+    if (blockers.length > 0) {
+      const errorType = finalResultSource === 'full_fallback_used' ? 'full_fallback_used' : 'quality_gate_failed';
       // eslint-disable-next-line no-console
-      console.error('[paid] QUALITY_FAILED (fallback not rendered)');
-      return { status: 'failed', errorJson: { error: 'quality_failed', errorType: 'full_fallback_used', finalResultSource, extractedSections: tag.sectionCount, qualityWarnings: finalWarnings, elapsedMs } };
+      console.error('[paid] PAID_READY_BLOCKED (not saved as ready):', blockers.join(','), '| source:', finalResultSource);
+      return { status: 'failed', errorJson: { error: 'quality_failed', errorType, finalResultSource, extractedSections: tag.sectionCount, qualityWarnings: finalWarnings, blockers, elapsedMs } };
     }
     return { status: 'ready', resultJson: result, meta: { finalResultSource, extractedSections: tag.sectionCount, evidenceKeywordCount, highSignalEvidenceCount: evidence.highSignalEvidenceCount, qualityWarnings: finalWarnings, contentRepairAttempted, contentRepairSucceeded, elapsedMs } };
   } catch (e) {
