@@ -7,6 +7,45 @@
 // 보안: ANTHROPIC_API_KEY는 process.env로만 접근하며, 코드/응답 어디에도 노출하지
 // 않는다. 실패 시 키·내부 정보 없이 에러 코드만 반환한다.
 
+// node_modules import(@supabase/supabase-js)는 번들에 안전히 포함된다.
+// (금지 대상은 상대경로 src/*.ts import — 그건 ERR_MODULE_NOT_FOUND를 유발했다.)
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+// ── paid_analysis_jobs 저장소(인라인, self-contained) ──────────────────────────
+// 이 파일은 job "run worker"도 겸한다: POST body에 { jobId }가 오면 그 job을 실행해
+// 결과를 DB에 저장한다(status ready/failed). 결과 렌더는 프론트가 polling으로 읽는다.
+const JOBS_TABLE = 'paid_analysis_jobs';
+let _sbCache: SupabaseClient | null = null;
+function getServerSupabase(): SupabaseClient | null {
+  if (_sbCache) return _sbCache;
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  _sbCache = createClient(url, key, { auth: { persistSession: false } });
+  return _sbCache;
+}
+type JobRow = { id: string; status: string; input_json: any; retry_count: number };
+async function getJobRow(sb: SupabaseClient, id: string): Promise<any | null> {
+  const { data, error } = await sb.from(JOBS_TABLE).select().eq('id', id).maybeSingle();
+  if (error) throw new Error(`getJob: ${error.message}`);
+  return data ?? null;
+}
+async function updateJobRow(sb: SupabaseClient, id: string, patch: Record<string, unknown>): Promise<void> {
+  const { error } = await sb.from(JOBS_TABLE).update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw new Error(`updateJob: ${error.message}`);
+}
+// idempotency: queued → processing 원자적 전이만 허용(중복 실행 방지).
+//   - ready면 매칭 0 → null(run 무시). processing이면 매칭 0 → null(중복 run 무시).
+//   - failed는 여기서 직접 재실행하지 않는다. 반드시 retry 엔드포인트를 거쳐 queued가 된 뒤
+//     실행된다(retry_count 제한 적용). eq('queued')가 이 규칙을 DB 레벨에서 강제한다.
+async function claimJobForRun(sb: SupabaseClient, id: string): Promise<JobRow | null> {
+  const { data, error } = await sb.from(JOBS_TABLE)
+    .update({ status: 'processing', updated_at: new Date().toISOString() })
+    .eq('id', id).eq('status', 'queued').select().maybeSingle();
+  if (error) throw new Error(`claimJob: ${error.message}`);
+  return (data as JobRow) ?? null;
+}
+
 // ── 코드값 → 한글 변환 (self-contained) ────────────────────────────────────────
 // ⚠️ Vercel 함수는 자기 파일 기준으로 번들된다. api/ 함수가 src/ 파일을 import하면
 // 배포 번들에 그 src 파일이 포함되지 않아 런타임 ERR_MODULE_NOT_FOUND가 난다.
@@ -259,13 +298,13 @@ whyThisFits: 수입 공백·버틸 기간·기존 경험·현재 전문성을 �
 반드시 위 태그만 사용하고, 태그 밖에는 아무 텍스트도 쓰지 마세요.`;
 
 // ── 요청/응답 타입 ─────────────────────────────────────────────────────────────
-interface FreeContext {
+export interface FreeContext {
   occupation: string; experienceLevel: string; currentOccupationRange: string; ageBand: string;
   mainType: string; primarySubtype: string; secondarySubtype: string;
   subtypeConfidence: number; pullDirection: string; primaryFriction: string;
   readinessLevel: string; userFreeText: string;
 }
-interface PaidAnswers {
+export interface PaidAnswers {
   workStatus: string; maritalStatus: string; dependents: string;
   trigger: string; candidateDirection: string;
   runway: string; incomeFloor: string; weeklyTime: string; energyLevel: string;
@@ -994,40 +1033,52 @@ export function sanitizeCareerPhrasing(result: PaidAnalysisResult, occupation: s
 
 // ── 핸들러 ─────────────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default async function handler(req: any, res: any): Promise<void> {
-  if (req.method !== 'POST') { res.status(405).json({ error: 'method_not_allowed' }); return; }
+// ── EvidencePack 프리뷰(job 저장용): 극단 부족 판정 + evidence_pack jsonb 원본 ──
+export interface EvidencePreview {
+  hasResultSignal: boolean; answerCount: number;
+  structuredEvidenceCount: number; highSignalEvidenceCount: number;
+  freeTextChars: number; missingSignals: string[];
+  evidenceSourceBreakdown: Record<string, number>;
+  isExtremeInsufficient: boolean;
+  text: string; keywords: string[];
+}
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { res.status(503).json({ error: 'not_configured' }); return; }
-
-  // body는 문자열로 올 수도, 파싱된 객체로 올 수도 있다.
-  let body: { freeContext?: FreeContext; paidAnswers?: PaidAnswers };
-  try {
-    body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  } catch {
-    res.status(400).json({ error: 'invalid_json' }); return;
-  }
-  const freeContext = body?.freeContext;
-  const paidAnswers = body?.paidAnswers;
-  if (!freeContext || !paidAnswers || typeof paidAnswers !== 'object') {
-    res.status(400).json({ error: 'invalid_payload' }); return;
-  }
-  const includeDiag0 = process.env.VERCEL_ENV !== 'production';
-
-  // payload shape 확인 — raw answers/scores/result/freeContext가 실제로 들어왔는지.
+/** payload에서 EvidencePack + 극단 부족 판정을 계산(POST /jobs가 저장/게이트에 사용). */
+export function previewEvidence(freeContext: FreeContext, paidAnswers: PaidAnswers): EvidencePreview {
   const answerVals = Object.values(paidAnswers).flatMap((v) => (Array.isArray(v) ? v : [v]));
   const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
-  // eslint-disable-next-line no-console
-  console.log('[paid] PAYLOAD_SHAPE', {
-    topLevelKeys: Object.keys(body ?? {}),
-    answerCount,
-    scoreKeys: typeof freeContext.subtypeConfidence === 'number' ? ['subtypeConfidence'] : [],
-    resultKeys: [freeContext.mainType && 'mainType', freeContext.primarySubtype && 'primarySubtype', freeContext.secondarySubtype && 'secondarySubtype', freeContext.pullDirection && 'pullDirection'].filter(Boolean),
-    freeContextKeys: Object.keys(freeContext),
-    profileFactKeys: [freeContext.experienceLevel && 'experienceLevel', freeContext.currentOccupationRange && 'currentOccupationRange', freeContext.occupation && 'occupation', freeContext.ageBand && 'ageBand'].filter(Boolean),
-  });
+  const evidence = buildUserEvidencePack(freeContext, paidAnswers);
+  const hasResultSignal = (freeContext.mainType?.trim().length ?? 0) > 0 || (freeContext.primarySubtype?.trim().length ?? 0) > 0;
+  const isExtremeInsufficient = !hasResultSignal && evidence.structuredEvidenceCount < 3 && answerCount < 3;
+  return {
+    hasResultSignal, answerCount,
+    structuredEvidenceCount: evidence.structuredEvidenceCount,
+    highSignalEvidenceCount: evidence.highSignalEvidenceCount,
+    freeTextChars: evidence.freeTextChars,
+    missingSignals: evidence.missingSignals,
+    evidenceSourceBreakdown: evidence.evidenceSourceBreakdown,
+    isExtremeInsufficient,
+    text: evidence.text, keywords: evidence.keywords,
+  };
+}
 
-  // PROFILE_FACTS(경력 사실) + EVIDENCE_PACK(구조화 답변에서 재구성)을 프롬프트 맨 위에.
+export type GenerateMeta = {
+  finalResultSource: string; extractedSections: number; evidenceKeywordCount: number;
+  highSignalEvidenceCount: number; qualityWarnings: string[];
+  contentRepairAttempted: boolean; contentRepairSucceeded: boolean; elapsedMs: number;
+};
+export type GenerateOutcome =
+  | { status: 'ready'; resultJson: PaidAnalysisResult; meta: GenerateMeta }
+  | { status: 'failed'; errorJson: { error: string; errorType?: string; finalResultSource?: string; extractedSections?: number; qualityWarnings?: string[]; elapsedMs?: number } };
+
+/**
+ * 순수 생성 코어 — Claude 호출→파싱→quality gate→sanitize를 수행하고
+ * {ready, resultJson} 또는 {failed, errorJson}만 반환한다(HTTP/브라우저와 무관).
+ * job worker(run)와 하위호환 sync handler가 공유한다.
+ */
+export async function generatePaidResult(
+  apiKey: string, freeContext: FreeContext, paidAnswers: PaidAnswers,
+): Promise<GenerateOutcome> {
   const facts = buildProfileFacts(freeContext);
   const evidence = buildUserEvidencePack(freeContext, paidAnswers);
   // eslint-disable-next-line no-console
@@ -1038,52 +1089,23 @@ export default async function handler(req: any, res: any): Promise<void> {
     missingSignals: evidence.missingSignals,
     evidenceSourceBreakdown: evidence.evidenceSourceBreakdown,
   });
-
-  // insufficient_input은 '극단'에서만 — 결과 유형도 없고, 구조화 답변도 거의 없을 때.
-  // 일반 테스트 완료자(mainType/subtype 있음)는 절대 차단하지 않는다.
-  const hasResultSignal = (freeContext.mainType?.trim().length ?? 0) > 0 || (freeContext.primarySubtype?.trim().length ?? 0) > 0;
-  if (!hasResultSignal && evidence.structuredEvidenceCount < 3 && answerCount < 3) {
-    // eslint-disable-next-line no-console
-    console.warn('[paid] insufficient_input (extreme): no result signal & almost no answers | answerCount:', answerCount, '| structured:', evidence.structuredEvidenceCount);
-    res.status(422).json(includeDiag0 ? { error: 'insufficient_input', answerCount, structuredEvidenceCount: evidence.structuredEvidenceCount } : { error: 'insufficient_input' });
-    return;
-  }
-  const rawInputLen =
-    (freeContext.occupation?.length ?? 0) + (freeContext.userFreeText?.length ?? 0)
-    + (paidAnswers.trigger?.length ?? 0) + (paidAnswers.flowMoment?.length ?? 0);
   const userContent = `${facts.text}\n\n${evidence.text}\n\n${assembleUserContent(freeContext, paidAnswers)}`;
-  // 입력 진단(개인정보 전체는 찍지 않음 — field name + char length + 앞 60자만).
-  const preview = (v: string) => (v && v !== '정보 없음' ? `${v.slice(0, 60).replace(/\n/g, ' ')}` : '(none)');
-  // eslint-disable-next-line no-console
-  console.log('[paid] IN | freeCtx keys:', Object.keys(freeContext).join(','),
-    '| occupation len:', (freeContext.occupation ?? '').length, '| userFreeText len:', (freeContext.userFreeText ?? '').length,
-    '| trigger len:', (paidAnswers.trigger ?? '').length, `"${preview(paidAnswers.trigger)}"`,
-    '| flowMoment len:', (paidAnswers.flowMoment ?? '').length, `"${preview(paidAnswers.flowMoment)}"`,
-    '| freeTextChars:', rawInputLen, '| evidence sentences:', evidence.sentenceCount, '| structuredEvidence:', evidence.structuredEvidenceCount,
-    '| highSignalEvidence:', evidence.highSignalEvidenceCount, '| keywords:', evidence.keywords.join(','),
-    '| careerContext:', facts.transition ? 'transition_or_mixed' : 'same_or_unknown');
-  // 서술형이 짧아도 구조화 신호가 충분하면 진행한다(차단 아님). 참고 로그만.
   if (evidence.highSignalEvidenceCount < 4) {
     // eslint-disable-next-line no-console
-    console.warn('[paid] low_high_signal_evidence — highSignalEvidenceCount < 4. 구조화 답변이 적어 개인화가 약할 수 있음(차단하지 않음).');
+    console.warn('[paid] low_high_signal_evidence — highSignalEvidenceCount < 4 (차단하지 않음).');
   }
 
-  // ── 원칙: Claude는 태그 텍스트를 만들고, 서버가 canonical을 조립한다. rich primary 유지,
-  //   fallback은 catastrophic(추출 섹션 ≤2)일 때만. quality 미달은 content-repair로 보강.
   const t0 = Date.now();
-  const includeDiag = process.env.VERCEL_ENV !== 'production';
   try {
     const raw1 = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS, MAIN_CALL_TIMEOUT_MS);
     const ms1 = Date.now() - t0;
     let tag = parseTaggedResult(raw1);
-    // 모델이 태그 대신 JSON을 낸 경우 대비.
     if (tag.sectionCount === 0) { const j = extractJson(raw1); if (j && rawContentReport(j).hasCore) tag = { obj: j as Record<string, unknown>, sectionCount: 7, coreSectionCount: 4 }; }
     const report = rawContentReport(tag.obj);
     const usable = tag.coreSectionCount >= 3 || report.hasCore;
     // eslint-disable-next-line no-console
-    console.log('[paid] call#1 ms:', ms1, '| rawLen:', raw1.length, '| tagExtractionOk:', tag.sectionCount > 0,
-      '| extractedSections:', tag.sectionCount, '| coreSections:', tag.coreSectionCount, '| usable:', usable,
-      '| hasCore:', report.hasCore, '| defaultedSlots:', report.defaultedSlots, '| experimentCount:', report.experimentCount);
+    console.log('[paid] call#1 ms:', ms1, '| rawLen:', raw1.length, '| extractedSections:', tag.sectionCount,
+      '| coreSections:', tag.coreSectionCount, '| usable:', usable, '| hasCore:', report.hasCore, '| defaultedSlots:', report.defaultedSlots);
 
     let result: PaidAnalysisResult;
     let finalResultSource: string;
@@ -1092,19 +1114,14 @@ export default async function handler(req: any, res: any): Promise<void> {
       finalResultSource = report.defaultedSlots === 0 ? 'primary_normalized'
         : (report.defaultedSlots <= 6 ? 'primary_with_minor_defaults' : 'partial_fallback_sections');
     } else {
-      // 추출 섹션 ≤2 → primary 사용 불가. 일단 fallback(유효 보장) 후 반드시 content-repair로 회복 시도.
       result = buildFallbackResult(freeContext, paidAnswers);
       finalResultSource = 'full_fallback_used';
       // eslint-disable-next-line no-console
-      console.error('[paid] primary unusable (extractedSections<=2) → fallback base, content-repair로 회복 시도 | total ms:', Date.now() - t0);
+      console.error('[paid] primary unusable (extractedSections<=2) → content-repair 회복 시도 | ms:', Date.now() - t0);
     }
 
-    // ── quality gate + content-repair (미달이면 보강, unusable이면 evidence 기반 회복) ──
     let warnings = qualityWarnings(result, evidence, finalResultSource);
-    // eslint-disable-next-line no-console
-    console.log('[paid] qualityWarnings:', warnings.length ? warnings.join(',') : 'none', '| source(pre-repair):', finalResultSource);
     let contentRepairAttempted = false; let contentRepairSucceeded = false;
-    // content-repair는 main이 REPAIR_START_BUDGET(90초) 안에 끝났을 때만(총 180초 내 마무리).
     const shouldRepair = (warnings.length > 0 || finalResultSource === 'full_fallback_used') && (Date.now() - t0) < REPAIR_START_BUDGET_MS;
     if (shouldRepair) {
       contentRepairAttempted = true;
@@ -1118,54 +1135,113 @@ export default async function handler(req: any, res: any): Promise<void> {
       if (cRep.hasCore || ct.coreSectionCount >= 3) {
         const cn = normalizePaidResult(ct.obj);
         const cw = qualityWarnings(cn, evidence, 'content_repair_normalized');
-        // 회복(fallback였음)이거나 경고가 줄면 채택.
         if (validationErrors(cn).length === 0 && (finalResultSource === 'full_fallback_used' || cw.length < warnings.length)) {
           result = cn; finalResultSource = 'content_repair_normalized'; contentRepairSucceeded = true; warnings = cw;
         }
       }
       // eslint-disable-next-line no-console
-      console.log('[paid] content-repair ms:', Date.now() - tC, '| extractedSections:', ct.sectionCount,
-        '| succeeded:', contentRepairSucceeded, '| source(after):', finalResultSource, '| total ms:', Date.now() - t0);
+      console.log('[paid] content-repair ms:', Date.now() - tC, '| succeeded:', contentRepairSucceeded, '| source:', finalResultSource);
     }
 
-    // ── career sanitize (전환 국면, deterministic). 차단 아님. ──
     if (facts.transition) {
       result = sanitizeCareerPhrasing(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
-      const v = factViolations(result, freeContext.occupation, facts.currentUpper, facts.bannedPhrases);
-      // eslint-disable-next-line no-console
-      console.log('[paid] post-sanitize violations(non-blocking):', v.length ? v.join(' / ') : 'none');
     }
-
-    // 방어적 유효성(normalize/fallback 둘 다 유효하므로 정상적으로는 통과).
     if (validationErrors(result).length > 0) result = normalizePaidResult(tag.obj);
 
-    // ── 완료 지표 로깅(품질 판정용) ──
-    const finalStats = defaultStats(result);
     const finalWarnings = qualityWarnings(result, evidence, finalResultSource);
     const evidenceKeywordCount = evidence.keywords.filter((k) => JSON.stringify(result).includes(k)).length;
+    const elapsedMs = Date.now() - t0;
     // eslint-disable-next-line no-console
-    console.log('[paid] DONE | finalResultSource:', finalResultSource,
-      '| extractedSections:', tag.sectionCount, '| rawContentBodyLength:', finalStats.bodyLength,
-      '| defaultBodyCount:', finalStats.defaultBodyCount, '| evidenceKeywordCount:', evidenceKeywordCount,
-      '| highSignalEvidenceCount:', evidence.highSignalEvidenceCount,
+    console.log('[paid] DONE | finalResultSource:', finalResultSource, '| extractedSections:', tag.sectionCount,
+      '| evidenceKeywordCount:', evidenceKeywordCount, '| highSignalEvidenceCount:', evidence.highSignalEvidenceCount,
       '| qualityWarnings:', finalWarnings.length ? finalWarnings.join(',') : 'none',
-      '| contentRepairAttempted:', contentRepairAttempted, '| contentRepairSucceeded:', contentRepairSucceeded,
-      '| total ms:', Date.now() - t0);
-    // full_fallback_used는 유료 결과지가 아니다 — 절대 결과 카드로 렌더링하지 않는다.
-    // content-repair로도 회복 못 하면 422 quality_failed로 반환해 프론트가 실패 UI를 띄운다.
+      '| contentRepairAttempted:', contentRepairAttempted, '| succeeded:', contentRepairSucceeded, '| ms:', elapsedMs);
+
+    // full_fallback_used는 결과지가 아니다 → job failed로 저장(렌더 금지).
     if (finalResultSource === 'full_fallback_used') {
-      const diag = { error: 'quality_failed', errorType: 'full_fallback_used', extractedSections: tag.sectionCount, evidenceKeywordCount, contentRepairAttempted, elapsedMs: Date.now() - t0 };
       // eslint-disable-next-line no-console
-      console.error('[paid] QUALITY_FAILED (fallback not rendered):', JSON.stringify(diag));
-      res.status(422).json(includeDiag ? diag : { error: 'quality_failed' });
-      return;
+      console.error('[paid] QUALITY_FAILED (fallback not rendered)');
+      return { status: 'failed', errorJson: { error: 'quality_failed', errorType: 'full_fallback_used', finalResultSource, extractedSections: tag.sectionCount, qualityWarnings: finalWarnings, elapsedMs } };
     }
-    res.status(200).json(includeDiag ? { ...result, _diag: { finalResultSource, extractedSections: tag.sectionCount, evidenceKeywordCount, qualityWarnings: finalWarnings } } : result);
+    return { status: 'ready', resultJson: result, meta: { finalResultSource, extractedSections: tag.sectionCount, evidenceKeywordCount, highSignalEvidenceCount: evidence.highSignalEvidenceCount, qualityWarnings: finalWarnings, contentRepairAttempted, contentRepairSucceeded, elapsedMs } };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown';
     const errorType = classifyClaudeError(msg);
     // eslint-disable-next-line no-console
-    console.error('[paid] upstream/exception:', msg, '| errorType:', errorType, '| total ms:', Date.now() - t0);
-    res.status(502).json(includeDiag ? { error: 'upstream_error', errorType } : { error: 'upstream_error', errorType });
+    console.error('[paid] upstream/exception:', msg, '| errorType:', errorType, '| ms:', Date.now() - t0);
+    return { status: 'failed', errorJson: { error: 'upstream_error', errorType, elapsedMs: Date.now() - t0 } };
   }
+}
+
+// ── job RUN worker: POST { jobId } → 그 job을 실행하고 결과를 DB에 저장한다. ──
+//   결과 렌더는 프론트가 GET /api/paid-job polling으로 읽는다(이 응답 본문 아님).
+async function runJob(res: any, apiKey: string, jobId: string, includeDiag: boolean): Promise<void> {
+  const sb = getServerSupabase();
+  if (!sb) { res.status(503).json({ error: 'not_configured', detail: 'supabase env missing' }); return; }
+  let job: JobRow | null;
+  try { job = await claimJobForRun(sb, jobId); }
+  catch (e) { res.status(500).json({ error: 'store_error', detail: includeDiag ? String(e) : undefined }); return; }
+  if (!job) {
+    // 이미 processing/ready → 재실행하지 않고 현재 상태만 반환.
+    const cur = await getJobRow(sb, jobId).catch(() => null);
+    if (!cur) { res.status(404).json({ error: 'not_found' }); return; }
+    res.status(200).json({ jobId, status: cur.status, note: 'already_claimed_or_done' }); return;
+  }
+  const input = job.input_json as { freeContext?: FreeContext; paidAnswers?: PaidAnswers } | null;
+  if (!input?.freeContext || !input?.paidAnswers) {
+    const errorJson = { error: 'invalid_input_json' };
+    await updateJobRow(sb, jobId, { status: 'failed', error_json: errorJson, latest_error_json: errorJson, completed_at: new Date().toISOString() }).catch(() => {});
+    res.status(422).json(errorJson); return;
+  }
+  // eslint-disable-next-line no-console
+  console.log('[paid-job] RUN start', { jobId, retry_count: job.retry_count });
+  const pre = previewEvidence(input.freeContext, input.paidAnswers);
+  const outcome = await generatePaidResult(apiKey, input.freeContext, input.paidAnswers);
+  const evidence_pack = {
+    structuredEvidenceCount: pre.structuredEvidenceCount, highSignalEvidenceCount: pre.highSignalEvidenceCount,
+    missingSignals: pre.missingSignals, evidenceSourceBreakdown: pre.evidenceSourceBreakdown, freeTextChars: pre.freeTextChars,
+    keywords: pre.keywords,
+  };
+  try {
+    if (outcome.status === 'ready') {
+      await updateJobRow(sb, jobId, { status: 'ready', result_json: outcome.resultJson, error_json: null, evidence_pack, completed_at: new Date().toISOString() });
+      // eslint-disable-next-line no-console
+      console.log('[paid-job] RUN ready', { jobId, finalResultSource: outcome.meta.finalResultSource });
+      res.status(200).json({ jobId, status: 'ready' });
+    } else {
+      await updateJobRow(sb, jobId, { status: 'failed', error_json: outcome.errorJson, latest_error_json: outcome.errorJson, evidence_pack, completed_at: new Date().toISOString() });
+      // eslint-disable-next-line no-console
+      console.error('[paid-job] RUN failed', { jobId, error: outcome.errorJson.error, errorType: outcome.errorJson.errorType });
+      res.status(200).json({ jobId, status: 'failed', error_json: includeDiag ? outcome.errorJson : { error: outcome.errorJson.error } });
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[paid-job] RUN store_error:', String(e));
+    res.status(500).json({ error: 'store_error', detail: includeDiag ? String(e) : undefined });
+  }
+}
+
+// ── 엔드포인트: POST { jobId } → run worker / POST { freeContext, paidAnswers } → 하위호환 sync ──
+export default async function handler(req: any, res: any): Promise<void> {
+  if (req.method !== 'POST') { res.status(405).json({ error: 'method_not_allowed' }); return; }
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) { res.status(503).json({ error: 'not_configured' }); return; }
+  let body: { jobId?: string; freeContext?: FreeContext; paidAnswers?: PaidAnswers };
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; }
+  catch { res.status(400).json({ error: 'invalid_json' }); return; }
+  const includeDiag0 = process.env.VERCEL_ENV !== 'production';
+  // job 방식(현행): { jobId }가 오면 그 job을 실행한다.
+  if (body?.jobId) { await runJob(res, apiKey, String(body.jobId), includeDiag0); return; }
+  const freeContext = body?.freeContext; const paidAnswers = body?.paidAnswers;
+  if (!freeContext || !paidAnswers || typeof paidAnswers !== 'object') { res.status(400).json({ error: 'invalid_payload' }); return; }
+  const includeDiag = process.env.VERCEL_ENV !== 'production';
+  const pre = previewEvidence(freeContext, paidAnswers);
+  if (pre.isExtremeInsufficient) { res.status(422).json(includeDiag ? { error: 'insufficient_input', answerCount: pre.answerCount, structuredEvidenceCount: pre.structuredEvidenceCount } : { error: 'insufficient_input' }); return; }
+  const outcome = await generatePaidResult(apiKey, freeContext, paidAnswers);
+  if (outcome.status === 'failed') {
+    const code = outcome.errorJson.error === 'quality_failed' ? 422 : 502;
+    res.status(code).json(includeDiag ? outcome.errorJson : { error: outcome.errorJson.error });
+    return;
+  }
+  res.status(200).json(includeDiag ? { ...outcome.resultJson, _diag: outcome.meta } : outcome.resultJson);
 }

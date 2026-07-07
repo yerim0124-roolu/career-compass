@@ -1,8 +1,12 @@
 // Career Compass — 유료 심화 분석 결과 화면 (#paid-result).
 //
-// 진입 시 무료 맥락(freeContext) + 유료 답(paidAnswers)을 서버 함수(/api/paid-analysis)
-// 로 보내 결과지 JSON을 받아 카드 UI로 렌더한다. API 키는 서버에서만 쓰이며 프론트는
-// 결과 JSON만 받는다. 로딩·에러 상태를 모두 다룬다. 접근 게이팅은 App.tsx의 플래그.
+// [영속 job 방식] 브라우저는 Claude 실시간 생성에 의존하지 않는다. 대신:
+//   1) POST /api/paid-job        — job 생성(queued). {jobId} 수신.
+//   2) POST /api/paid-job-run    — 워커 트리거(await하지 않음; 결과는 DB에 저장됨).
+//   3) GET  /api/paid-job?id=... — polling. status=ready면 저장된 result_json만 렌더.
+// 실패/timeout/schema/quality 실패는 job failed로 저장되어 실패 UI + 재시도(/paid-job-retry)로
+// 처리된다. 프론트는 Claude raw response를 직접 렌더하지 않는다(저장된 result_json만).
+// API 키는 서버에서만 쓰인다. 접근 게이팅은 App.tsx의 플래그.
 
 import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
@@ -60,6 +64,9 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
 
   // 각 실행(mount/재시도)의 고유 id — 늦게 도착한 stale 콜백을 무시하기 위함.
   const runIdRef = useRef(0);
+  // 현재 job id(재시도용) + 직전이 실패였는지(같은 input으로 retry할지 판단).
+  const jobIdRef = useRef<string | null>(null);
+  const lastFailedRef = useRef(false);
 
   useEffect(() => {
     const paid = paidRef.current;
@@ -73,47 +80,59 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     // 이 실행이 여전히 최신이고 아직 종결 전일 때만 상태를 바꾼다.
     const isActive = () => myRun === runIdRef.current && !settled;
 
+    // polling / 워커 지연을 감안한 하드 타임아웃. 워커(run)는 최대 180초, 폴링은 여유 있게 210초.
+    const HARD_TIMEOUT_MS = 210000;
+    const POLL_INTERVAL_MS = 3000;
+
     const finishError = (reason: string) => {
       if (!isActive()) return;
-      settled = true;
+      settled = true; lastFailedRef.current = true;
       window.clearTimeout(timeout);
       logPaidAnalysisFailed(reason);
       // eslint-disable-next-line no-console
-      console.log('[paid-analysis] → error UI (reason:', reason, ')');
+      console.log('[paid-job] → error UI (reason:', reason, ')');
       setPhase('error');
     };
     const finishSuccess = (data: PaidResult) => {
       if (!isActive()) return;
-      settled = true;
+      settled = true; lastFailedRef.current = false;
       window.clearTimeout(timeout);
       // eslint-disable-next-line no-console
-      console.log('[paid-analysis] → success: result 세팅, loading 종료');
+      console.log('[paid-job] → success: 저장된 result_json 렌더');
       setResult(data);
       setPhase('success');
     };
 
-    // 하드 타임아웃: 서버 함수는 최대 3분(180초)까지 열려 있고 main Claude 호출을 150초까지
-    // 기다린다. 프론트는 그보다 여유 있게 180초로 둬야 서버 정상 응답을 놓치지 않는다.
-    const timeout = window.setTimeout(() => { controller.abort(); finishError('timeout'); }, 180000);
+    const timeout = window.setTimeout(() => { controller.abort(); finishError('timeout'); }, HARD_TIMEOUT_MS);
+    const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
+
+    // 저장된 result_json을 프론트 계약으로 한 번 더 방어 정규화 후 렌더.
+    const renderStoredResult = (resultJson: unknown): boolean => {
+      const normalized = normalizePaidResult(resultJson);
+      const errs = validationErrors(normalized);
+      // eslint-disable-next-line no-console
+      console.log('[paid-job] stored result validateOk:', errs.length === 0, errs.length ? `| ${errs.join(', ')}` : '');
+      if (errs.length > 0) { finishError('validation_failed'); return false; }
+      finishSuccess(normalized as PaidResult);
+      return true;
+    };
 
     (async () => {
       try {
         const freeContext = readFreeContext();
-        // 진단 — 서버로 보내는 서술형 길이(개인정보 전체는 찍지 않음). free-text 누락 추적용.
         const clip60 = (v: string) => (v ? v.slice(0, 60).replace(/\n/g, ' ') : '(none)');
         const freeTextChars = freeContext.occupation.length + freeContext.userFreeText.length + paid.trigger.length + paid.flowMoment.length;
         const sentenceCount = countSentences(`${paid.trigger}\n${paid.flowMoment}\n${freeContext.userFreeText}`);
-        // 답변 개수(구조화) — 맥락이 실제로 얼마나 채워졌는지.
         const answerVals = Object.values(paid).flatMap((v) => (Array.isArray(v) ? v : [v]));
         const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
         // eslint-disable-next-line no-console
-        console.log('[paid-analysis] SEND | freeContext keys:', Object.keys(freeContext).join(','),
+        console.log('[paid-job] SEND | freeContext keys:', Object.keys(freeContext).join(','),
           '| paid.trigger len:', paid.trigger.length, `"${clip60(paid.trigger)}"`,
           '| paid.flowMoment len:', paid.flowMoment.length, `"${clip60(paid.flowMoment)}"`,
           '| freeTextChars:', freeTextChars, '| sentenceCount:', sentenceCount,
           '| candidateDirection:', paid.candidateDirection, '| mustKeep:', paid.mustKeep.join('/'));
         // eslint-disable-next-line no-console
-        console.log('[paid-analysis] PAYLOAD_SHAPE', {
+        console.log('[paid-job] PAYLOAD_SHAPE', {
           topLevelKeys: ['freeContext', 'paidAnswers'],
           hasResult: !!(freeContext.mainType || freeContext.primarySubtype),
           hasScores: typeof freeContext.subtypeConfidence === 'number',
@@ -122,67 +141,75 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           freeContextKeys: Object.keys(freeContext),
           freeTextChars,
         });
-        // 서술형이 짧아도 절대 막지 않는다 — 구조화 답변으로 서버가 분석을 진행한다.
-        const resp = await fetch('/api/paid-analysis', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ freeContext, paidAnswers: paid }),
-          signal: controller.signal,
-        });
 
-        // 진단 로깅 — 실제로 무엇이 오는지 (status / 길이 / 앞부분 / parse / validate).
-        const status = resp.status;
-        const bodyText = await resp.text();
-        // eslint-disable-next-line no-console
-        console.log('[paid-analysis] status:', status, '| text length:', bodyText.length);
-        // eslint-disable-next-line no-console
-        console.log('[paid-analysis] body(0..500):', bodyText.slice(0, 500));
-
-        if (!resp.ok) {
-          // 서버가 준 에러 코드(fact_check_failed / validation_failed / upstream_error / not_configured 등)를 분리.
-          let serverErr = '';
-          try { serverErr = String((JSON.parse(bodyText) as { error?: unknown })?.error ?? ''); } catch { /* 비-JSON 본문 */ }
+        // ── 1) job 확보: 직전 실패 + 기존 job이 있으면 같은 input으로 retry, 아니면 새로 create ──
+        let jobId = '';
+        if (lastFailedRef.current && jobIdRef.current) {
+          const r = await fetch('/api/paid-job-retry', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jobId: jobIdRef.current }), signal: controller.signal,
+          });
+          if (r.ok) { jobId = jobIdRef.current; }
+          // retry 실패(예: 만료) → 아래 create로 폴백.
+        }
+        if (!jobId) {
+          const createResp = await fetch('/api/paid-job', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ freeContext, paidAnswers: paid }), signal: controller.signal,
+          });
+          const createText = await createResp.text();
           // eslint-disable-next-line no-console
-          console.error('[paid-analysis] 서버 에러 — status:', status, '| error:', serverErr || '(본문 없음/비JSON)');
-          // 서버가 '입력이 극단적으로 부족'하다고 판단한 경우에만 추가 입력 화면을 띄운다(차단 아님).
-          if (serverErr === 'insufficient_input') {
-            if (!isActive()) return;
-            settled = true;
-            window.clearTimeout(timeout);
-            setPhase('insufficient_input');
+          console.log('[paid-job] CREATE status:', createResp.status, '| body:', createText.slice(0, 300));
+          if (!createResp.ok) {
+            let serverErr = '';
+            try { serverErr = String((JSON.parse(createText) as { error?: unknown })?.error ?? ''); } catch { /* 비-JSON */ }
+            if (serverErr === 'insufficient_input') {
+              if (!isActive()) return;
+              settled = true; window.clearTimeout(timeout); setPhase('insufficient_input'); return;
+            }
+            throw new Error(`create_http_${createResp.status}${serverErr ? `_${serverErr}` : ''}`);
+          }
+          jobId = String((JSON.parse(createText) as { jobId?: string }).jobId ?? '');
+          if (!jobId) throw new Error('no_job_id');
+        }
+        jobIdRef.current = jobId;
+        lastFailedRef.current = false;
+
+        // ── 2) 워커 트리거 — 결과를 기다리지 않는다(결과는 DB에 저장, 폴링으로 읽음). ──
+        //   run worker는 /api/paid-analysis (POST {jobId}). abort되어도 서버 함수는 계속
+        //   실행되어 result_json을 저장한다. 프론트는 이 응답 본문을 렌더에 쓰지 않는다.
+        fetch('/api/paid-analysis', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ jobId }), signal: controller.signal,
+        }).catch(() => { /* fire-and-forget: 폴링이 실제 상태를 읽는다 */ });
+
+        // ── 3) polling — 저장된 status만 신뢰. ready면 result_json 렌더, failed면 실패 UI. ──
+        while (isActive()) {
+          await sleep(POLL_INTERVAL_MS);
+          if (!isActive()) return;
+          let pollResp: Response;
+          try {
+            pollResp = await fetch(`/api/paid-job?id=${encodeURIComponent(jobId)}`, { signal: controller.signal });
+          } catch { continue; /* 일시적 네트워크 오류 → 다음 폴링 */ }
+          if (!pollResp.ok) { if (pollResp.status === 404) { finishError('job_not_found'); return; } continue; }
+          const poll = await pollResp.json() as { status?: string; result_json?: unknown; error_json?: { error?: string; errorType?: string } };
+          // eslint-disable-next-line no-console
+          console.log('[paid-job] POLL status:', poll.status);
+          if (poll.status === 'ready') {
+            if (poll.result_json == null) { finishError('ready_without_result'); return; }
+            renderStoredResult(poll.result_json);
             return;
           }
-          throw new Error(`http_${status}${serverErr ? `_${serverErr}` : ''}`);
-        }
-
-        let parsedRaw: unknown = null;
-        let parseOk = false;
-        try { parsedRaw = JSON.parse(bodyText); parseOk = true; }
-        catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('[paid-analysis] JSON.parse 실패:', err);
-        }
-        // 서버가 이미 canonical을 반환하지만, 프론트도 계약의 normalize로 한 번 더 방어.
-        const normalized = parseOk ? normalizePaidResult(parsedRaw) : null;
-        const errs = normalized ? validationErrors(normalized) : ['parse_failed'];
-        // eslint-disable-next-line no-console
-        console.log('[paid-analysis] parseOk:', parseOk, '| validateOk(normalized):', errs.length === 0,
-          errs.length ? `| 누락/불일치: ${errs.join(', ')}` : '');
-        if (errs.length > 0) {
-          if (parseOk) {
-            // eslint-disable-next-line no-console
-            console.error('[paid-analysis] 받은 top-level keys:', Object.keys((parsedRaw ?? {}) as object));
+          if (poll.status === 'failed') {
+            const et = poll.error_json?.errorType || poll.error_json?.error || 'failed';
+            finishError(`job_failed_${et}`);
+            return;
           }
-          throw new Error(parseOk ? 'validation_failed' : 'parse_failed');
+          // queued/processing → 계속 폴링.
         }
-
-        finishSuccess(normalized as PaidResult);
       } catch (e) {
-        // 타임아웃/언마운트로 abort된 경우는 이미 finishError가 처리했거나 stale이므로 무시.
         if (controller.signal.aborted) return;
         finishError(e instanceof Error ? e.message : 'unknown');
-      } finally {
-        window.clearTimeout(timeout);
       }
     })();
 
