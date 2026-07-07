@@ -26,10 +26,19 @@
 
 > service_role 키는 절대 `VITE_` 접두사를 붙이지 말 것(붙이면 client 번들에 포함됨). 서버 전용 이름으로 둔다.
 
+## 견고성(request-bound worker 보완)
+
+Vercel run worker는 요청 생명주기에 묶여 있어 함수가 죽으면 `processing`에 고착될 수 있다. 이를 다음으로 방어한다:
+
+- **stale timeout**: `GET /api/paid-job` 폴링 시 `processing`이 10분(`STALE_PROCESSING_MS`)을 넘으면 `failed`(`errorType: worker_stale_timeout`)로 reap한다. 이후 retry로 회복 가능.
+- **run idempotency**: 워커 진입은 `update ... where status = 'queued'`로 원자적 전이만 허용한다. 즉 `ready`/`processing`이면 매칭 0행 → 중복 run은 무시된다. `failed`는 워커가 직접 재실행하지 않고 반드시 retry를 거쳐 `queued`가 된 뒤 실행된다.
+- **retry_count 제한**: 최대 `MAX_RETRIES=3`회. 초과 시 `permanent_failed`(`error_json.errorType='permanent_failed'`, `permanent:true`)로 마킹하고 더 이상 큐잉하지 않는다. 프론트는 재시도 버튼 없이 "영구 실패" 화면을 띄운다.
+- **프론트 polling timeout**: 서버 stale timeout과 동일한 10분. 그 안에 `ready`가 안 되면 재시도 화면.
+
 ## 결제(다음 단계)
 
 `payment_status`(unpaid/paid) + `unlocked_at` 컬럼을 미리 뒀다. 정책:
-- job `status=ready`(= `result_json` 저장 성공) 이후에만 결제/paywall 진입.
+- **결제 버튼 노출 조건(3개 모두 충족)**: `status === 'ready'` **AND** `result_json != null` **AND** `quality.passed === true`. 이 값은 `GET /api/paid-job` 응답의 `can_pay`(불리언)와 `quality`로 이미 계산되어 내려온다. `quality`는 run 시 `evidence_pack.quality`에 저장된다(ready면 항상 passed — full_fallback_used는 애초에 failed로 저장되므로 결제 대상이 아님).
 - 결제 성공 → `payment_status=paid`, `unlocked_at` 설정 → 저장된 `result_json` unlock.
 - 금지: 결제 후 첫 Claude 호출 / result_json 없는 상태에서 결제 버튼 노출 / 생성 실패 가능성이 남은 상태의 unlock.
 

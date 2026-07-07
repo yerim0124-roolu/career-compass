@@ -9,6 +9,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const JOBS_TABLE = 'paid_analysis_jobs';
+const STALE_PROCESSING_MS = 10 * 60 * 1000; // processing 10분 초과 → worker_stale_timeout으로 reap.
 let _sb: SupabaseClient | null = null;
 function sbClient(): SupabaseClient | null {
   if (_sb) return _sb;
@@ -35,10 +36,28 @@ export default async function handler(req: any, res: any): Promise<void> {
     const { data, error } = await sb.from(JOBS_TABLE).select().eq('id', id).maybeSingle();
     if (error) { res.status(500).json({ error: 'store_error', detail: includeDiag ? error.message : undefined }); return; }
     if (!data) { res.status(404).json({ error: 'not_found' }); return; }
-    const job = data as any;
-    const out: Record<string, unknown> = { jobId: job.id, status: job.status, payment_status: job.payment_status };
+    let job = data as any;
+
+    // stale reap: processing이 STALE_MS(10분) 넘게 지속되면 worker가 죽은 것으로 보고 failed 처리.
+    //   Vercel run worker는 request-bound라 함수가 죽으면 processing에 고착될 수 있다. retry로 회복 가능.
+    if (job.status === 'processing') {
+      const startedAt = Date.parse(job.updated_at ?? job.created_at ?? '') || 0;
+      if (startedAt && Date.now() - startedAt > STALE_PROCESSING_MS) {
+        const errorJson = { error: 'worker_stale', errorType: 'worker_stale_timeout' };
+        const { data: reaped } = await sb.from(JOBS_TABLE)
+          .update({ status: 'failed', error_json: errorJson, latest_error_json: errorJson, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', id).eq('status', 'processing').select().maybeSingle();
+        // eslint-disable-next-line no-console
+        console.warn('[paid-job] STALE processing → failed(worker_stale_timeout)', { jobId: id });
+        if (reaped) job = reaped as any;
+      }
+    }
+
+    const quality = job.evidence_pack?.quality ?? null;
+    const canPay = job.status === 'ready' && job.result_json != null && quality?.passed === true;
+    const out: Record<string, unknown> = { jobId: job.id, status: job.status, payment_status: job.payment_status, retry_count: job.retry_count, quality, can_pay: canPay };
     if (job.status === 'ready') out.result_json = job.result_json;
-    if (job.status === 'failed') out.error_json = includeDiag ? job.error_json : { error: job.error_json?.error ?? 'failed' };
+    if (job.status === 'failed') out.error_json = includeDiag ? job.error_json : { error: job.error_json?.error ?? 'failed', errorType: job.error_json?.errorType };
     res.status(200).json(out);
     return;
   }

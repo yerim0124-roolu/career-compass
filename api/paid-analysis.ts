@@ -1197,10 +1197,15 @@ async function runJob(res: any, apiKey: string, jobId: string, includeDiag: bool
   console.log('[paid-job] RUN start', { jobId, retry_count: job.retry_count });
   const pre = previewEvidence(input.freeContext, input.paidAnswers);
   const outcome = await generatePaidResult(apiKey, input.freeContext, input.paidAnswers);
+  // quality: ready면 반드시 passed(full_fallback_used는 generatePaidResult가 failed로 반환).
+  //   결제 게이트(status=ready + result_json not null + quality.passed)를 위해 함께 저장한다.
+  const quality = outcome.status === 'ready'
+    ? { passed: true, finalResultSource: outcome.meta.finalResultSource, warnings: outcome.meta.qualityWarnings }
+    : { passed: false };
   const evidence_pack = {
     structuredEvidenceCount: pre.structuredEvidenceCount, highSignalEvidenceCount: pre.highSignalEvidenceCount,
     missingSignals: pre.missingSignals, evidenceSourceBreakdown: pre.evidenceSourceBreakdown, freeTextChars: pre.freeTextChars,
-    keywords: pre.keywords,
+    keywords: pre.keywords, quality,
   };
   try {
     if (outcome.status === 'ready') {

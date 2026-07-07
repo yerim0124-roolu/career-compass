@@ -18,7 +18,7 @@ interface Props {
   paidAnswers?: PaidAnswers | null;
 }
 
-type Phase = 'loading' | 'success' | 'error' | 'no_answers' | 'insufficient_input';
+type Phase = 'loading' | 'success' | 'error' | 'no_answers' | 'insufficient_input' | 'permanent_failed';
 
 // 서술형 길이로는 절대 막지 않는다(맥락은 대부분 구조화 답변에 있음). 문장 수는 진단 로그용.
 function countSentences(text: string): number {
@@ -80,8 +80,8 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     // 이 실행이 여전히 최신이고 아직 종결 전일 때만 상태를 바꾼다.
     const isActive = () => myRun === runIdRef.current && !settled;
 
-    // polling / 워커 지연을 감안한 하드 타임아웃. 워커(run)는 최대 180초, 폴링은 여유 있게 210초.
-    const HARD_TIMEOUT_MS = 210000;
+    // polling 하드 타임아웃 = 서버 stale-timeout(10분)과 동일. 그 안에 ready가 안 되면 재시도 화면.
+    const HARD_TIMEOUT_MS = 600000; // 10분
     const POLL_INTERVAL_MS = 3000;
 
     const finishError = (reason: string) => {
@@ -149,7 +149,15 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
             method: 'POST', headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ jobId: jobIdRef.current }), signal: controller.signal,
           });
-          if (r.ok) { jobId = jobIdRef.current; }
+          if (r.ok) {
+            const rj = await r.json().catch(() => ({})) as { permanent?: boolean };
+            // retry_count 초과 → permanent_failed. 더 이상 재시도하지 않는다.
+            if (rj.permanent) {
+              if (!isActive()) return;
+              settled = true; window.clearTimeout(timeout); setPhase('permanent_failed'); return;
+            }
+            jobId = jobIdRef.current;
+          }
           // retry 실패(예: 만료) → 아래 create로 폴백.
         }
         if (!jobId) {
@@ -202,6 +210,12 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           }
           if (poll.status === 'failed') {
             const et = poll.error_json?.errorType || poll.error_json?.error || 'failed';
+            // 이미 permanent로 마킹된 job이면 재시도 화면 대신 영구 실패 화면.
+            if (et === 'permanent_failed') {
+              if (!isActive()) return;
+              settled = true; lastFailedRef.current = true; window.clearTimeout(timeout);
+              logPaidAnalysisFailed('permanent_failed'); setPhase('permanent_failed'); return;
+            }
             finishError(`job_failed_${et}`);
             return;
           }
@@ -267,6 +281,27 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
             style={{ borderColor: BOX_BORDER, borderTopColor: PURPLE }} aria-hidden />
           <p className="text-sm text-slate-600 leading-relaxed">{LOADING_MESSAGES[msgIndex]}</p>
           <p className="text-[11px] text-slate-400">1~2분 정도 걸릴 수 있어요.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 영구 실패(재시도 한도 초과) — 재시도 버튼 없음 ──
+  if (phase === 'permanent_failed') {
+    return (
+      <div className="min-h-dvh bg-white">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
+          <p className="text-2xl" aria-hidden>🙏</p>
+          <p className="text-base font-black text-slate-800">지금은 분석을 완성하지 못했어요</p>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            여러 번 시도했지만 리포트를 만들지 못했어요. 결제는 진행되지 않았어요.
+            잠시 뒤 처음부터 다시 시도해 주시면 도움이 될 수 있어요.
+          </p>
+          <button type="button" onClick={() => { window.location.hash = '#paid-questions'; }}
+            className="px-6 py-3 rounded-2xl text-white font-bold" style={{ background: PURPLE }}>
+            심화 문항으로 가기 <span aria-hidden>→</span>
+          </button>
         </div>
       </div>
     );

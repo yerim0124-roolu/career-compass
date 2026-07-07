@@ -6,6 +6,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const JOBS_TABLE = 'paid_analysis_jobs';
+const MAX_RETRIES = 3; // 이 횟수를 초과하면 permanent_failed(더 이상 재시도 불가).
 let _sb: SupabaseClient | null = null;
 function sbClient(): SupabaseClient | null {
   if (_sb) return _sb;
@@ -36,7 +37,19 @@ export default async function handler(req: any, res: any): Promise<void> {
   const job = data as any;
   if (job.status !== 'failed') { res.status(200).json({ jobId, status: job.status, note: 'not_failed_no_retry' }); return; }
 
-  const nextRetry = (job.retry_count ?? 0) + 1;
+  // retry_count 제한: 초과 시 permanent_failed(더 이상 큐잉하지 않음, 프론트는 재시도 버튼 숨김).
+  const usedRetries = job.retry_count ?? 0;
+  if (usedRetries >= MAX_RETRIES) {
+    const prev = job.error_json ?? job.latest_error_json ?? {};
+    const permanent = { ...(typeof prev === 'object' ? prev : {}), errorType: 'permanent_failed', permanent: true };
+    await sb.from(JOBS_TABLE).update({ error_json: permanent, latest_error_json: permanent, updated_at: new Date().toISOString() }).eq('id', jobId);
+    // eslint-disable-next-line no-console
+    console.warn('[paid-job] RETRY blocked → permanent_failed', { jobId, usedRetries, MAX_RETRIES });
+    res.status(200).json({ jobId, status: 'failed', permanent: true, errorType: 'permanent_failed', retry_count: usedRetries });
+    return;
+  }
+
+  const nextRetry = usedRetries + 1;
   const { error: upErr } = await sb.from(JOBS_TABLE).update({
     status: 'queued', retry_count: nextRetry, result_json: null,
     latest_error_json: job.error_json ?? job.latest_error_json ?? null,
