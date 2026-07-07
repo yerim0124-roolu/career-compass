@@ -20,6 +20,18 @@ interface Props {
 
 type Phase = 'loading' | 'success' | 'error' | 'no_answers' | 'insufficient_input' | 'permanent_failed';
 
+// GET /api/paid-job polling 응답 shape. result_json/quality/can_pay는 ready일 때 채워진다.
+interface PollResponse {
+  status?: 'queued' | 'processing' | 'ready' | 'failed' | string;
+  result_json?: unknown;
+  result?: unknown; // 별칭 방어
+  quality?: { passed?: boolean; finalResultSource?: string; warnings?: string[] } | null;
+  can_pay?: boolean;
+  payment_status?: string;
+  retry_count?: number;
+  error_json?: { error?: string; errorType?: string } | null;
+}
+
 // 서술형 길이로는 절대 막지 않는다(맥락은 대부분 구조화 답변에 있음). 문장 수는 진단 로그용.
 function countSentences(text: string): number {
   return text.split(/[\n.!?]|다\.|요\.|음\./).map((s) => s.trim()).filter((s) => s.length >= 5).length;
@@ -106,15 +118,33 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     const timeout = window.setTimeout(() => { controller.abort(); finishError('timeout'); }, HARD_TIMEOUT_MS);
     const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 
-    // 저장된 result_json을 프론트 계약으로 한 번 더 방어 정규화 후 렌더.
-    const renderStoredResult = (resultJson: unknown): boolean => {
-      const normalized = normalizePaidResult(resultJson);
-      const errs = validationErrors(normalized);
-      // eslint-disable-next-line no-console
-      console.log('[paid-job] stored result validateOk:', errs.length === 0, errs.length ? `| ${errs.join(', ')}` : '');
-      if (errs.length > 0) { finishError('validation_failed'); return false; }
-      finishSuccess(normalized as PaidResult);
-      return true;
+    // 저장된 ready job을 렌더한다. 서버가 이미 검증/quality gate를 통과시킨 결과이므로,
+    // 프론트 validationErrors는 '경고'일 뿐 차단 사유가 아니다(shape 라운드트립 차이로 인한
+    // false negative 방지). Hard fail은 아래만: result_json 없음 / quality.passed===false /
+    // finalResultSource === full_fallback_used.
+    const renderStoredResult = (poll: PollResponse): boolean => {
+      const resultJson = poll.result_json ?? poll.result ?? null;
+      const finalSource = poll.quality?.finalResultSource;
+      try {
+        if (!resultJson) throw new Error('ready_without_result_json');
+        if (poll.quality && poll.quality.passed === false) throw new Error('quality_not_passed');
+        if (finalSource === 'full_fallback_used') throw new Error('full_fallback_used');
+        // normalize는 렌더 shape 보장용(배열/섹션 기본값 채움). 결과가 비어도 터지지 않게.
+        const normalized = normalizePaidResult(resultJson);
+        const warns = validationErrors(normalized);
+        // eslint-disable-next-line no-console
+        console.log('[paid-job] READY render | can_pay:', poll.can_pay, '| finalSource:', finalSource,
+          '| validation warnings(non-blocking):', warns.length ? warns.join(', ') : 'none');
+        finishSuccess(normalized as PaidResult);
+        return true;
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[paid-analysis] RENDER_READY_ERROR', {
+          status: poll.status, hasResultJson: !!resultJson, quality: poll.quality, error,
+        });
+        finishError(error instanceof Error ? error.message : 'render_ready_error');
+        return false;
+      }
     };
 
     (async () => {
@@ -205,12 +235,11 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           // 304가 오더라도(중간 프록시 등) 절대 fatal로 처리하지 않고 다음 폴링으로 넘어간다.
           if (pollResp.status === 304) { continue; }
           if (!pollResp.ok) { if (pollResp.status === 404) { finishError('job_not_found'); return; } continue; }
-          const poll = await pollResp.json() as { status?: string; result_json?: unknown; error_json?: { error?: string; errorType?: string } };
+          const poll = await pollResp.json() as PollResponse;
           // eslint-disable-next-line no-console
-          console.log('[paid-job] POLL status:', poll.status);
+          console.log('[paid-job] POLL status:', poll.status, '| can_pay:', poll.can_pay);
           if (poll.status === 'ready') {
-            if (poll.result_json == null) { finishError('ready_without_result'); return; }
-            renderStoredResult(poll.result_json);
+            renderStoredResult(poll);
             return;
           }
           if (poll.status === 'failed') {
@@ -333,7 +362,11 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
 
   // ── 성공 (narrative report) ──
   const { summaryCard, currentPosition, whyNow, innerConflict, riskMap, transitionAssets,
-    monthlyExperiment, futureMessage, sevenDayPlan, recheckCriteria, ifTwoOrMoreYes, ifAllNo } = result;
+    monthlyExperiment, futureMessage, ifTwoOrMoreYes, ifAllNo } = result;
+  // optional 배열은 비어도 렌더가 터지지 않게 방어(normalize가 보장하지만 이중 안전장치).
+  const sevenDayPlan = result.sevenDayPlan ?? [];
+  const recheckCriteria = result.recheckCriteria ?? [];
+  const experiments = monthlyExperiment?.experiments ?? [];
 
   const summaryRows: Array<{ label: string; value: string }> = [
     { label: '지금 핵심', value: summaryCard.coreNow },
@@ -385,10 +418,10 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
 
         {/* 이번 달의 30일 실험 — 서사 본문 + 구조화 실험 카드 */}
         <section className="space-y-3">
-          <h2 className="text-base font-black text-slate-800">【{monthlyExperiment.title}】</h2>
-          <p className="text-[15px] leading-[1.85] text-slate-700 whitespace-pre-line">{monthlyExperiment.body}</p>
+          <h2 className="text-base font-black text-slate-800">【{monthlyExperiment?.title || '이번 달의 30일 실험'}】</h2>
+          <p className="text-[15px] leading-[1.85] text-slate-700 whitespace-pre-line">{monthlyExperiment?.body}</p>
           <div className="space-y-4 pt-1">
-            {monthlyExperiment.experiments.map((exp, i) => (
+            {experiments.map((exp, i) => (
               <article key={i} className="rounded-2xl p-4 space-y-2" style={{ background: '#FBFAFE', border: `1px solid ${BOX_BORDER}` }}>
                 <h3 className="text-[15px] font-bold" style={{ color: '#5E5280' }}>{exp.title || `실험 ${i + 1}`}</h3>
                 {exp.body && <p className="text-[14px] leading-[1.75] text-slate-700 whitespace-pre-line">{exp.body}</p>}
