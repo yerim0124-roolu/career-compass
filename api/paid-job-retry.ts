@@ -34,6 +34,11 @@ export default async function handler(req: any, res: any): Promise<void> {
   applyNoStore(res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'method_not_allowed' }); return; }
   const includeDiag = process.env.VERCEL_ENV !== 'production';
+  // 운영자 전용. 고객 화면에서는 호출하지 않는다. ADMIN_RETRY_SECRET 헤더가 일치할 때만 허용.
+  //   secret 미설정이거나 불일치면 403(안전한 기본값 = 거부).
+  const secret = process.env.ADMIN_RETRY_SECRET;
+  const provided = (req.headers?.['x-admin-retry-secret'] ?? '').toString();
+  if (!secret || provided !== secret) { res.status(403).json({ error: 'forbidden' }); return; }
   const sb = sbClient();
   if (!sb) { res.status(503).json({ error: 'not_configured', detail: 'supabase env missing' }); return; }
 

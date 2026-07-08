@@ -23,8 +23,28 @@
 - `SUPABASE_SERVICE_ROLE_KEY` — **권장**. RLS를 우회해 job을 안전하게 읽고 쓴다. Supabase → Project Settings → API → `service_role` secret.
   - service_role 키가 없으면 `SUPABASE_ANON_KEY`/`VITE_SUPABASE_ANON_KEY`로 폴백하지만, 이 경우 `db/paid_analysis_jobs.sql` 하단의 anon 정책을 열어야 하며 보안상 권장하지 않는다.
 - `ANTHROPIC_API_KEY` — 기존과 동일(변경 없음).
+- `ADMIN_RETRY_SECRET` — (선택) 운영자 수동 재시도용. `POST /api/paid-job-retry`는 `x-admin-retry-secret` 헤더가 이 값과 일치할 때만 동작하고, 없거나 틀리면 403. 미설정 시 재시도 엔드포인트는 항상 403(고객은 호출 불가).
 
-> service_role 키는 절대 `VITE_` 접두사를 붙이지 말 것(붙이면 client 번들에 포함됨). 서버 전용 이름으로 둔다.
+> service_role 키/ADMIN_RETRY_SECRET은 절대 `VITE_` 접두사를 붙이지 말 것(붙이면 client 번들에 포함됨). 서버 전용 이름으로 둔다.
+
+## 원가 추적(usage)
+
+Claude 호출마다 `model` + `usage`(input/output tokens)를 수집해 job에 저장한다. Sonnet 4.6 단가($3/1M in, $15/1M out)로 `estimated_cost_usd`를 추정하되, `usage_json`에는 원본 usage(cache 토큰 포함)를 그대로 보존한다. quality gate로 repair된 경우에도 비용은 발생했으므로 저장하며, main 성공 후 실패한 경우에도 usage를 남긴다.
+
+`usage_json` 구조: `{ main: {input_tokens, output_tokens, estimated_cost_usd, raw}, repair?: {...}, total: {...} }`.
+
+최근 job 원가 조회 예시:
+
+```sql
+select id, status, model,
+       (usage_json->'total'->>'estimated_cost_usd')::numeric as cost_usd,
+       (usage_json->'total'->>'input_tokens')::int as in_tok,
+       (usage_json->'total'->>'output_tokens')::int as out_tok,
+       created_at
+from public.paid_analysis_jobs
+order by created_at desc
+limit 50;
+```
 
 ## 견고성(request-bound worker 보완)
 

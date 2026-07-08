@@ -24,7 +24,7 @@ function getServerSupabase(): SupabaseClient | null {
   _sbCache = createClient(url, key, { auth: { persistSession: false } });
   return _sbCache;
 }
-type JobRow = { id: string; status: string; input_json: any; retry_count: number };
+type JobRow = { id: string; status: string; input_json: any; retry_count: number; result_json?: any };
 async function getJobRow(sb: SupabaseClient, id: string): Promise<any | null> {
   const { data, error } = await sb.from(JOBS_TABLE).select().eq('id', id).maybeSingle();
   if (error) throw new Error(`getJob: ${error.message}`);
@@ -1094,7 +1094,18 @@ function buildContentRepairInput(currentJson: string, profileFacts: string, evid
 
 /** Anthropic 비스트리밍 호출. 텍스트 반환, upstream 실패 시 throw. */
 // errorType을 구분해 throw한다: claude_abort_timeout / claude_http_error / claude_network_error.
-async function callClaude(apiKey: string, system: string, userContent: string, maxTokens: number, timeoutMs?: number): Promise<string> {
+// Claude usage(토큰) — 결과지 1건당 실제 원가 추적용.
+export type ClaudeUsage = { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
+export type ClaudeCallResult = { text: string; model: string; usage: ClaudeUsage };
+// Sonnet 4.6 단가(USD/1M tokens). cache 토큰은 원본 usage를 그대로 저장하고, 추정치는 단순 계산으로 시작.
+const SONNET_INPUT_PER_MTOK = 3;
+const SONNET_OUTPUT_PER_MTOK = 15;
+export function estimateClaudeCostUsd(usage: ClaudeUsage): number {
+  const inputTokens = usage.input_tokens ?? 0;
+  const outputTokens = usage.output_tokens ?? 0;
+  return (inputTokens / 1_000_000) * SONNET_INPUT_PER_MTOK + (outputTokens / 1_000_000) * SONNET_OUTPUT_PER_MTOK;
+}
+async function callClaude(apiKey: string, system: string, userContent: string, maxTokens: number, timeoutMs?: number): Promise<ClaudeCallResult> {
   const controller = new AbortController();
   let timedOut = false;
   const to = timeoutMs ? setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs) : undefined;
@@ -1113,8 +1124,21 @@ async function callClaude(apiKey: string, system: string, userContent: string, m
     if (to) clearTimeout(to);
   }
   if (!upstream.ok) throw new Error(`claude_http_error_${upstream.status}`);
-  const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
-  return data.content?.find((c) => c.type === 'text')?.text ?? '';
+  const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }>; usage?: ClaudeUsage; model?: string };
+  const text = data.content?.find((c) => c.type === 'text')?.text ?? '';
+  return { text, model: data.model ?? MODEL, usage: data.usage ?? {} };
+}
+// 여러 호출(main/repair)의 usage를 합산해 usage_json에 저장할 요약을 만든다.
+export function summarizeUsage(calls: Array<{ phase: string; usage: ClaudeUsage }>): Record<string, unknown> {
+  const summary: Record<string, unknown> = {};
+  let ti = 0; let to = 0; let tc = 0;
+  for (const c of calls) {
+    const i = c.usage.input_tokens ?? 0; const o = c.usage.output_tokens ?? 0; const cost = estimateClaudeCostUsd(c.usage);
+    summary[c.phase] = { input_tokens: i, output_tokens: o, estimated_cost_usd: Number(cost.toFixed(6)), raw: c.usage };
+    ti += i; to += o; tc += cost;
+  }
+  summary.total = { input_tokens: ti, output_tokens: to, estimated_cost_usd: Number(tc.toFixed(6)) };
+  return summary;
 }
 function classifyClaudeError(msg: string): string {
   if (msg.startsWith('claude_abort_timeout')) return 'claude_abort_timeout';
@@ -1307,10 +1331,11 @@ export type GenerateMeta = {
   highSignalEvidenceCount: number; qualityWarnings: string[];
   contentRepairAttempted: boolean; contentRepairSucceeded: boolean; elapsedMs: number;
   qualityPassed: boolean; displayable: boolean; deterministicRepair: boolean; blockers: string[];
+  model: string; usage: Record<string, unknown>;
 };
 export type GenerateOutcome =
   | { status: 'ready'; resultJson: PaidAnalysisResult; meta: GenerateMeta }
-  | { status: 'failed'; errorJson: { error: string; errorType?: string; finalResultSource?: string; extractedSections?: number; qualityWarnings?: string[]; blockers?: string[]; elapsedMs?: number } };
+  | { status: 'failed'; errorJson: { error: string; errorType?: string; finalResultSource?: string; extractedSections?: number; qualityWarnings?: string[]; blockers?: string[]; elapsedMs?: number; model?: string; usage?: Record<string, unknown> } };
 
 /**
  * 순수 생성 코어 — Claude 호출→파싱→quality gate→sanitize를 수행하고
@@ -1318,8 +1343,9 @@ export type GenerateOutcome =
  * job worker(run)와 하위호환 sync handler가 공유한다.
  */
 export async function generatePaidResult(
-  apiKey: string, freeContext: FreeContext, paidAnswers: PaidAnswers,
+  apiKey: string, freeContext: FreeContext, paidAnswers: PaidAnswers, jobId?: string,
 ): Promise<GenerateOutcome> {
+  const usageCalls: Array<{ phase: string; usage: ClaudeUsage }> = [];
   const facts = buildProfileFacts(freeContext);
   const evidence = buildUserEvidencePack(freeContext, paidAnswers);
   // eslint-disable-next-line no-console
@@ -1338,7 +1364,15 @@ export async function generatePaidResult(
 
   const t0 = Date.now();
   try {
-    const raw1 = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS, MAIN_CALL_TIMEOUT_MS);
+    // eslint-disable-next-line no-console
+    console.log('[paid] CLAUDE_START', { jobId, model: MODEL, maxTokens: MAX_OUTPUT_TOKENS, phase: 'main' });
+    const c1 = await callClaude(apiKey, PAID_SYSTEM_PROMPT, userContent, MAX_OUTPUT_TOKENS, MAIN_CALL_TIMEOUT_MS);
+    const raw1 = c1.text;
+    usageCalls.push({ phase: 'main', usage: c1.usage });
+    // eslint-disable-next-line no-console
+    console.log('[paid] CLAUDE_USAGE', { jobId, model: c1.model, phase: 'main',
+      inputTokens: c1.usage.input_tokens ?? 0, outputTokens: c1.usage.output_tokens ?? 0,
+      estimatedCostUsd: Number(estimateClaudeCostUsd(c1.usage).toFixed(6)) });
     const ms1 = Date.now() - t0;
     let tag = parseTaggedResult(raw1);
     if (tag.sectionCount === 0) { const j = extractJson(raw1); if (j && rawContentReport(j).hasCore) tag = { obj: j as Record<string, unknown>, sectionCount: 7, coreSectionCount: 4 }; }
@@ -1367,9 +1401,17 @@ export async function generatePaidResult(
     if (shouldRepair) {
       contentRepairAttempted = true;
       const tC = Date.now();
-      const cr = await callClaude(apiKey, CONTENT_REPAIR_SYSTEM_PROMPT,
+      // eslint-disable-next-line no-console
+      console.log('[paid] CLAUDE_START', { jobId, model: MODEL, maxTokens: MAX_OUTPUT_TOKENS, phase: 'repair' });
+      const crRes = await callClaude(apiKey, CONTENT_REPAIR_SYSTEM_PROMPT,
         buildContentRepairInput(JSON.stringify(result), facts.text, evidence.text, warnings.length ? warnings : ['full_fallback_recovery']),
         MAX_OUTPUT_TOKENS, REPAIR_CALL_TIMEOUT_MS);
+      const cr = crRes.text;
+      usageCalls.push({ phase: 'repair', usage: crRes.usage });
+      // eslint-disable-next-line no-console
+      console.log('[paid] CLAUDE_USAGE', { jobId, model: crRes.model, phase: 'repair',
+        inputTokens: crRes.usage.input_tokens ?? 0, outputTokens: crRes.usage.output_tokens ?? 0,
+        estimatedCostUsd: Number(estimateClaudeCostUsd(crRes.usage).toFixed(6)) });
       let ct = parseTaggedResult(cr);
       if (ct.sectionCount === 0) { const j = extractJson(cr); if (j) ct = { obj: j as Record<string, unknown>, sectionCount: 7, coreSectionCount: 4 }; }
       const cRep = rawContentReport(ct.obj);
@@ -1423,21 +1465,28 @@ export async function generatePaidResult(
       }
     }
     const qualityPassed = blockers.length === 0;
+    const usage = summarizeUsage(usageCalls);
+    const totalCost = (usage.total as { estimated_cost_usd?: number } | undefined)?.estimated_cost_usd ?? 0;
     // eslint-disable-next-line no-console
     console.log('[paid] READY(displayable) | source:', finalResultSource, '| qualityPassed:', qualityPassed,
-      '| deterministicRepair:', deterministicRepair, '| residualBlockers:', blockers.length ? blockers.join(',') : 'none');
+      '| deterministicRepair:', deterministicRepair, '| residualBlockers:', blockers.length ? blockers.join(',') : 'none',
+      '| estimatedCostUsd:', totalCost);
     return { status: 'ready', resultJson: result, meta: {
       finalResultSource, extractedSections: tag.sectionCount, evidenceKeywordCount,
       highSignalEvidenceCount: evidence.highSignalEvidenceCount, qualityWarnings: finalWarnings,
       contentRepairAttempted, contentRepairSucceeded, elapsedMs,
       qualityPassed, displayable: true, deterministicRepair, blockers,
+      model: MODEL, usage,
     } };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown';
     const errorType = classifyClaudeError(msg);
+    // main이 성공한 뒤 repair 단계에서 실패해도 이미 발생한 비용은 저장한다.
+    const usage = summarizeUsage(usageCalls);
     // eslint-disable-next-line no-console
-    console.error('[paid] upstream/exception:', msg, '| errorType:', errorType, '| ms:', Date.now() - t0);
-    return { status: 'failed', errorJson: { error: 'upstream_error', errorType, elapsedMs: Date.now() - t0 } };
+    console.error('[paid] upstream/exception:', msg, '| errorType:', errorType, '| ms:', Date.now() - t0,
+      '| estimatedCostUsd:', (usage.total as { estimated_cost_usd?: number } | undefined)?.estimated_cost_usd ?? 0);
+    return { status: 'failed', errorJson: { error: 'upstream_error', errorType, elapsedMs: Date.now() - t0, model: MODEL, usage } };
   }
 }
 
@@ -1461,10 +1510,15 @@ async function runJob(res: any, apiKey: string, jobId: string, includeDiag: bool
     await updateJobRow(sb, jobId, { status: 'failed', error_json: errorJson, latest_error_json: errorJson, completed_at: new Date().toISOString() }).catch(() => {});
     res.status(422).json(errorJson); return;
   }
+  // 이미 result_json이 있으면 Claude를 재호출하지 않는다(claim이 queued만 잡으므로 정상적으로는
+  //   여기 오지 않지만, 이중 방어). 있으면 그대로 ready 반환.
+  if (job.result_json != null) {
+    res.status(200).json({ jobId, status: 'ready', note: 'already_has_result' }); return;
+  }
   // eslint-disable-next-line no-console
   console.log('[paid-job] RUN start', { jobId, retry_count: job.retry_count });
   const pre = previewEvidence(input.freeContext, input.paidAnswers);
-  const outcome = await generatePaidResult(apiKey, input.freeContext, input.paidAnswers);
+  const outcome = await generatePaidResult(apiKey, input.freeContext, input.paidAnswers, jobId);
   // quality: ready여도 passed가 false일 수 있다(결과지는 항상 displayable). 결제 게이트는
   //   passed===true일 때만 can_pay=true. 심화 결과지 자체는 passed와 무관하게 렌더된다.
   const quality = outcome.status === 'ready'
@@ -1476,16 +1530,20 @@ async function runJob(res: any, apiKey: string, jobId: string, includeDiag: bool
     missingSignals: pre.missingSignals, evidenceSourceBreakdown: pre.evidenceSourceBreakdown, freeTextChars: pre.freeTextChars,
     keywords: pre.keywords, quality,
   };
+  // Claude usage / model — repair로 quality gate에 걸려도 비용은 발생했으므로 반드시 저장한다.
+  const usageJson = outcome.status === 'ready' ? outcome.meta.usage : (outcome.errorJson.usage ?? {});
+  const usedModel = outcome.status === 'ready' ? outcome.meta.model : (outcome.errorJson.model ?? MODEL);
+  const costUsd = (usageJson?.total as { estimated_cost_usd?: number } | undefined)?.estimated_cost_usd ?? 0;
   try {
     if (outcome.status === 'ready') {
-      await updateJobRow(sb, jobId, { status: 'ready', result_json: outcome.resultJson, error_json: null, evidence_pack, completed_at: new Date().toISOString() });
+      await updateJobRow(sb, jobId, { status: 'ready', result_json: outcome.resultJson, error_json: null, evidence_pack, model: usedModel, usage_json: usageJson, completed_at: new Date().toISOString() });
       // eslint-disable-next-line no-console
-      console.log('[paid-job] RUN ready', { jobId, finalResultSource: outcome.meta.finalResultSource });
+      console.log('[paid] DONE', { jobId, status: 'ready', model: usedModel, estimatedCostUsd: costUsd, resultExists: true, repaired: quality.repaired });
       res.status(200).json({ jobId, status: 'ready' });
     } else {
-      await updateJobRow(sb, jobId, { status: 'failed', error_json: outcome.errorJson, latest_error_json: outcome.errorJson, evidence_pack, completed_at: new Date().toISOString() });
+      await updateJobRow(sb, jobId, { status: 'failed', error_json: outcome.errorJson, latest_error_json: outcome.errorJson, evidence_pack, model: usedModel, usage_json: usageJson, completed_at: new Date().toISOString() });
       // eslint-disable-next-line no-console
-      console.error('[paid-job] RUN failed', { jobId, error: outcome.errorJson.error, errorType: outcome.errorJson.errorType });
+      console.log('[paid] DONE', { jobId, status: 'failed', model: usedModel, estimatedCostUsd: costUsd, resultExists: false, error: outcome.errorJson.error, errorType: outcome.errorJson.errorType });
       res.status(200).json({ jobId, status: 'failed', error_json: includeDiag ? outcome.errorJson : { error: outcome.errorJson.error } });
     }
   } catch (e) {

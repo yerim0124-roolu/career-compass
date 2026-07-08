@@ -19,10 +19,18 @@ create table if not exists public.paid_analysis_jobs (
   payment_status    text not null default 'unpaid'
                       check (payment_status in ('unpaid','paid')),
   unlocked_at       timestamptz,
+  model             text,
+  usage_json        jsonb default '{}'::jsonb,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now(),
   completed_at      timestamptz
 );
+
+-- 기존 테이블에도 적용 가능한 migration(이미 만든 경우 이 블록만 실행).
+alter table public.paid_analysis_jobs add column if not exists usage_json jsonb default '{}'::jsonb;
+alter table public.paid_analysis_jobs add column if not exists model text;
+-- PostgREST 스키마 캐시 갱신.
+notify pgrst, 'reload schema';
 
 create index if not exists paid_analysis_jobs_session_idx  on public.paid_analysis_jobs (user_session_id);
 create index if not exists paid_analysis_jobs_status_idx   on public.paid_analysis_jobs (status);

@@ -1,12 +1,12 @@
 // Career Compass — 유료 심화 분석 결과 화면 (#paid-result).
 //
 // [영속 job 방식] 브라우저는 Claude 실시간 생성에 의존하지 않는다. 대신:
-//   1) POST /api/paid-job        — job 생성(queued). {jobId} 수신.
-//   2) POST /api/paid-job-run    — 워커 트리거(await하지 않음; 결과는 DB에 저장됨).
-//   3) GET  /api/paid-job?id=... — polling. status=ready면 저장된 result_json만 렌더.
-// 실패/timeout/schema/quality 실패는 job failed로 저장되어 실패 UI + 재시도(/paid-job-retry)로
-// 처리된다. 프론트는 Claude raw response를 직접 렌더하지 않는다(저장된 result_json만).
-// API 키는 서버에서만 쓰인다. 접근 게이팅은 App.tsx의 플래그.
+//   1) POST /api/paid-job          — job 생성(queued). {jobId} 수신. (같은 입력이면 재사용, 새 job 금지)
+//   2) POST /api/paid-analysis     — 워커 트리거(await하지 않음; 결과는 DB에 저장, idempotent).
+//   3) GET  /api/paid-job?id=...   — polling. status=ready + result_json이면 무조건 렌더.
+// [고객 재시도 금지] 결제 완료 고객 화면이므로 실패해도 재시도 버튼/자동 retry가 없다. 재시도는
+//   운영자 영역(/api/paid-job-retry, ADMIN_RETRY_SECRET). 실패 시 안내 문구만 노출한다.
+// 프론트는 Claude raw response를 직접 렌더하지 않는다(저장된 result_json만). API 키는 서버 전용.
 
 import { useEffect, useRef, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
@@ -47,6 +47,24 @@ const PURPLE = '#8C6FD6';
 const BOX_BG = '#F5F1FC';
 const BOX_BORDER = '#E4DAF7';
 
+// 같은 입력이면 새로고침해도 기존 job을 재사용(새 job/Claude 재호출 방지)하기 위한 로컬 저장.
+const PAID_JOB_KEY = 'career-compass-paid-job-v1';
+function djb2(s: string): string { let h = 5381; for (let i = 0; i < s.length; i++) h = (((h << 5) + h) + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
+function inputSignature(free: unknown, paid: unknown): string {
+  try { return djb2(`${JSON.stringify(free)}|${JSON.stringify(paid)}`); } catch { return 'nosig'; }
+}
+function readStoredJobId(sig: string): string {
+  try {
+    const raw = window.localStorage.getItem(PAID_JOB_KEY);
+    if (!raw) return '';
+    const o = JSON.parse(raw) as { sig?: string; jobId?: string };
+    return o && o.sig === sig && typeof o.jobId === 'string' ? o.jobId : '';
+  } catch { return ''; }
+}
+function writeStoredJobId(sig: string, jobId: string): void {
+  try { window.localStorage.setItem(PAID_JOB_KEY, JSON.stringify({ sig, jobId })); } catch { /* storage 불가 무시 */ }
+}
+
 function Header() {
   return (
     <header className="border-b border-slate-200 bg-white/95 backdrop-blur sticky top-0 z-10">
@@ -60,7 +78,6 @@ function Header() {
 export default function PaidResultView({ paidAnswers }: Props = {}) {
   const [phase, setPhase] = useState<Phase>(paidAnswers ? 'loading' : 'no_answers');
   const [result, setResult] = useState<PaidResult | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const [msgIndex, setMsgIndex] = useState(0);
 
   // 로딩 문구 순환.
@@ -74,12 +91,10 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   const paidRef = useRef(paidAnswers);
   paidRef.current = paidAnswers;
 
-  // 각 실행(mount/재시도)의 고유 id — 늦게 도착한 stale 콜백을 무시하기 위함.
+  // 늦게 도착한 stale 콜백을 무시하기 위한 실행 id.
   const runIdRef = useRef(0);
-  // 현재 job id(재시도용) + 직전이 실패였는지(같은 input으로 retry할지 판단).
-  const jobIdRef = useRef<string | null>(null);
-  const lastFailedRef = useRef(false);
 
+  // mount당 1회만 실행 — 새로고침해도 같은 입력이면 기존 jobId를 재사용(새 job/Claude 재호출 없음).
   useEffect(() => {
     const paid = paidRef.current;
     if (!paid) { setPhase('no_answers'); return; }
@@ -98,7 +113,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
 
     const finishError = (reason: string) => {
       if (!isActive()) return;
-      settled = true; lastFailedRef.current = true;
+      settled = true;
       window.clearTimeout(timeout);
       logPaidAnalysisFailed(reason);
       // eslint-disable-next-line no-console
@@ -107,7 +122,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     };
     const finishSuccess = (data: PaidResult) => {
       if (!isActive()) return;
-      settled = true; lastFailedRef.current = false;
+      settled = true;
       window.clearTimeout(timeout);
       // eslint-disable-next-line no-console
       console.log('[paid-job] → success: 저장된 result_json 렌더');
@@ -174,25 +189,14 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           freeTextChars,
         });
 
-        // ── 1) job 확보: 직전 실패 + 기존 job이 있으면 같은 input으로 retry, 아니면 새로 create ──
-        let jobId = '';
-        if (lastFailedRef.current && jobIdRef.current) {
-          const r = await fetch('/api/paid-job-retry', {
-            method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ jobId: jobIdRef.current }), signal: controller.signal,
-          });
-          if (r.ok) {
-            const rj = await r.json().catch(() => ({})) as { permanent?: boolean };
-            // retry_count 초과 → permanent_failed. 더 이상 재시도하지 않는다.
-            if (rj.permanent) {
-              if (!isActive()) return;
-              settled = true; window.clearTimeout(timeout); setPhase('permanent_failed'); return;
-            }
-            jobId = jobIdRef.current;
-          }
-          // retry 실패(예: 만료) → 아래 create로 폴백.
-        }
-        if (!jobId) {
+        // ── 1) job 확보: 같은 입력의 기존 jobId가 있으면 재사용(새 job/Claude 재호출 금지).
+        //   없을 때만 1회 create. 새로고침·재진입해도 새 job을 만들지 않는다.
+        const sig = inputSignature(freeContext, paid);
+        let jobId = readStoredJobId(sig);
+        if (jobId) {
+          // eslint-disable-next-line no-console
+          console.log('[paid-job] REUSE stored jobId:', jobId);
+        } else {
           const createResp = await fetch('/api/paid-job', {
             method: 'POST', headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ freeContext, paidAnswers: paid }), signal: controller.signal,
@@ -211,13 +215,12 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           }
           jobId = String((JSON.parse(createText) as { jobId?: string }).jobId ?? '');
           if (!jobId) throw new Error('no_job_id');
+          writeStoredJobId(sig, jobId);
         }
-        jobIdRef.current = jobId;
-        lastFailedRef.current = false;
 
-        // ── 2) 워커 트리거 — 결과를 기다리지 않는다(결과는 DB에 저장, 폴링으로 읽음). ──
-        //   run worker는 /api/paid-analysis (POST {jobId}). abort되어도 서버 함수는 계속
-        //   실행되어 result_json을 저장한다. 프론트는 이 응답 본문을 렌더에 쓰지 않는다.
+        // ── 2) 워커 트리거(idempotent) — 결과를 기다리지 않는다(결과는 DB, 폴링으로 읽음).
+        //   run worker는 /api/paid-analysis (POST {jobId}). 이미 result_json이 있으면 서버가
+        //   Claude를 재호출하지 않고 현재 상태만 반환한다(status가 queued일 때만 실제 생성).
         fetch('/api/paid-analysis', {
           method: 'POST', headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ jobId }), signal: controller.signal,
@@ -246,12 +249,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           }
           if (poll.status === 'failed') {
             const et = poll.error_json?.errorType || poll.error_json?.error || 'failed';
-            // 이미 permanent로 마킹된 job이면 재시도 화면 대신 영구 실패 화면.
-            if (et === 'permanent_failed') {
-              if (!isActive()) return;
-              settled = true; lastFailedRef.current = true; window.clearTimeout(timeout);
-              logPaidAnalysisFailed('permanent_failed'); setPhase('permanent_failed'); return;
-            }
+            // 고객 화면에서는 재시도하지 않는다(운영자 영역). 안내 화면만 표시.
             finishError(`job_failed_${et}`);
             return;
           }
@@ -263,9 +261,11 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
       }
     })();
 
-    // 언마운트/재시도 시: 이 실행을 stale로 만들고(runId 증가) 정리.
+    // 언마운트 시: 이 실행을 stale로 만들고(runId 증가) 정리.
     return () => { runIdRef.current++; controller.abort(); window.clearTimeout(timeout); };
-  }, [attempt]);
+    // mount당 1회. 새로고침해도 재실행되며, 내부에서 기존 jobId를 재사용한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── 입력 부족(서술형이 너무 짧음) → 추가 입력 요청 ──
   if (phase === 'insufficient_input') {
@@ -322,41 +322,19 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     );
   }
 
-  // ── 영구 실패(재시도 한도 초과) — 재시도 버튼 없음 ──
-  if (phase === 'permanent_failed') {
+  // ── 결과 생성 실패 — 결제 고객 화면. 재시도 버튼 없음(재시도는 운영자 영역). ──
+  //   result_json이 있으면 여기 오지 않고 위에서 렌더된다.
+  if (phase === 'error' || phase === 'permanent_failed' || !result) {
     return (
       <div className="min-h-dvh bg-white">
         <Header />
         <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
           <p className="text-2xl" aria-hidden>🙏</p>
-          <p className="text-base font-black text-slate-800">지금은 분석을 완성하지 못했어요</p>
+          <p className="text-base font-black text-slate-800">결과 생성 중 문제가 발생했습니다</p>
           <p className="text-sm text-slate-600 leading-relaxed">
-            여러 번 시도했지만 리포트를 만들지 못했어요. 결제는 진행되지 않았어요.
-            잠시 뒤 처음부터 다시 시도해 주시면 도움이 될 수 있어요.
+            결제 내역은 안전하게 보존되어 있습니다. 확인 후 결과를 제공해 드릴 수 있도록
+            빠르게 처리하겠습니다. 잠시만 기다려 주세요.
           </p>
-          <button type="button" onClick={() => { window.location.hash = '#paid-questions'; }}
-            className="px-6 py-3 rounded-2xl text-white font-bold" style={{ background: PURPLE }}>
-            심화 문항으로 가기 <span aria-hidden>→</span>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── 에러 ──
-  if (phase === 'error' || !result) {
-    return (
-      <div className="min-h-dvh bg-white">
-        <Header />
-        <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
-          <p className="text-2xl" aria-hidden>🌥️</p>
-          <p className="text-sm text-slate-700 leading-relaxed">
-            분석을 만드는 중에 문제가 생겼어요. 잠시 후 다시 시도해 주세요.
-          </p>
-          <button type="button" onClick={() => setAttempt((a) => a + 1)}
-            className="px-6 py-3 rounded-2xl text-white font-bold" style={{ background: PURPLE }}>
-            다시 시도
-          </button>
         </div>
       </div>
     );
