@@ -59,25 +59,59 @@ export default function PaidEntryBanner() {
   if (!FEATURE_FLAGS.paidAnalysis) return null;
   if (!done) return null;
 
+  const includes = [
+    '왜 지금 이 고민이 생겼는지',
+    '현실 리스크 지도',
+    '이번 달의 30일 실행 실험',
+    '7일 실행 계획',
+    '30일 뒤 재판정 기준',
+  ];
+
   return (
     <div className="bg-white border-t border-slate-200">
       <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* 유료 CTA — 무료 본문과 시각적으로 분리된 박스(진한 배경/테두리 + 자물쇠 라벨 + 가격). */}
         <div
-          className="rounded-2xl p-5 text-center space-y-2"
-          style={{ background: '#F5F1FC', border: '1px solid #E4DAF7' }}
+          className="rounded-2xl overflow-hidden"
+          style={{ background: '#F1EBFB', border: '1.5px solid #C9B8EC', boxShadow: '0 4px 16px rgba(120,90,190,0.12)' }}
         >
-          <p className="text-base font-black text-slate-800">🔍 더 깊은 분석이 필요하신가요?</p>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            당신의 재정·가족·현실 상황까지 반영한 맞춤 리포트를 받아보세요
-          </p>
-          <button
-            type="button"
-            onClick={() => { window.location.hash = '#paid-preview'; }}
-            className="mt-2 px-6 py-3 rounded-2xl text-white font-bold transition-colors"
-            style={{ background: '#8C6FD6', boxShadow: '0 2px 8px rgba(140,111,214,0.28)' }}
-          >
-            심화 분석 받기 <span aria-hidden>→</span>
-          </button>
+          {/* 상단 라벨 바 */}
+          <div className="px-5 py-2.5 flex items-center justify-between" style={{ background: '#EBE2F9', borderBottom: '1px solid #D9C9F0' }}>
+            <span className="text-[12px] font-black tracking-wide" style={{ color: '#6A54A8' }}>🔒 유료 심화 분석</span>
+            <span className="text-[12px] font-bold" style={{ color: '#8C6FD6' }}>₩3,900</span>
+          </div>
+
+          <div className="px-5 py-5 space-y-3">
+            <p className="text-[16px] font-black text-slate-800 leading-snug">
+              🔒 더 깊은 심화 분석에서 확인할 수 있어요
+            </p>
+            <p className="text-[13.5px] text-slate-600 leading-relaxed">
+              무료 결과는 현재 상태를 요약한 리포트예요. 심화 분석에서는 재정 상황, 가족 구조,
+              버틸 수 있는 기간, 실행 가능성까지 반영해 이번 달 실제로 무엇을 해야 할지
+              구체적인 계획을 드려요.
+            </p>
+
+            <ul className="space-y-1.5 pt-1">
+              {includes.map((t) => (
+                <li key={t} className="flex items-start gap-2 text-[13.5px] text-slate-700 leading-relaxed">
+                  <span aria-hidden style={{ color: '#8C6FD6' }} className="mt-0.5 font-bold">•</span>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              type="button"
+              onClick={() => { window.location.hash = '#paid-preview'; }}
+              className="w-full mt-2 px-6 py-3.5 rounded-2xl text-white font-black transition-transform active:scale-[0.99]"
+              style={{ background: '#8C6FD6', boxShadow: '0 2px 10px rgba(140,111,214,0.32)' }}
+            >
+              3,900원으로 심화 리포트 보기 <span aria-hidden>→</span>
+            </button>
+            <p className="text-[12px] text-slate-400 text-center leading-relaxed">
+              결제 후 몇 가지 심화 문항에 답하면 맞춤 결과지가 생성됩니다.
+            </p>
+          </div>
         </div>
       </div>
     </div>

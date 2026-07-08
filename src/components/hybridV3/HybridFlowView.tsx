@@ -49,6 +49,7 @@ import {
 import type { ChatStep } from '../../lib/chatFlow.ts';
 import ProfileSummaryReview from './ProfileSummaryReview';
 import { logStart, logProgress, logComplete } from '../../lib/analytics.ts';
+import { FEATURE_FLAGS } from '../../config/featureFlags';
 
 // Same PersistedSession shape V2 uses. Hybrid has its own key so V2 sessions
 // stay independent. Loaded via the EXACT V2 parser.
@@ -311,7 +312,9 @@ export default function HybridFlowView() {
             <span aria-hidden>←</span> 답변 수정하러 돌아가기
           </button>
         </div>
-        <ResultSpineView spine={spine} onRestart={restartAll} />
+        {/* 유료 기능 on이면 무료 리포트는 요약형으로: '30일 후 다시 볼 질문'·'근거 자세히 보기'는
+            숨기고, 유료 심화 분석 CTA(PaidEntryBanner)로 대체한다(데이터 저장은 그대로). */}
+        <ResultSpineView spine={spine} onRestart={restartAll} hideDeepSections={FEATURE_FLAGS.paidAnalysis} />
       </div>
     );
   }

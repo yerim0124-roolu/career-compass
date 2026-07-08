@@ -138,6 +138,10 @@ function topicParticle(word: string): string {
 interface Props {
   spine: ResultSpine;
   onRestart: () => void;
+  // true면 무료 요약 리포트로: '30일 후 다시 볼 질문' + '근거 자세히 보기'(이 결과는 어떻게
+  // 나왔나요 포함) 섹션을 렌더하지 않는다. 데이터 구조는 그대로 유지, 화면 노출만 제외.
+  // 기본 false → V2/chat 등 다른 사용처는 100% 동일하게 동작.
+  hideDeepSections?: boolean;
 }
 
 // 손그림 일러스트(투명 PNG, public/assets/deco) — 장식 전용. aria-hidden + pointer-events-none.
@@ -193,7 +197,7 @@ function renderEmphasis(text: string): React.ReactNode {
   );
 }
 
-export default function ResultSpineView({ spine, onRestart }: Props) {
+export default function ResultSpineView({ spine, onRestart, hideDeepSections = false }: Props) {
   // P3.20 — narrative 섹션 제거로 LLM 재서술 표시처가 사라졌다. 훅 호출은 비활성화하되
   // useLlmNarrative 함수·api/narrative는 남겨, 추후 솔루션 추천이유에 재연결할 수 있게 한다.
   void useLlmNarrative;
@@ -711,15 +715,23 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
     </section>
   );
 
-  // 모바일 6페이지 — 각 페이지가 하나의 역할(결론→납득→실행→재판정→대안→근거)
-  const mobilePages = [
-    { label: '결과 요약', nav: '맞춤 분석', content: <>{heroBlock}{profileBlock}{summaryBlock}<div className="cc-closing-gap">{closingBlock}</div></> },
-    { label: '맞춤 분석', nav: '이번 달 실행', content: <>{analysisBlock}{trapsBlock}</> },
-    { label: '이번 달 실행', nav: '30일 후 질문', content: mExecution },
-    { label: '30일 후 다시 볼 질문', nav: '대안 조건', content: reevalBlock },
-    { label: '다른 선택지가 올라오는 조건', nav: '근거 보기', content: mAlternatives },
-    { label: '근거 자세히 보기', nav: '', content: mEvidence },
-  ];
+  // 모바일 페이지 — 무료 요약 모드(hideDeepSections)에서는 재판정·근거 페이지를 제외한다.
+  //   nav(다음 버튼용 다음 페이지 이름)는 실제 다음 페이지에 맞춰 연결한다.
+  const mobilePages = hideDeepSections
+    ? [
+      { label: '결과 요약', nav: '맞춤 분석', content: <>{heroBlock}{profileBlock}{summaryBlock}<div className="cc-closing-gap">{closingBlock}</div></> },
+      { label: '맞춤 분석', nav: '이번 달 실행', content: <>{analysisBlock}{trapsBlock}</> },
+      { label: '이번 달 실행', nav: '대안 조건', content: mExecution },
+      { label: '다른 선택지가 올라오는 조건', nav: '', content: mAlternatives },
+    ]
+    : [
+      { label: '결과 요약', nav: '맞춤 분석', content: <>{heroBlock}{profileBlock}{summaryBlock}<div className="cc-closing-gap">{closingBlock}</div></> },
+      { label: '맞춤 분석', nav: '이번 달 실행', content: <>{analysisBlock}{trapsBlock}</> },
+      { label: '이번 달 실행', nav: '30일 후 질문', content: mExecution },
+      { label: '30일 후 다시 볼 질문', nav: '대안 조건', content: reevalBlock },
+      { label: '다른 선택지가 올라오는 조건', nav: '근거 보기', content: mAlternatives },
+      { label: '근거 자세히 보기', nav: '', content: mEvidence },
+    ];
 
   return (
     <div className="cc-page min-h-dvh">
@@ -732,9 +744,10 @@ export default function ResultSpineView({ spine, onRestart }: Props) {
           {analysisBlock}
           {trapsBlock}
           {executionBlock}
-          {reevalBlock}
+          {/* 무료 요약 모드에서는 '30일 후 다시 볼 질문' + '근거 자세히 보기'를 숨긴다(유료 가치로 이동). */}
+          {!hideDeepSections && reevalBlock}
           {alternativesBlock}
-          {evidenceBlock}
+          {!hideDeepSections && evidenceBlock}
           {closingBlock}
           {footerBlock}
         </div>

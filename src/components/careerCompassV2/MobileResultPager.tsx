@@ -61,7 +61,7 @@ export default function MobileResultPager({ pages }: { pages: PagerPage[] }) {
             className="px-4 rounded-xl text-[15.5px] font-semibold active:scale-[0.98] transition"
             style={{ height: '50px', border: '1.5px solid rgba(120,100,160,0.30)', color: '#5E5280' }}
           >
-            이전
+            이전 {i}/{total}
           </button>
         )}
         {i < total - 1 ? (
@@ -71,7 +71,7 @@ export default function MobileResultPager({ pages }: { pages: PagerPage[] }) {
             className="flex-1 px-4 rounded-xl text-[15.5px] font-bold text-white active:scale-[0.98] transition"
             style={{ height: '50px', background: '#8C6FD6', border: '1.5px solid transparent', boxShadow: '0 1px 3px rgba(140,111,214,0.20)' }}
           >
-            다음: {pages[i].nav || pages[i + 1].label}
+            다음 {i + 2}/{total} · {pages[i].nav || pages[i + 1].label}
           </button>
         ) : (
           <button
