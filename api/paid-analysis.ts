@@ -875,17 +875,37 @@ export function paidReadyBlockers(result: PaidAnalysisResult, source: string, wa
 //   빈 계획/얇은 메시지/기본·fallback 실험/서명 문구를 EvidencePack 기반 개인화 콘텐츠로 대체한다.
 function hasFallbackSig(s: string): boolean { return FALLBACK_SIGNATURES.some((sig) => s.includes(sig)); }
 function isDefaultOrFallbackExp(e: ExperimentItem): boolean {
-  const banned = ['전문성 기반 짧은 콘텐츠', '대상 좁힌 메시지 테스트', '기존 경험 결합 문제정의'];
+  const banned = ['전문성 기반 짧은 콘텐츠', '대상 좁힌 메시지 테스트', '기존 경험 결합 문제정의',
+    '지금 준비 중인 방향의 유료 의향 확인'];
   return banned.includes((e.title ?? '').trim()) || isDefaultBody(e.body ?? '') || hasFallbackSig(JSON.stringify(e));
 }
-function repairExperiments(free: FreeContext, paid: PaidAnswers): ExperimentItem[] {
+
+// ── 방향 미정(unknown-direction) 판정 — candidateDirection을 상품명처럼 쓰면 안 되는 케이스.
+const UNKNOWN_DIRECTION_VALUES = ['아직 잘 모르겠음', '잘 모르겠음', '모르겠음', '정하지 못함', '정하지 못했음', '아직 모름', '아직 없음'];
+export function isUnknownDirection(dir: string | undefined | null): boolean {
+  const d = (dir ?? '').trim();
+  if (!d || d === '정보 없음') return true;
+  if (UNKNOWN_DIRECTION_VALUES.some((v) => d.includes(v))) return true;
+  return /모르겠|미정|아직\s*(안|못|없)|정하지\s*(못|않)/.test(d);
+}
+// occupation을 안전한 자산 표현으로. "'회사원' 전문성" 같은 어색한 표현 금지.
+function occAsset(occ: string): string {
+  const o = (occ ?? '').trim();
+  if (!o || o === '정보 없음') return '지금까지 쌓아온 업무 감각과 도메인 이해';
+  if (o.includes('회사원') || o.includes('직장인') || o.includes('사무직')) return '조직 안에서 쌓은 업무 감각과 도메인 이해';
+  if (o.includes('수의')) return '수의학 전문 자격과 도메인 이해, 신뢰 자산';
+  return `'${o}'로 쌓아온 전문성`;
+}
+
+// ── 실험 빌더 — 방향 확정(directed) / 방향 미정(exploration) 두 모드 ──
+function repairExperimentsDirected(free: FreeContext, paid: PaidAnswers): ExperimentItem[] {
   const occ = or(free.occupation); const dir = or(paid.candidateDirection);
   const income = or(paid.incomeFloor); const runway = or(paid.runway); const keep = orList(paid.mustKeep);
-  const focus = dir === '정보 없음' ? '지금 준비 중인 방향' : dir;
-  const who = occ === '정보 없음' ? '이 방향이 실제로 필요한 한 집단' : `'${occ}' 전문성이 도움이 될 한 집단`;
+  const focus = dir; // 이 모드는 dir이 실제 방향값일 때만 호출된다.
+  const who = `${occAsset(occ)}이 도움이 될 한 집단`;
   const money = 'DM·상담 요청·소액 결제·사전 신청·예약 같은 돈에 가까운 반응(저장·좋아요 제외)';
   return [
-    { title: `${focus}의 유료 의향 확인`, body: `${focus}을(를) 아주 작은 유료 제안으로 만들어 4주간 실제 지불 의향을 확인합니다.`,
+    { title: `${focus} 방향의 유료 의향 확인`, body: `${focus}을(를) 아주 작은 유료 제안으로 만들어 4주간 실제 지불 의향을 확인합니다.`,
       hypothesis: `${who}이 ${focus}에 실제로 돈을 낼 의향이 있는가`, target: who,
       action: `${focus}을(를) 소액 결제·사전 신청·1:1 상담 제안 형태로 열고 직접 반응을 받는다`,
       successMetric: `${money}이 4주간 나오는지`, stopSignal: '무반응이면 "무료 관심, 유료 아님" 가설을 채택하고 대상·제안을 교체',
@@ -900,8 +920,36 @@ function repairExperiments(free: FreeContext, paid: PaidAnswers): ExperimentItem
       stopSignal: '방문은 있는데 신청이 0이면 메시지·대상을 재정의', whyThisFits: `${income === '정보 없음' ? '' : `최소 수입 ${income} 회복 가능성을 `}가장 빠르게 가늠할 수 있어서` },
   ];
 }
-function repairSevenDay(paid: PaidAnswers): string[] {
-  const dir = or(paid.candidateDirection); const focus = dir === '정보 없음' ? '지금 방향' : dir;
+// 방향 미정 모드 — 목표는 "유료화"가 아니라 "방향 발견". candidateDirection을 제목·가설에 넣지 않는다.
+function repairExperimentsExploration(): ExperimentItem[] {
+  return [
+    { title: '관심 후보 3개 미니 산출물 실험', body: '지금 마음이 가는 후보 주제 3개를 골라 각각 A4 1장짜리 미니 리포트/분석글로 작게 만들어 봅니다.',
+      hypothesis: '어떤 주제를 만들 때 내가 덜 지치고 더 몰입하는가', target: '지금 관심이 가는 후보 주제 3개',
+      action: '관심 주제 3개를 각각 A4 1장짜리 미니 리포트/분석글로 작성', successMetric: '내가 다시 쓰고 싶은 주제 1개, 타인이 구체적으로 질문한 주제 1개를 발견',
+      stopSignal: '세 주제 모두 손이 가지 않으면 후보 목록을 다시 짠다', whyThisFits: '방향이 아직 선명하지 않을 때는 유료화보다 후보를 작게 꺼내보는 것이 먼저라서' },
+    { title: '사람 반응 탐색', body: '만든 짧은 결과물을 주변 5명에게 보여주고 어떤 반응이 오는지 살핍니다.',
+      hypothesis: '내 산출물에 구체적으로 반응하는 사람이 있는가', target: '주변 동료·지인·업계 사람 5명',
+      action: '짧은 결과물을 5명에게 보여주고 피드백을 받는다', successMetric: '"이거 더 보고 싶다 / 내 상황에도 적용해줄 수 있냐 / 다음 것도 보내달라" 같은 구체 반응',
+      stopSignal: '반응이 전혀 없으면 주제나 전달 방식을 바꾼다', whyThisFits: '반응이 방향을 좁혀주는 가장 빠른 신호라서' },
+    { title: '현재 직무 내부 연결 실험', body: '지금 직장을 유지한 채, 업무 안에서 분석·정리·리포트 역할을 작게 확장해 봅니다.',
+      hypothesis: '현재 일 안에서 더 몰입되는 작업 유형이 있는가', target: '지금 맡고 있는 업무와 그 주변 역할',
+      action: '업무 안에서 분석/정리/리포트 성격의 작업을 하나 자원해 작게 맡는다', successMetric: '내가 덜 지치고 더 몰입하는 작업 유형을 확인',
+      stopSignal: '어느 작업에서도 몰입이 안 생기면 관심 후보 자체를 재점검', whyThisFits: '수입을 지키면서 방향을 탐색할 수 있는 가장 안전한 실험이라서' },
+  ];
+}
+function repairSevenDay(paid: PaidAnswers, unknownDir: boolean): string[] {
+  if (unknownDir) {
+    return [
+      '1일차: 지금 마음이 끌리는 후보 주제 3개를 적는다.',
+      '2일차: 각 주제로 10줄짜리 메모를 써보고 가장 덜 막히는 주제를 고른다.',
+      '3일차: 선택한 주제로 A4 1장짜리 미니 리포트나 분석글을 만든다.',
+      '4일차: 신뢰할 수 있는 사람 3~5명에게 보여주고 구체 질문을 받는다.',
+      '5일차: 어떤 부분에서 질문·반응이 생겼는지 기록한다.',
+      '6일차: 내가 만들 때 피로가 적었던 주제와 반응이 있었던 주제를 비교한다.',
+      '7일차: 다음 3주 동안 더 실험할 후보 1개를 고른다.',
+    ];
+  }
+  const focus = or(paid.candidateDirection);
   return [
     `1일차: ${focus}을(를) 살 만한 사람이 누구인지, 이름·채널까지 3명 이상 구체적으로 적는다.`,
     `2일차: 그들이 겪는 문제와 ${focus}이(가) 주는 값을 한 문장 제안으로 정리한다.`,
@@ -912,7 +960,15 @@ function repairSevenDay(paid: PaidAnswers): string[] {
     '7일차: 돈에 가까운 반응이 나온 제안은 키우고, 무반응 가설은 버릴지 정한다.',
   ];
 }
-function repairRecheck(): string[] {
+function repairRecheck(unknownDir: boolean): string[] {
+  if (unknownDir) {
+    return [
+      '내가 다시 만들고 싶은 주제가 하나라도 생겼는가?',
+      '타인이 구체적으로 질문하거나 더 보고 싶다고 한 주제가 있었는가?',
+      '현재 직무와 연결 가능한 방식이 하나라도 보였는가?',
+      '이 방향을 3주 더 실험해볼 만큼 에너지가 남았는가?',
+    ];
+  }
   return [
     'DM·상담 요청·소액 결제·사전 신청 중 실제로 돈에 가까운 반응이 한 건이라도 나왔나요?',
     '어떤 대상과 제안이 반응했고, 어떤 가설을 버려야 하는지 분명해졌나요?',
@@ -920,26 +976,74 @@ function repairRecheck(): string[] {
     '수입을 흔들지 않는 선에서 다음 실험을 이어갈 수 있나요?',
   ];
 }
-function repairFutureMessage(free: FreeContext, paid: PaidAnswers): string {
-  const occ = or(free.occupation); const dir = or(paid.candidateDirection); const runway = or(paid.runway);
-  const p1 = `한 달 뒤의 당신은 ${dir === '정보 없음' ? '지금 마음이 기우는 방향' : dir}이(가) 돈을 낼 사람에게 닿는지, 한 뼘 더 분명한 감각을 갖게 될 거예요. 방향을 아직 확정하지 못했더라도, '누가 무엇에 지불하는가'라는 질문에 실제 반응으로 답을 얻는 것만으로 이번 달은 충분히 의미가 있습니다.`;
-  const p2 = `${occ === '정보 없음' ? '지금까지 쌓아온 전문성' : `'${occ}'로 쌓아온 전문성`}은 한 자리에 묶어둘 자산이 아니라, 다른 형태로 다시 꺼내 쓸 수 있는 재료예요. 이번 달의 작은 검증 하나가 그 재료를 어떤 각도로 쓸지에 대한 첫 단서가 되어 줄 거예요.`;
-  const p3 = `${runway === '정보 없음' ? '버틸 수 있는 기간' : `버틸 기간 ${runway}`} 안에서 수입을 지키며 확인하는 방식이라면, 한 번의 큰 결정 대신 여러 번의 작은 확인으로 방향을 좁혀갈 수 있어요. 조급함보다 한 건의 진짜 반응을 목표로 두세요.`;
+function repairFutureMessage(free: FreeContext, paid: PaidAnswers, unknownDir: boolean): string {
+  const occ = or(free.occupation); const runway = or(paid.runway);
+  const runwayPhrase = runway === '정보 없음' ? '버틸 수 있는 기간' : `버틸 기간 ${runway}`;
+  const p1 = unknownDir
+    ? '한 달 뒤의 당신은 결론을 내리진 못했더라도, 내가 어떤 문제·대상·작업 방식에 반응하는지에 대해 한 뼘 더 분명한 감각을 갖게 될 거예요. 아직 방향이 선명하지 않을 때 필요한 건 유료화가 아니라, 후보 방향을 실제 작업물로 작게 꺼내보는 일이에요.'
+    : `한 달 뒤의 당신은 ${or(paid.candidateDirection)}이(가) 돈을 낼 사람에게 닿는지, 한 뼘 더 분명한 감각을 갖게 될 거예요. 방향을 아직 확정하지 못했더라도, '누가 무엇에 지불하는가'라는 질문에 실제 반응으로 답을 얻는 것만으로 이번 달은 충분히 의미가 있습니다.`;
+  const p2 = `${occAsset(occ)}은 한 자리에 묶어둘 자산이 아니라, 다른 형태로 다시 꺼내 쓸 수 있는 재료예요. 이번 달의 작은 실험 하나가 그 재료를 어떤 각도로 쓸지에 대한 첫 단서가 되어 줄 거예요.`;
+  const p3 = `${runwayPhrase} 안에서 수입을 지키며 확인하는 방식이라면, 한 번의 큰 결정 대신 여러 번의 작은 확인으로 방향을 좁혀갈 수 있어요. 조급함보다 ${unknownDir ? '내가 계속 만들 수 있고 누가 반응하는지' : '한 건의 진짜 반응'}을 목표로 두세요.`;
   return `${p1}\n\n${p2}\n\n${p3}`;
 }
+
+// ── phrase sanitizer — 결과 전체에서 금지 패턴을 안전한 표현으로 치환(항상 실행). ──
+function sanitizeDirectionPhrases(result: PaidAnalysisResult, unknownDir: boolean): PaidAnalysisResult {
+  const fix = (s: string): string => {
+    if (!s) return s;
+    let t = s;
+    // 방향 미정 값이 상품명/제안명처럼 박힌 경우.
+    t = t.replace(/(아직 잘 모르겠음|잘 모르겠음|모르겠음|정하지 못했음|정하지 못함)을\(를\)/g, '지금 고민 중인 방향을');
+    t = t.replace(/(아직 잘 모르겠음|잘 모르겠음|모르겠음|정하지 못했음|정하지 못함)의/g, '지금 고민 중인 방향의');
+    t = t.replace(/(아직 잘 모르겠음|잘 모르겠음|모르겠음|정하지 못했음|정하지 못함)에게/g, '지금 고민 중인 방향에');
+    t = t.replace(/(아직 잘 모르겠음|잘 모르겠음|모르겠음|정하지 못했음|정하지 못함)에/g, '지금 고민 중인 방향에');
+    t = t.replace(/(아직 잘 모르겠음|잘 모르겠음|모르겠음|정하지 못했음|정하지 못함)을/g, '지금 고민 중인 방향을');
+    t = t.replace(/(아직 잘 모르겠음|잘 모르겠음|모르겠음|정하지 못했음|정하지 못함)/g, '지금 고민 중인 방향');
+    // "'회사원' 전문성" / "회사원 전문성" 등 어색한 직업 표현.
+    t = t.replace(/'?(회사원|직장인|사무직)'?\s*(으로서의|로서의|의)?\s*전문성/g, '조직 안에서 쌓은 업무 감각');
+    if (unknownDir) {
+      t = t.replace(/유료 의향 확인/g, '방향 탐색');
+      t = t.replace(/돈을 낼 의향이 있는가/g, '내가 계속 만들 수 있고 누가 반응하는가');
+      t = t.replace(/에 돈을 낼 사람이 있는(지|가)/g, '에 내가 계속 반응하고 누가 관심을 보이는$1');
+    }
+    return t;
+  };
+  const S = (s: NarrativeSection): NarrativeSection => ({ title: fix(s.title), body: fix(s.body) });
+  const E = (e: ExperimentItem): ExperimentItem => ({
+    title: fix(e.title), body: fix(e.body ?? ''), hypothesis: fix(e.hypothesis ?? ''), target: fix(e.target ?? ''),
+    action: fix(e.action ?? ''), successMetric: fix(e.successMetric ?? ''), stopSignal: fix(e.stopSignal ?? ''), whyThisFits: fix(e.whyThisFits ?? ''),
+  });
+  return {
+    ...result,
+    summaryCard: {
+      coreNow: fix(result.summaryCard.coreNow), biggestRisk: fix(result.summaryCard.biggestRisk),
+      dontDo: fix(result.summaryCard.dontDo), doThis: fix(result.summaryCard.doThis), judgeBy: fix(result.summaryCard.judgeBy),
+    },
+    currentPosition: S(result.currentPosition), whyNow: S(result.whyNow), innerConflict: S(result.innerConflict),
+    riskMap: S(result.riskMap), transitionAssets: S(result.transitionAssets),
+    monthlyExperiment: { title: fix(result.monthlyExperiment.title), body: fix(result.monthlyExperiment.body), experiments: result.monthlyExperiment.experiments.map(E) },
+    futureMessage: S(result.futureMessage),
+    sevenDayPlan: result.sevenDayPlan.map(fix), recheckCriteria: result.recheckCriteria.map(fix),
+    ifTwoOrMoreYes: fix(result.ifTwoOrMoreYes), ifAllNo: fix(result.ifAllNo),
+  };
+}
+
 export function repairPaidResult(result: PaidAnalysisResult, free: FreeContext, paid: PaidAnswers): PaidAnalysisResult {
   const occ = or(free.occupation); const dir = or(paid.candidateDirection);
   const runway = or(paid.runway); const income = or(paid.incomeFloor); const keep = orList(paid.mustKeep);
-  const dirPhrase = dir === '정보 없음' ? '지금 마음이 기우는 방향' : dir;
+  const unknownDir = isUnknownDirection(paid.candidateDirection);
+  const dirPhrase = unknownDir ? '지금 고민 중인 방향' : dir;
   const runwayPhrase = runway === '정보 없음' ? '버틸 수 있는 기간' : `버틸 기간 ${runway}`;
   const incomePhrase = income === '정보 없음' ? '필요한 최소 수입' : `최소 필요 수입 ${income}`;
-  // 개인화된 섹션 본문(서명 문구·기본 문구 회피).
+  const assetPhrase = occAsset(occ);
+  // 방향 미정이면 "돈을 낼 사람이 있는지"가 아니라 "내가 반응/몰입하는지"를 1차 목표로.
+  const verifyPhrase = unknownDir ? "'내가 어떤 주제·작업에 반응하고 누가 관심을 보이는지'" : "'이 방향에 돈을 낼 사람이 있는지'";
   const paras: Record<string, string> = {
-    currentPosition: `${dirPhrase}(으)로 마음이 기울지만, ${runwayPhrase}과 ${incomePhrase}이라는 현실이 지금 결정의 테두리를 정하고 있어요. 지키고 싶은 것(${keep})을 흔들지 않는 선에서, 방향을 확정하기보다 '이 방향에 돈을 낼 사람이 있는지'를 먼저 확인해야 하는 자리입니다.`,
-    whyNow: `${incomePhrase}과 ${runwayPhrase}이라는 조건이 다가오면서 '지금 확인하지 않으면 안 된다'는 감각이 커진 시점이에요. ${occ === '정보 없음' ? '지금의 전문성' : `'${occ}'로서의 전문성`}을 지금 자리에 묶어둘지, ${dirPhrase}(으)로 꺼내볼지의 질문이 올라와 있습니다.`,
-    innerConflict: `한쪽에는 지금의 안정을 지키려는 마음이, 다른 한쪽에는 ${dirPhrase}을(를) 실제로 꺼내보고 싶은 마음이 있어요. 두 마음이 팽팽한 건 어느 쪽도 아직 '돈에 가까운 반응'으로 검증되지 않았기 때문입니다. 그래서 선택보다 검증이 먼저예요.`,
-    riskMap: `${runwayPhrase}, ${incomePhrase}이 지금 실험의 크기를 정하는 상한입니다. 수입을 흔드는 큰 전환보다, 지금 수입을 지키면서 '살 사람이 있는가'만 확인하는 저리스크 검증이 맞아요. 되돌릴 수 없는 결정은 이번 달의 범위 밖으로 미뤄 두세요.`,
-    transitionAssets: `${occ === '정보 없음' ? '지금까지 쌓아온 전문성' : `'${occ}'로 쌓아온 전문성`}은 오래된 경력이 아니라 지금 바로 신뢰로 쓸 수 있는 자산이에요. 여기에 ${dirPhrase}을(를) 더하면, 같은 문제를 남과 다른 각도로 풀 수 있는 조합이 만들어집니다.`,
+    currentPosition: `${dirPhrase}(으)로 마음이 기울지만, ${runwayPhrase}과 ${incomePhrase}이라는 현실이 지금 결정의 테두리를 정하고 있어요. 지키고 싶은 것(${keep})을 흔들지 않는 선에서, 방향을 확정하기보다 ${verifyPhrase}를 먼저 확인해야 하는 자리입니다.`,
+    whyNow: `${incomePhrase}과 ${runwayPhrase}이라는 조건이 다가오면서 '지금 확인하지 않으면 안 된다'는 감각이 커진 시점이에요. ${assetPhrase}을 지금 자리에 묶어둘지, ${unknownDir ? '다른 형태로 꺼내볼지' : `${dirPhrase}(으)로 꺼내볼지`}의 질문이 올라와 있습니다.`,
+    innerConflict: `한쪽에는 지금의 안정을 지키려는 마음이, 다른 한쪽에는 ${unknownDir ? '다른 방향을 실제로 탐색해보고 싶은 마음' : `${dirPhrase}을(를) 실제로 꺼내보고 싶은 마음`}이 있어요. 두 마음이 팽팽한 건 어느 쪽도 아직 실제 반응으로 검증되지 않았기 때문입니다. 그래서 선택보다 확인이 먼저예요.`,
+    riskMap: `${runwayPhrase}, ${incomePhrase}이 지금 실험의 크기를 정하는 상한입니다. 수입을 흔드는 큰 전환보다, 지금 수입을 지키면서 작게 확인하는 저리스크 검증이 맞아요. 되돌릴 수 없는 결정은 이번 달의 범위 밖으로 미뤄 두세요.`,
+    transitionAssets: `${assetPhrase}은 오래된 경력이 아니라 지금 바로 신뢰로 쓸 수 있는 자산이에요. 여기에 ${unknownDir ? '지금 관심이 가는 후보 주제' : dirPhrase}을(를) 더하면, 같은 문제를 남과 다른 각도로 풀 수 있는 조합이 만들어집니다.`,
   };
   const secFix = (s: NarrativeSection, key: string): NarrativeSection =>
     (isDefaultBody(s.body ?? '') || hasFallbackSig(s.body ?? '') || (s.body ?? '').length < 120 ? { title: s.title, body: paras[key] } : s);
@@ -956,24 +1060,28 @@ export function repairPaidResult(result: PaidAnalysisResult, free: FreeContext, 
   // monthlyExperiment: 본문 + 실험 보강(기본/fallback 제거, 최소 2개 보장).
   const meBodyBad = isDefaultBody(result.monthlyExperiment.body ?? '') || hasFallbackSig(result.monthlyExperiment.body ?? '') || (result.monthlyExperiment.body ?? '').length < 120;
   const meBody = meBodyBad
-    ? `이번 달의 목표는 방향을 못박는 것이 아니라, ${dirPhrase}에 '돈을 낼 사람이 있는가'를 30일 안에 확인하는 거예요. ${runwayPhrase} 안에서 수입을 흔들지 않는 크기로, 아래 실험 중 하나를 골라 실제 반응을 받아 보세요.`
+    ? (unknownDir
+      ? '이번 달의 목표는 결론을 내리는 것이 아니라, 내가 어떤 문제·대상·작업 방식에 반응하는지 확인하는 것입니다. 아직 방향이 선명하지 않을 때 필요한 건 유료화가 아니라, 후보 방향을 실제 작업물로 작게 꺼내보는 것이에요. 돈을 받을 수 있는지보다 먼저, 내가 계속 만들 수 있는 주제인지와 누가 반응하는지를 봅니다.'
+      : `이번 달의 목표는 방향을 못박는 것이 아니라, ${dirPhrase}에 실제로 반응하는 사람이 있는지를 30일 안에 확인하는 거예요. ${runwayPhrase} 안에서 수입을 흔들지 않는 크기로, 아래 실험 중 하나를 골라 실제 반응을 받아 보세요.`)
     : result.monthlyExperiment.body;
   let exps = (result.monthlyExperiment.experiments ?? []).filter((e) => !isDefaultOrFallbackExp(e));
+  // 방향 미정이면 원래 실험이 유료-검증 톤일 수 있어 탐색형으로 교체(원본이 exploration 톤이 아니면).
+  if (unknownDir) exps = [];
   if (exps.length < 2) {
-    const fresh = repairExperiments(free, paid);
+    const fresh = unknownDir ? repairExperimentsExploration() : repairExperimentsDirected(free, paid);
     for (const f of fresh) { if (exps.length >= 3) break; if (!exps.some((e) => e.title === f.title)) exps.push(f); }
   }
   r.monthlyExperiment = { ...result.monthlyExperiment, body: meBody, experiments: exps };
 
   // 7일 계획 / 재점검 / 마지막 메시지.
-  if (!(r.sevenDayPlan?.length) || r.sevenDayPlan.some(hasFallbackSig) || r.sevenDayPlan.some((d) => isDefaultBody(d))) r.sevenDayPlan = repairSevenDay(paid);
-  if (!(r.recheckCriteria?.length) || r.recheckCriteria.some(hasFallbackSig) || r.recheckCriteria.some((c) => isDefaultBody(c))) r.recheckCriteria = repairRecheck();
+  if (unknownDir || !(r.sevenDayPlan?.length) || r.sevenDayPlan.some(hasFallbackSig) || r.sevenDayPlan.some((d) => isDefaultBody(d))) r.sevenDayPlan = repairSevenDay(paid, unknownDir);
+  if (unknownDir || !(r.recheckCriteria?.length) || r.recheckCriteria.some(hasFallbackSig) || r.recheckCriteria.some((c) => isDefaultBody(c))) r.recheckCriteria = repairRecheck(unknownDir);
   if ((r.futureMessage.body ?? '').length < 300 || isDefaultBody(r.futureMessage.body ?? '') || hasFallbackSig(r.futureMessage.body ?? '')) {
-    r.futureMessage = { title: r.futureMessage.title, body: repairFutureMessage(free, paid) };
+    r.futureMessage = { title: r.futureMessage.title, body: repairFutureMessage(free, paid, unknownDir) };
   }
 
-  // 스키마 정합 보장(빈 배열 패딩 등은 이미 위에서 채웠으므로 normalize는 형태 확정 용도).
-  return normalizePaidResult(r);
+  // 최종 phrase sanitize(모델/기존 콘텐츠에 남은 금지 표현까지 제거) + 스키마 정합.
+  return normalizePaidResult(sanitizeDirectionPhrases(r, unknownDir));
 }
 
 // content-repair: 구조는 유지하고 body/items/실험필드를 유료 리포트 수준으로 구체화(fallback으로 덮지 않음).
@@ -1281,6 +1389,10 @@ export async function generatePaidResult(
     }
     if (validationErrors(result).length > 0) result = normalizePaidResult(tag.obj);
 
+    // 방향-미정/직업 표현 sanitize는 항상 실행(repair 여부·blocker 여부와 무관).
+    //   모델이 candidateDirection 원값("아직 잘 모르겠음")이나 "회사원 전문성"을 그대로 쓴 경우까지 정리.
+    const unknownDir = isUnknownDirection(paidAnswers.candidateDirection);
+    result = sanitizeDirectionPhrases(result, unknownDir);
     let finalWarnings = qualityWarnings(result, evidence, finalResultSource);
     const evidenceKeywordCount = evidence.keywords.filter((k) => JSON.stringify(result).includes(k)).length;
     const elapsedMs = Date.now() - t0;
