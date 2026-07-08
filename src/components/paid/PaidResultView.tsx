@@ -75,7 +75,9 @@ function Header() {
 }
 
 export default function PaidResultView({ paidAnswers }: Props = {}) {
-  const [phase, setPhase] = useState<Phase>(paidAnswers ? 'loading' : 'no_answers');
+  // ?paidJobId=<uuid> 조회 전용 진입은 paidAnswers 없이도 결과를 불러온다(문항 화면으로 안 보냄).
+  const hasViewJobId = getPaidJobIdFromUrl() !== '';
+  const [phase, setPhase] = useState<Phase>(paidAnswers || hasViewJobId ? 'loading' : 'no_answers');
   const [result, setResult] = useState<PaidResult | null>(null);
   const [msgIndex, setMsgIndex] = useState(0);
 
@@ -93,10 +95,11 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   // 늦게 도착한 stale 콜백을 무시하기 위한 실행 id.
   const runIdRef = useRef(0);
 
-  // mount당 1회만 실행 — 새로고침해도 같은 입력이면 기존 jobId를 재사용(새 job/Claude 재호출 없음).
+  // mount당 1회만 실행. ?paidJobId= 조회 전용이면 paidAnswers 없이도 진행한다.
   useEffect(() => {
     const paid = paidRef.current;
-    if (!paid) { setPhase('no_answers'); return; }
+    const urlJobId = getPaidJobIdFromUrl();
+    if (!paid && !urlJobId) { setPhase('no_answers'); return; }
     setPhase('loading');
     setResult(null);
 
@@ -165,29 +168,6 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
 
     (async () => {
       try {
-        const freeContext = readFreeContext();
-        const clip60 = (v: string) => (v ? v.slice(0, 60).replace(/\n/g, ' ') : '(none)');
-        const freeTextChars = freeContext.occupation.length + freeContext.userFreeText.length + paid.trigger.length + paid.flowMoment.length;
-        const sentenceCount = countSentences(`${paid.trigger}\n${paid.flowMoment}\n${freeContext.userFreeText}`);
-        const answerVals = Object.values(paid).flatMap((v) => (Array.isArray(v) ? v : [v]));
-        const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
-        // eslint-disable-next-line no-console
-        console.log('[paid-job] SEND | freeContext keys:', Object.keys(freeContext).join(','),
-          '| paid.trigger len:', paid.trigger.length, `"${clip60(paid.trigger)}"`,
-          '| paid.flowMoment len:', paid.flowMoment.length, `"${clip60(paid.flowMoment)}"`,
-          '| freeTextChars:', freeTextChars, '| sentenceCount:', sentenceCount,
-          '| candidateDirection:', paid.candidateDirection, '| mustKeep:', paid.mustKeep.join('/'));
-        // eslint-disable-next-line no-console
-        console.log('[paid-job] PAYLOAD_SHAPE', {
-          topLevelKeys: ['freeContext', 'paidAnswers'],
-          hasResult: !!(freeContext.mainType || freeContext.primarySubtype),
-          hasScores: typeof freeContext.subtypeConfidence === 'number',
-          hasAnswers: answerCount > 0, answerCount,
-          hasFreeContext: Object.keys(freeContext).length > 0,
-          freeContextKeys: Object.keys(freeContext),
-          freeTextChars,
-        });
-
         // ── 1) job 확보 ──
         //   (a) ?paidJobId=<uuid> → 조회 전용: create/run 금지, GET polling만. (결제 후 결과 재열람 경로)
         //   (b) 일반 진입 → 항상 새 job 생성(결제 1건 = job 1개). 입력이 같아도 재사용하지 않는다.
@@ -199,9 +179,32 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           // eslint-disable-next-line no-console
           console.log('[paid-job] VIEW-ONLY paidJobId(조회만, 생성/실행 안 함):', jobId);
         } else {
+          const p = paid!; // 이 분기(일반 진입)에서는 effect 진입 가드로 paid가 반드시 존재.
+          const freeContext = readFreeContext();
+          const clip60 = (v: string) => (v ? v.slice(0, 60).replace(/\n/g, ' ') : '(none)');
+          const freeTextChars = freeContext.occupation.length + freeContext.userFreeText.length + p.trigger.length + p.flowMoment.length;
+          const sentenceCount = countSentences(`${p.trigger}\n${p.flowMoment}\n${freeContext.userFreeText}`);
+          const answerVals = Object.values(p).flatMap((v) => (Array.isArray(v) ? v : [v]));
+          const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
+          // eslint-disable-next-line no-console
+          console.log('[paid-job] SEND | freeContext keys:', Object.keys(freeContext).join(','),
+            '| paid.trigger len:', p.trigger.length, `"${clip60(p.trigger)}"`,
+            '| paid.flowMoment len:', p.flowMoment.length, `"${clip60(p.flowMoment)}"`,
+            '| freeTextChars:', freeTextChars, '| sentenceCount:', sentenceCount,
+            '| candidateDirection:', p.candidateDirection, '| mustKeep:', p.mustKeep.join('/'));
+          // eslint-disable-next-line no-console
+          console.log('[paid-job] PAYLOAD_SHAPE', {
+            topLevelKeys: ['freeContext', 'paidAnswers'],
+            hasResult: !!(freeContext.mainType || freeContext.primarySubtype),
+            hasScores: typeof freeContext.subtypeConfidence === 'number',
+            hasAnswers: answerCount > 0, answerCount,
+            hasFreeContext: Object.keys(freeContext).length > 0,
+            freeContextKeys: Object.keys(freeContext),
+            freeTextChars,
+          });
           const createResp = await fetch('/api/paid-job', {
             method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ freeContext, paidAnswers: paid }), signal: controller.signal,
+            body: JSON.stringify({ freeContext, paidAnswers: p }), signal: controller.signal,
           });
           const createText = await createResp.text();
           // eslint-disable-next-line no-console

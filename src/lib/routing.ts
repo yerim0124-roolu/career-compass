@@ -17,13 +17,18 @@
 
 export type Route = 'v1' | 'v2' | 'chat' | 'hybrid' | 'paid' | 'paidPreview' | 'paidQuestions';
 
-export function resolveRoute(hash: string): Route {
-  if (hash === '#v2' || hash === '#/v2') return 'v2';
-  if (hash === '#chat' || hash === '#chat-v1' || hash === '#/chat' || hash === '#/chat-v1') return 'chat';
-  if (hash === '#v1' || hash === '#/v1') return 'v1';
+export function resolveRoute(hash: string, search = ''): Route {
+  // ?paidJobId=<uuid>(조회 전용)가 hash-query 또는 search에 있으면 항상 결과 화면으로.
+  //   예) /#paid-result?paidJobId=... , /?paidJobId=... 둘 다 지원.
+  if (/[?&]paidJobId=/.test(hash) || /[?&]paidJobId=/.test(search)) return 'paid';
+  // 쿼리 문자열(?...)을 떼고 경로부만 매칭한다(#paid-result?x=y → #paid-result).
+  const path = hash.split('?')[0];
+  if (path === '#v2' || path === '#/v2') return 'v2';
+  if (path === '#chat' || path === '#chat-v1' || path === '#/chat' || path === '#/chat-v1') return 'chat';
+  if (path === '#v1' || path === '#/v1') return 'v1';
   // 유료 퍼널 라우트. 실제 접근 여부는 App.tsx에서 FEATURE_FLAGS로 게이팅.
-  if (hash === '#paid-preview' || hash === '#/paid-preview') return 'paidPreview';
-  if (hash === '#paid-questions' || hash === '#/paid-questions') return 'paidQuestions';
-  if (hash === '#paid-result' || hash === '#/paid-result') return 'paid';
+  if (path === '#paid-preview' || path === '#/paid-preview') return 'paidPreview';
+  if (path === '#paid-questions' || path === '#/paid-questions') return 'paidQuestions';
+  if (path === '#paid-result' || path === '#/paid-result') return 'paid';
   return 'hybrid';
 }

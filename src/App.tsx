@@ -25,12 +25,13 @@ const FORM_DRAFT_KEY = 'career-compass-form-draft-v1';
 
 function useRoute(): Route {
   const [route, setRoute] = useState<Route>(() =>
-    typeof window !== 'undefined' ? resolveRoute(window.location.hash) : 'v1',
+    typeof window !== 'undefined' ? resolveRoute(window.location.hash, window.location.search) : 'v1',
   );
   useEffect(() => {
-    const onChange = () => setRoute(resolveRoute(window.location.hash));
+    const onChange = () => setRoute(resolveRoute(window.location.hash, window.location.search));
     window.addEventListener('hashchange', onChange);
-    return () => window.removeEventListener('hashchange', onChange);
+    window.addEventListener('popstate', onChange); // search(?paidJobId=) 변경 대응.
+    return () => { window.removeEventListener('hashchange', onChange); window.removeEventListener('popstate', onChange); };
   }, []);
   return route;
 }
