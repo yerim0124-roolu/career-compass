@@ -47,22 +47,21 @@ const PURPLE = '#8C6FD6';
 const BOX_BG = '#F5F1FC';
 const BOX_BORDER = '#E4DAF7';
 
-// 같은 입력이면 새로고침해도 기존 job을 재사용(새 job/Claude 재호출 방지)하기 위한 로컬 저장.
-const PAID_JOB_KEY = 'career-compass-paid-job-v1';
-function djb2(s: string): string { let h = 5381; for (let i = 0; i < s.length; i++) h = (((h << 5) + h) + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
-function inputSignature(free: unknown, paid: unknown): string {
-  try { return djb2(`${JSON.stringify(free)}|${JSON.stringify(paid)}`); } catch { return 'nosig'; }
-}
-function readStoredJobId(sig: string): string {
+// 명시적 ?paidJobId=<uuid>가 있으면 그 job을 '조회 전용'으로 연다(생성/실행 금지).
+//   결제 1건 = job 1개 원칙: 일반 진입은 항상 새 job을 만들고, 재사용은 이 쿼리로만 허용한다.
+//   hash 라우팅(#paid-result?paidJobId=...)과 일반 search(?paidJobId=...) 둘 다 지원.
+function getPaidJobIdFromUrl(): string {
   try {
-    const raw = window.localStorage.getItem(PAID_JOB_KEY);
-    if (!raw) return '';
-    const o = JSON.parse(raw) as { sig?: string; jobId?: string };
-    return o && o.sig === sig && typeof o.jobId === 'string' ? o.jobId : '';
-  } catch { return ''; }
-}
-function writeStoredJobId(sig: string, jobId: string): void {
-  try { window.localStorage.setItem(PAID_JOB_KEY, JSON.stringify({ sig, jobId })); } catch { /* storage 불가 무시 */ }
+    const fromSearch = new URLSearchParams(window.location.search).get('paidJobId');
+    if (fromSearch) return fromSearch.trim();
+    const hash = window.location.hash || '';
+    const qIndex = hash.indexOf('?');
+    if (qIndex >= 0) {
+      const fromHash = new URLSearchParams(hash.slice(qIndex + 1)).get('paidJobId');
+      if (fromHash) return fromHash.trim();
+    }
+  } catch { /* URL 파싱 실패 무시 */ }
+  return '';
 }
 
 function Header() {
@@ -189,13 +188,16 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           freeTextChars,
         });
 
-        // ── 1) job 확보: 같은 입력의 기존 jobId가 있으면 재사용(새 job/Claude 재호출 금지).
-        //   없을 때만 1회 create. 새로고침·재진입해도 새 job을 만들지 않는다.
-        const sig = inputSignature(freeContext, paid);
-        let jobId = readStoredJobId(sig);
-        if (jobId) {
+        // ── 1) job 확보 ──
+        //   (a) ?paidJobId=<uuid> → 조회 전용: create/run 금지, GET polling만. (결제 후 결과 재열람 경로)
+        //   (b) 일반 진입 → 항상 새 job 생성(결제 1건 = job 1개). 입력이 같아도 재사용하지 않는다.
+        const viewJobId = getPaidJobIdFromUrl();
+        let jobId = '';
+        let viewOnly = false;
+        if (viewJobId) {
+          jobId = viewJobId; viewOnly = true;
           // eslint-disable-next-line no-console
-          console.log('[paid-job] REUSE stored jobId:', jobId);
+          console.log('[paid-job] VIEW-ONLY paidJobId(조회만, 생성/실행 안 함):', jobId);
         } else {
           const createResp = await fetch('/api/paid-job', {
             method: 'POST', headers: { 'content-type': 'application/json' },
@@ -215,16 +217,17 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           }
           jobId = String((JSON.parse(createText) as { jobId?: string }).jobId ?? '');
           if (!jobId) throw new Error('no_job_id');
-          writeStoredJobId(sig, jobId);
         }
 
-        // ── 2) 워커 트리거(idempotent) — 결과를 기다리지 않는다(결과는 DB, 폴링으로 읽음).
+        // ── 2) 워커 트리거(idempotent) — 조회 전용 진입에서는 실행하지 않는다.
         //   run worker는 /api/paid-analysis (POST {jobId}). 이미 result_json이 있으면 서버가
         //   Claude를 재호출하지 않고 현재 상태만 반환한다(status가 queued일 때만 실제 생성).
-        fetch('/api/paid-analysis', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ jobId }), signal: controller.signal,
-        }).catch(() => { /* fire-and-forget: 폴링이 실제 상태를 읽는다 */ });
+        if (!viewOnly) {
+          fetch('/api/paid-analysis', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jobId }), signal: controller.signal,
+          }).catch(() => { /* fire-and-forget: 폴링이 실제 상태를 읽는다 */ });
+        }
 
         // ── 3) polling — 저장된 status만 신뢰. ready면 result_json 렌더, failed면 실패 UI. ──
         while (isActive()) {
