@@ -79,6 +79,8 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   const hasViewJobId = getPaidJobIdFromUrl() !== '';
   const [phase, setPhase] = useState<Phase>(paidAnswers || hasViewJobId ? 'loading' : 'no_answers');
   const [result, setResult] = useState<PaidResult | null>(null);
+  // 실패 화면/복구 링크에 표시할 요청 ID(jobId). 생성/조회 시점에 채운다.
+  const [jobIdForDisplay, setJobIdForDisplay] = useState('');
   const [msgIndex, setMsgIndex] = useState(0);
 
   // 로딩 문구 순환.
@@ -222,6 +224,12 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           if (!jobId) throw new Error('no_job_id');
         }
 
+        // 요청 ID + 복구 링크 확보(로그 + 화면 표시용). jobId가 있으면 이 URL로 언제든 결과 재열람 가능.
+        setJobIdForDisplay(jobId);
+        const recoveryUrl = `${window.location.origin}/?paidJobId=${jobId}`;
+        // eslint-disable-next-line no-console
+        console.log('[paid-job] jobId:', jobId, '| recovery URL:', recoveryUrl);
+
         // ── 2) 워커 트리거(idempotent) — 조회 전용 진입에서는 실행하지 않는다.
         //   run worker는 /api/paid-analysis (POST {jobId}). 이미 result_json이 있으면 서버가
         //   Claude를 재호출하지 않고 현재 상태만 반환한다(status가 queued일 때만 실제 생성).
@@ -232,7 +240,11 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           }).catch(() => { /* fire-and-forget: 폴링이 실제 상태를 읽는다 */ });
         }
 
-        // ── 3) polling — 저장된 status만 신뢰. ready면 result_json 렌더, failed면 실패 UI. ──
+        // ── 3) polling — result_json이 status보다 우선. ──
+        //   우선순위: (1) result_json/result 있으면 status 무관하게 무조건 렌더
+        //            (2) 없고 failed면 실패 화면(요청 ID 표시)
+        //            (3) 그 외(queued/processing/ready-without-result)면 계속 폴링
+        //   POST /api/paid-analysis가 timeout/abort/network error여도 여기서 계속 폴링한다.
         while (isActive()) {
           await sleep(POLL_INTERVAL_MS);
           if (!isActive()) return;
@@ -242,26 +254,28 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
             pollResp = await fetch(`/api/paid-job?id=${encodeURIComponent(jobId)}&t=${Date.now()}`, {
               method: 'GET', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' }, signal: controller.signal,
             });
-          } catch { continue; /* 일시적 네트워크 오류 → 다음 폴링 */ }
-          // 304가 오더라도(중간 프록시 등) 절대 fatal로 처리하지 않고 다음 폴링으로 넘어간다.
+          } catch { continue; /* 일시적 네트워크 오류 → 다음 폴링(실패 확정 금지) */ }
+          // 304가 오더라도(중간 프록시 등) 절대 fatal로 처리하지 않고 다음 폴링으로.
           if (pollResp.status === 304) { continue; }
+          // 404만 확정 실패(job 자체가 없음). 5xx 등 나머지는 다음 폴링으로.
           if (!pollResp.ok) { if (pollResp.status === 404) { finishError('job_not_found'); return; } continue; }
-          const poll = await pollResp.json() as PollResponse;
+          let poll: PollResponse;
+          try { poll = await pollResp.json() as PollResponse; } catch { continue; }
+          const storedResult = poll.result_json ?? poll.result ?? null;
           // eslint-disable-next-line no-console
-          console.log('[paid-job] POLL status:', poll.status, '| can_pay:', poll.can_pay);
-          if (poll.status === 'ready') {
-            renderStoredResult(poll);
-            return;
-          }
+          console.log('[paid-job] POLL status:', poll.status, '| hasResult:', storedResult != null, '| can_pay:', poll.can_pay);
+          // (1) result_json이 있으면 status(ready/failed/processing)와 무관하게 무조건 렌더.
+          if (storedResult != null) { renderStoredResult(poll); return; }
+          // (2) result가 없고 failed면 실패 화면(요청 ID 포함).
           if (poll.status === 'failed') {
             const et = poll.error_json?.errorType || poll.error_json?.error || 'failed';
-            // 고객 화면에서는 재시도하지 않는다(운영자 영역). 안내 화면만 표시.
             finishError(`job_failed_${et}`);
             return;
           }
-          // queued/processing → 계속 폴링.
+          // (3) queued/processing/기타 → 계속 폴링.
         }
       } catch (e) {
+        // 예외가 나도 jobId가 있으면 실패로 확정하지 않는다(폴링 루프 밖의 드문 예외만 도달).
         if (controller.signal.aborted) return;
         finishError(e instanceof Error ? e.message : 'unknown');
       }
@@ -323,13 +337,16 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
             style={{ borderColor: BOX_BORDER, borderTopColor: PURPLE }} aria-hidden />
           <p className="text-sm text-slate-600 leading-relaxed">{LOADING_MESSAGES[msgIndex]}</p>
           <p className="text-[11px] text-slate-400">1~2분 정도 걸릴 수 있어요.</p>
+          {jobIdForDisplay && (
+            <p className="text-[10px] text-slate-300 break-all mt-1">요청 ID: {jobIdForDisplay}</p>
+          )}
         </div>
       </div>
     );
   }
 
-  // ── 결과 생성 실패 — 결제 고객 화면. 재시도 버튼 없음(재시도는 운영자 영역). ──
-  //   result_json이 있으면 여기 오지 않고 위에서 렌더된다.
+  // ── 결과 생성 실패 — result_json이 정말 없을 때만(status failed && !result). 재시도 버튼 없음. ──
+  //   result_json이 있으면 위 polling에서 무조건 렌더되므로 여기 오지 않는다.
   if (phase === 'error' || phase === 'permanent_failed' || !result) {
     return (
       <div className="min-h-dvh bg-white">
@@ -338,9 +355,15 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           <p className="text-2xl" aria-hidden>🙏</p>
           <p className="text-base font-black text-slate-800">결과 생성 중 문제가 발생했습니다</p>
           <p className="text-sm text-slate-600 leading-relaxed">
-            결제 내역은 안전하게 보존되어 있습니다. 확인 후 결과를 제공해 드릴 수 있도록
-            빠르게 처리하겠습니다. 잠시만 기다려 주세요.
+            요청 ID를 보내주시면 확인 후 결과를 다시 제공해 드릴게요.
+            결제 내역은 안전하게 보존되어 있습니다.
           </p>
+          {jobIdForDisplay && (
+            <div className="inline-block rounded-xl px-4 py-2.5 mt-1" style={{ background: BOX_BG, border: `1px solid ${BOX_BORDER}` }}>
+              <p className="text-[11px] font-semibold text-slate-400">요청 ID</p>
+              <p className="text-[13px] font-bold text-slate-700 break-all">{jobIdForDisplay}</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -354,16 +377,20 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   const recheckCriteria = result.recheckCriteria ?? [];
   const experiments = monthlyExperiment?.experiments ?? [];
 
+  // 방어: 필드가 없거나 null이어도 화면이 깨지지 않게 기본값 처리(렌더 차단 안 함).
+  const EMPTY_SECTION: NarrativeSection = { title: '', body: '' };
+  const sc = summaryCard ?? { coreNow: '', biggestRisk: '', dontDo: '', doThis: '', judgeBy: '' };
   const summaryRows: Array<{ label: string; value: string }> = [
-    { label: '지금 핵심', value: summaryCard.coreNow },
-    { label: '가장 큰 리스크', value: summaryCard.biggestRisk },
-    { label: '지금 하지 말 것', value: summaryCard.dontDo },
-    { label: '이번 달 할 것', value: summaryCard.doThis },
-    { label: '30일 뒤 판단 기준', value: summaryCard.judgeBy },
-  ];
+    { label: '지금 핵심', value: sc.coreNow ?? '' },
+    { label: '가장 큰 리스크', value: sc.biggestRisk ?? '' },
+    { label: '지금 하지 말 것', value: sc.dontDo ?? '' },
+    { label: '이번 달 할 것', value: sc.doThis ?? '' },
+    { label: '30일 뒤 판단 기준', value: sc.judgeBy ?? '' },
+  ].filter((r) => r.value);
 
-  // 본문 = narrative 섹션들(긴 서사). futureMessage는 지정 순서상 재점검 뒤 마지막에.
-  const narrativeFlow: NarrativeSection[] = [currentPosition, whyNow, innerConflict, riskMap, transitionAssets];
+  // 본문 = narrative 섹션들(긴 서사). 비어있는 섹션은 렌더에서 제외한다.
+  const narrativeFlow: NarrativeSection[] = [currentPosition, whyNow, innerConflict, riskMap, transitionAssets]
+    .map((s) => s ?? EMPTY_SECTION).filter((s) => (s.body ?? '').trim().length > 0);
 
   const expRows: Array<{ label: string; key: keyof ExperimentItem }> = [
     { label: '가설', key: 'hypothesis' },
@@ -457,7 +484,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
         </section>
 
         {/* 한 달 뒤의 당신에게 — 마지막 서사 */}
-        <NarrativeBlock s={futureMessage} />
+        <NarrativeBlock s={futureMessage ?? EMPTY_SECTION} />
 
       </main>
     </div>

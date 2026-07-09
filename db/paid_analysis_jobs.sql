@@ -32,6 +32,18 @@ alter table public.paid_analysis_jobs add column if not exists model text;
 -- PostgREST 스키마 캐시 갱신.
 notify pgrst, 'reload schema';
 
+-- ── 운영 보정(선택) ───────────────────────────────────────────────────────────
+-- result_json이 실제로 있는데 status가 failed로 잘못 저장된 row를 ready로 보정한다.
+-- (프론트는 status와 무관하게 result_json이 있으면 렌더하므로 필수는 아니지만, 데이터 정합용.)
+--   update public.paid_analysis_jobs
+--   set status = 'ready', error_json = null, updated_at = now()
+--   where result_json is not null and status = 'failed';
+
+-- 최근 job 원가/상태 조회.
+--   select id, status, (result_json is not null) as has_result, model,
+--          (usage_json->'total'->>'estimated_cost_usd')::numeric as cost_usd, created_at
+--   from public.paid_analysis_jobs order by created_at desc limit 50;
+
 create index if not exists paid_analysis_jobs_session_idx  on public.paid_analysis_jobs (user_session_id);
 create index if not exists paid_analysis_jobs_status_idx   on public.paid_analysis_jobs (status);
 create index if not exists paid_analysis_jobs_created_idx  on public.paid_analysis_jobs (created_at desc);

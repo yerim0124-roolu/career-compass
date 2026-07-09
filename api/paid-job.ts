@@ -69,10 +69,16 @@ export default async function handler(req: any, res: any): Promise<void> {
       }
     }
 
+    // result_json이 있으면 status(ready/failed/processing)와 무관하게 항상 반환한다.
+    //   프론트는 result_json 존재를 status보다 우선해 렌더한다(생성 성공 후 상태 지연/오설정 방어).
+    const hasResult = job.result_json != null;
     const quality = job.evidence_pack?.quality ?? null;
-    const canPay = job.status === 'ready' && job.result_json != null && quality?.passed === true;
-    const out: Record<string, unknown> = { jobId: job.id, status: job.status, payment_status: job.payment_status, retry_count: job.retry_count, quality, can_pay: canPay };
-    if (job.status === 'ready') out.result_json = job.result_json;
+    const canPay = job.status === 'ready' && hasResult && quality?.passed === true;
+    const out: Record<string, unknown> = {
+      jobId: job.id, status: job.status, payment_status: job.payment_status, retry_count: job.retry_count,
+      quality, can_pay: canPay, has_result: hasResult, displayable: hasResult,
+    };
+    if (hasResult) out.result_json = job.result_json;
     if (job.status === 'failed') out.error_json = includeDiag ? job.error_json : { error: job.error_json?.error ?? 'failed', errorType: job.error_json?.errorType };
     res.status(200).json(out);
     return;
