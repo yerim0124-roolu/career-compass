@@ -1563,6 +1563,9 @@ function applyNoStore(res: any): void {
 }
 
 // ── 엔드포인트: POST { jobId } → run worker / POST { freeContext, paidAnswers } → 하위호환 sync ──
+// DEPRECATED(2026-07): 유료 생성은 이제 QStash → /api/paid-analysis-runner 로 처리한다. 프론트는
+//   더 이상 이 엔드포인트를 호출하지 않는다. generatePaidResult/previewEvidence는 runner가 재사용한다.
+//   이 handler는 하위호환/수동 재실행용으로 한시적 유지. 새 구조 검증 후 삭제 후보(최종 보고서 참조).
 export default async function handler(req: any, res: any): Promise<void> {
   applyNoStore(res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'method_not_allowed' }); return; }

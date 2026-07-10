@@ -3,6 +3,9 @@
   "functions": {
     "api/paid-analysis.ts": {
       "maxDuration": 180
+    },
+    "api/paid-analysis-runner.ts": {
+      "maxDuration": 300
     }
   }
 }

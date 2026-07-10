@@ -7,10 +7,30 @@
 // 극단 부족(결과 유형 없음 + 답변 거의 없음)일 때만 job 없이 422. 일반 완료자는 차단 안 함.
 // evidence_pack은 run worker(/api/paid-analysis, jobId)에서 계산·저장한다(무거운 빌더는 그쪽에 있음).
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { Client as QStashClient } from '@upstash/qstash';
 
 const JOBS_TABLE = 'paid_analysis_jobs';
 const STALE_PROCESSING_MS = 10 * 60 * 1000; // processing 10분 초과 → worker_stale_timeout으로 reap.
+const RUNNER_PATH = '/api/paid-analysis-runner';
+const QSTASH_RETRIES = 2; // endpoint delivery 재시도(최초 1 + 재시도 2 = 최대 3회 delivery).
+const PROD_APP_URL = 'https://career-compass-rose.vercel.app';
 let _sb: SupabaseClient | null = null;
+
+// structured JSON log(민감정보 제외). Vercel/Supabase에서 event로 검색 가능.
+function slog(event: string, fields: Record<string, unknown>): void {
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify({ event, ts: new Date().toISOString(), ...fields }));
+}
+
+// QStash가 접근 가능한 절대 public URL. PUBLIC_APP_URL 우선, 없으면 요청 헤더로 결정, 최후 prod.
+function resolveBaseUrl(req: any): string {
+  const env = process.env.PUBLIC_APP_URL;
+  if (env) return env.replace(/\/$/, '');
+  const proto = (req.headers?.['x-forwarded-proto'] ?? 'https').toString().split(',')[0];
+  const host = (req.headers?.['x-forwarded-host'] ?? req.headers?.host ?? '').toString().split(',')[0];
+  if (host) return `${proto}://${host}`;
+  return PROD_APP_URL;
+}
 function sbClient(): SupabaseClient | null {
   if (_sb) return _sb;
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -76,9 +96,12 @@ export default async function handler(req: any, res: any): Promise<void> {
     const canPay = job.status === 'ready' && hasResult && quality?.passed === true;
     const out: Record<string, unknown> = {
       jobId: job.id, status: job.status, payment_status: job.payment_status, retry_count: job.retry_count,
+      attempt_count: job.attempt_count ?? 0, updated_at: job.updated_at,
       quality, can_pay: canPay, has_result: hasResult, displayable: hasResult,
+      recoveryUrl: `${resolveBaseUrl(req)}/?paidJobId=${job.id}`,
     };
     if (hasResult) out.result_json = job.result_json;
+    // 민감한 내부 오류/prompt/stack은 제외. error 코드/타입만 노출.
     if (job.status === 'failed') out.error_json = includeDiag ? job.error_json : { error: job.error_json?.error ?? 'failed', errorType: job.error_json?.errorType };
     res.status(200).json(out);
     return;
@@ -104,6 +127,10 @@ export default async function handler(req: any, res: any): Promise<void> {
     return;
   }
 
+  // QStash 미설정이면 명확한 서버 오류(secret 값은 로그에 남기지 않는다).
+  const qstashToken = process.env.QSTASH_TOKEN;
+  if (!qstashToken) { slog('qstash_not_configured', {}); res.status(503).json({ error: 'not_configured', detail: 'qstash token missing' }); return; }
+
   const now = new Date().toISOString();
   const { data, error } = await sb.from(JOBS_TABLE).insert({
     user_session_id: body.userSessionId ?? null,
@@ -112,16 +139,43 @@ export default async function handler(req: any, res: any): Promise<void> {
     input_json: { freeContext, paidAnswers },
     evidence_pack: null,
     result_json: null, error_json: null, latest_error_json: null,
-    retry_count: 0, payment_status: 'unpaid',
+    retry_count: 0, attempt_count: 0, payment_status: 'unpaid',
     created_at: now, updated_at: now,
   }).select().single();
   if (error) {
-    // eslint-disable-next-line no-console
-    console.error('[paid-job] create store_error:', error.message);
+    slog('paid_job_create_store_error', { message: error.message });
     res.status(500).json({ error: 'store_error', detail: includeDiag ? error.message : undefined });
     return;
   }
-  // eslint-disable-next-line no-console
-  console.log('[paid-job] CREATED', { jobId: (data as any).id });
-  res.status(201).json({ jobId: (data as any).id, status: 'queued' });
+  const jobId = (data as any).id as string;
+  slog('paid_job_created', { jobId });
+
+  // ── QStash publish: runner를 background로 실행. 프론트는 Claude 완료를 기다리지 않는다. ──
+  const runnerUrl = `${resolveBaseUrl(req)}${RUNNER_PATH}`;
+  slog('qstash_publish_started', { jobId, runnerUrl });
+  try {
+    const qstash = new QStashClient({ token: qstashToken });
+    const pub = await qstash.publishJSON({
+      url: runnerUrl,
+      body: { jobId },
+      retries: QSTASH_RETRIES,
+      deduplicationId: `paid-analysis:${jobId}`,
+    });
+    const messageId = Array.isArray(pub) ? pub[0]?.messageId : (pub as any)?.messageId;
+    await sb.from(JOBS_TABLE).update({ enqueued_at: new Date().toISOString(), qstash_message_id: messageId ?? null, updated_at: new Date().toISOString() }).eq('id', jobId);
+    slog('qstash_publish_succeeded', { jobId, messageId });
+    res.status(201).json({ jobId, status: 'queued' });
+  } catch (e) {
+    // publish 실패는 성공처럼 처리하지 않는다. job에 실패 기록 + 재시도 가능 정보 반환.
+    const msg = e instanceof Error ? e.message : 'publish_error';
+    slog('qstash_publish_failed', { jobId, message: msg });
+    const errorJson = { error: 'enqueue_failed', stage: 'qstash_publish', retryable: true };
+    await sb.from(JOBS_TABLE).update({
+      status: 'failed', error_json: errorJson, latest_error_json: errorJson,
+      failed_at: new Date().toISOString(), last_error_code: 'qstash_publish', last_error_message: msg, last_error_retryable: true,
+      updated_at: new Date().toISOString(),
+    }).eq('id', jobId).is('result_json', null);
+    // jobId는 반환(복구/조회 가능). 프론트는 새 job을 무한 생성하지 않고 이 job을 폴링한다.
+    res.status(201).json({ jobId, status: 'failed', enqueueError: 'qstash_publish', retryable: true });
+  }
 }

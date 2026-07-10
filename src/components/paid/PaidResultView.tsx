@@ -32,10 +32,6 @@ interface PollResponse {
   error_json?: { error?: string; errorType?: string } | null;
 }
 
-// 서술형 길이로는 절대 막지 않는다(맥락은 대부분 구조화 답변에 있음). 문장 수는 진단 로그용.
-function countSentences(text: string): number {
-  return text.split(/[\n.!?]|다\.|요\.|음\./).map((s) => s.trim()).filter((s) => s.length >= 5).length;
-}
 
 const LOADING_MESSAGES = [
   '당신만을 위한 분석을 만들고 있어요…',
@@ -82,6 +78,11 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
   // 실패 화면/복구 링크에 표시할 요청 ID(jobId). 생성/조회 시점에 채운다.
   const [jobIdForDisplay, setJobIdForDisplay] = useState('');
   const [msgIndex, setMsgIndex] = useState(0);
+  // 평소보다 오래 걸릴 때 안내(실패 아님, 계속 폴링 중).
+  const [slow, setSlow] = useState(false);
+  const [copied, setCopied] = useState(false);
+  // StrictMode/재렌더로 create가 중복 호출되지 않도록 mount당 1회로 메모(abort와 무관).
+  const createOnceRef = useRef<Promise<string> | null>(null);
 
   // 로딩 문구 순환.
   useEffect(() => {
@@ -111,14 +112,20 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     // 이 실행이 여전히 최신이고 아직 종결 전일 때만 상태를 바꾼다.
     const isActive = () => myRun === runIdRef.current && !settled;
 
-    // polling 하드 타임아웃 = 서버 stale-timeout(10분)과 동일. 그 안에 ready가 안 되면 재시도 화면.
+    // 하드 타임아웃 = 서버 stale-timeout(10분). SLOW_AFTER_MS 후엔 '오래 걸림' 안내(계속 폴링).
     const HARD_TIMEOUT_MS = 600000; // 10분
-    const POLL_INTERVAL_MS = 3000;
+    const SLOW_AFTER_MS = 90000;    // 90초 지나도 결과 없으면 안내(실패 아님)
+    // 점진 폴링 간격: 초기 1분 2.5s → 5분까지 5s → 이후 10s.
+    const pollIntervalFor = (elapsed: number): number => (elapsed < 60000 ? 2500 : elapsed < 300000 ? 5000 : 10000);
+    setSlow(false);
+
+    let slowTimer: number | undefined;
+    const clearTimers = () => { window.clearTimeout(timeout); if (slowTimer) window.clearTimeout(slowTimer); };
 
     const finishError = (reason: string) => {
       if (!isActive()) return;
       settled = true;
-      window.clearTimeout(timeout);
+      clearTimers();
       logPaidAnalysisFailed(reason);
       // eslint-disable-next-line no-console
       console.log('[paid-job] → error UI (reason:', reason, ')');
@@ -127,7 +134,7 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     const finishSuccess = (data: PaidResult) => {
       if (!isActive()) return;
       settled = true;
-      window.clearTimeout(timeout);
+      clearTimers();
       // eslint-disable-next-line no-console
       console.log('[paid-job] → success: 저장된 result_json 렌더');
       setResult(data);
@@ -168,85 +175,79 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
       }
     };
 
+    // StrictMode/재렌더로 create가 중복 실행되지 않도록 mount당 1회로 메모(abort 신호 없이 실행 →
+    //   dev StrictMode 언마운트 cleanup이 create fetch를 취소해 job이 중복 생성되는 것을 방지).
+    const createJobOnce = (): Promise<string> => {
+      if (createOnceRef.current) return createOnceRef.current;
+      createOnceRef.current = (async () => {
+        const p = paidRef.current!;
+        const freeContext = readFreeContext();
+        const answerVals = Object.values(p).flatMap((v) => (Array.isArray(v) ? v : [v]));
+        const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
+        // eslint-disable-next-line no-console
+        console.log('[paid-job] SEND | freeContext keys:', Object.keys(freeContext).join(','),
+          '| answerCount:', answerCount, '| candidateDirection:', p.candidateDirection, '| mustKeep:', p.mustKeep.join('/'));
+        // 새 job 1개 생성. abort 신호를 붙이지 않는다(중복 방지 목적).
+        const resp = await fetch('/api/paid-job', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ freeContext, paidAnswers: p }),
+        });
+        const text = await resp.text();
+        // eslint-disable-next-line no-console
+        console.log('[paid-job] CREATE status:', resp.status, '| body:', text.slice(0, 300));
+        if (!resp.ok) {
+          let serverErr = '';
+          try { serverErr = String((JSON.parse(text) as { error?: unknown })?.error ?? ''); } catch { /* 비-JSON */ }
+          if (serverErr === 'insufficient_input') throw new Error('insufficient_input');
+          throw new Error(`create_http_${resp.status}${serverErr ? `_${serverErr}` : ''}`);
+        }
+        const id = String((JSON.parse(text) as { jobId?: string }).jobId ?? '');
+        if (!id) throw new Error('no_job_id');
+        return id;
+      })();
+      return createOnceRef.current;
+    };
+
     (async () => {
       try {
         // ── 1) job 확보 ──
-        //   (a) ?paidJobId=<uuid> → 조회 전용: create/run 금지, GET polling만. (결제 후 결과 재열람 경로)
-        //   (b) 일반 진입 → 항상 새 job 생성(결제 1건 = job 1개). 입력이 같아도 재사용하지 않는다.
+        //   (a) ?paidJobId=<uuid> → 조회 전용: create 금지, GET polling만. (결제 후 결과 재열람 경로)
+        //   (b) 일반 진입 → 새 job 1개 생성(결제 1건 = job 1개). 생성 후 서버가 QStash로 runner를
+        //       background 실행한다. 프론트는 /api/paid-analysis를 직접 호출하지 않는다.
         const viewJobId = getPaidJobIdFromUrl();
         let jobId = '';
-        let viewOnly = false;
         if (viewJobId) {
-          jobId = viewJobId; viewOnly = true;
+          jobId = viewJobId;
           // eslint-disable-next-line no-console
-          console.log('[paid-job] VIEW-ONLY paidJobId(조회만, 생성/실행 안 함):', jobId);
+          console.log('[paid-job] VIEW-ONLY paidJobId(조회만, 생성 안 함):', jobId);
         } else {
-          const p = paid!; // 이 분기(일반 진입)에서는 effect 진입 가드로 paid가 반드시 존재.
-          const freeContext = readFreeContext();
-          const clip60 = (v: string) => (v ? v.slice(0, 60).replace(/\n/g, ' ') : '(none)');
-          const freeTextChars = freeContext.occupation.length + freeContext.userFreeText.length + p.trigger.length + p.flowMoment.length;
-          const sentenceCount = countSentences(`${p.trigger}\n${p.flowMoment}\n${freeContext.userFreeText}`);
-          const answerVals = Object.values(p).flatMap((v) => (Array.isArray(v) ? v : [v]));
-          const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
-          // eslint-disable-next-line no-console
-          console.log('[paid-job] SEND | freeContext keys:', Object.keys(freeContext).join(','),
-            '| paid.trigger len:', p.trigger.length, `"${clip60(p.trigger)}"`,
-            '| paid.flowMoment len:', p.flowMoment.length, `"${clip60(p.flowMoment)}"`,
-            '| freeTextChars:', freeTextChars, '| sentenceCount:', sentenceCount,
-            '| candidateDirection:', p.candidateDirection, '| mustKeep:', p.mustKeep.join('/'));
-          // eslint-disable-next-line no-console
-          console.log('[paid-job] PAYLOAD_SHAPE', {
-            topLevelKeys: ['freeContext', 'paidAnswers'],
-            hasResult: !!(freeContext.mainType || freeContext.primarySubtype),
-            hasScores: typeof freeContext.subtypeConfidence === 'number',
-            hasAnswers: answerCount > 0, answerCount,
-            hasFreeContext: Object.keys(freeContext).length > 0,
-            freeContextKeys: Object.keys(freeContext),
-            freeTextChars,
-          });
-          const createResp = await fetch('/api/paid-job', {
-            method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ freeContext, paidAnswers: p }), signal: controller.signal,
-          });
-          const createText = await createResp.text();
-          // eslint-disable-next-line no-console
-          console.log('[paid-job] CREATE status:', createResp.status, '| body:', createText.slice(0, 300));
-          if (!createResp.ok) {
-            let serverErr = '';
-            try { serverErr = String((JSON.parse(createText) as { error?: unknown })?.error ?? ''); } catch { /* 비-JSON */ }
-            if (serverErr === 'insufficient_input') {
+          try { jobId = await createJobOnce(); }
+          catch (e) {
+            if (e instanceof Error && e.message === 'insufficient_input') {
               if (!isActive()) return;
-              settled = true; window.clearTimeout(timeout); setPhase('insufficient_input'); return;
+              settled = true; clearTimers(); setPhase('insufficient_input'); return;
             }
-            throw new Error(`create_http_${createResp.status}${serverErr ? `_${serverErr}` : ''}`);
+            throw e;
           }
-          jobId = String((JSON.parse(createText) as { jobId?: string }).jobId ?? '');
-          if (!jobId) throw new Error('no_job_id');
         }
+        if (!isActive()) return;
 
-        // 요청 ID + 복구 링크 확보(로그 + 화면 표시용). jobId가 있으면 이 URL로 언제든 결과 재열람 가능.
+        // 요청 ID + 복구 링크(로그 + 화면 표시용). jobId가 있으면 이 URL로 언제든 결과 재열람.
         setJobIdForDisplay(jobId);
-        const recoveryUrl = `${window.location.origin}/?paidJobId=${jobId}`;
         // eslint-disable-next-line no-console
-        console.log('[paid-job] jobId:', jobId, '| recovery URL:', recoveryUrl);
+        console.log('[paid-job] jobId:', jobId, '| recovery URL:', `${window.location.origin}/?paidJobId=${jobId}`);
 
-        // ── 2) 워커 트리거(idempotent) — 조회 전용 진입에서는 실행하지 않는다.
-        //   run worker는 /api/paid-analysis (POST {jobId}). 이미 result_json이 있으면 서버가
-        //   Claude를 재호출하지 않고 현재 상태만 반환한다(status가 queued일 때만 실제 생성).
-        if (!viewOnly) {
-          fetch('/api/paid-analysis', {
-            method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ jobId }), signal: controller.signal,
-          }).catch(() => { /* fire-and-forget: 폴링이 실제 상태를 읽는다 */ });
-        }
+        // 오래 걸림 안내 타이머(실패 아님 — 계속 폴링).
+        slowTimer = window.setTimeout(() => { if (isActive()) setSlow(true); }, SLOW_AFTER_MS);
 
-        // ── 3) polling — result_json이 status보다 우선. ──
-        //   우선순위: (1) result_json/result 있으면 status 무관하게 무조건 렌더
-        //            (2) 없고 failed면 실패 화면(요청 ID 표시)
-        //            (3) 그 외(queued/processing/ready-without-result)면 계속 폴링
-        //   POST /api/paid-analysis가 timeout/abort/network error여도 여기서 계속 폴링한다.
+        // ── 2) polling — result_json이 status보다 우선. ──
+        //   (1) result_json/result 있으면 status 무관하게 무조건 렌더
+        //   (2) 없고 failed면 실패 화면(요청 ID 표시)
+        //   (3) 그 외(queued/processing)면 계속 폴링. polling GET의 timeout/network error/304는
+        //       서버 job 실패가 아니므로 실패로 확정하지 않는다.
+        const startedAt = Date.now();
         while (isActive()) {
-          await sleep(POLL_INTERVAL_MS);
+          await sleep(pollIntervalFor(Date.now() - startedAt));
           if (!isActive()) return;
           let pollResp: Response;
           try {
@@ -281,9 +282,9 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
       }
     })();
 
-    // 언마운트 시: 이 실행을 stale로 만들고(runId 증가) 정리.
-    return () => { runIdRef.current++; controller.abort(); window.clearTimeout(timeout); };
-    // mount당 1회. 새로고침해도 재실행되며, 내부에서 기존 jobId를 재사용한다.
+    // 언마운트 시: 이 실행을 stale로 만들고(runId 증가) 타이머·폴링 정리. create는 abort하지 않음.
+    return () => { runIdRef.current++; controller.abort(); window.clearTimeout(timeout); if (slowTimer) window.clearTimeout(slowTimer); };
+    // mount당 1회. create는 createOnceRef로 중복 방지, polling은 controller로 정리.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -327,16 +328,39 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     );
   }
 
-  // ── 로딩 ──
+  // ── 로딩 ── (slow면 '오래 걸림' 안내 + 복구 링크. 실패 아님 — 백그라운드에서 계속 생성 중) ──
   if (phase === 'loading') {
+    const recoveryUrl = jobIdForDisplay ? `${window.location.origin}/?paidJobId=${jobIdForDisplay}` : '';
+    const copyRecovery = () => {
+      if (!recoveryUrl) return;
+      navigator.clipboard?.writeText(recoveryUrl).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 2000); }).catch(() => { /* clipboard 불가 무시 */ });
+    };
     return (
       <div className="min-h-dvh bg-white">
         <Header />
         <div className="max-w-2xl mx-auto px-4 py-24 flex flex-col items-center text-center gap-5">
           <div className="w-10 h-10 rounded-full border-4 animate-spin"
             style={{ borderColor: BOX_BORDER, borderTopColor: PURPLE }} aria-hidden />
-          <p className="text-sm text-slate-600 leading-relaxed">{LOADING_MESSAGES[msgIndex]}</p>
-          <p className="text-[11px] text-slate-400">1~2분 정도 걸릴 수 있어요.</p>
+          {slow ? (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-slate-700 leading-relaxed">분석이 평소보다 오래 걸리고 있습니다.</p>
+              <p className="text-[13px] text-slate-500 leading-relaxed">화면을 닫아도 분석은 계속됩니다.<br />아래 링크로 언제든 결과를 다시 열 수 있어요.</p>
+              {recoveryUrl && (
+                <div className="rounded-xl px-4 py-3 space-y-2" style={{ background: BOX_BG, border: `1px solid ${BOX_BORDER}` }}>
+                  <p className="text-[12px] text-slate-600 break-all">{recoveryUrl}</p>
+                  <button type="button" onClick={copyRecovery}
+                    className="px-4 py-2 rounded-xl text-white text-[13px] font-bold" style={{ background: PURPLE }}>
+                    {copied ? '복사됨 ✓' : '링크 복사'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600 leading-relaxed">{LOADING_MESSAGES[msgIndex]}</p>
+              <p className="text-[11px] text-slate-400">1~2분 정도 걸릴 수 있어요.</p>
+            </>
+          )}
           {jobIdForDisplay && (
             <p className="text-[10px] text-slate-300 break-all mt-1">요청 ID: {jobIdForDisplay}</p>
           )}
