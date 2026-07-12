@@ -1,25 +1,11 @@
-// api/paid-job-retry.ts — POST /api/paid-job-retry  body {jobId}. self-contained.
+// api/paid-job-retry.ts — POST /api/paid-job-retry  [일시 비활성화]
 //
-// failed job을 같은 input_json으로 재시도 가능하게: status failed → queued, retry_count 증가,
-// result_json 초기화, 직전 error는 latest_error_json에 보존. 이후 프론트가 run(/api/paid-analysis
-// {jobId})을 다시 호출한다.
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-
-const JOBS_TABLE = 'paid_analysis_jobs';
-const MAX_RETRIES = 3; // 이 횟수를 초과하면 permanent_failed(더 이상 재시도 불가).
-let _sb: SupabaseClient | null = null;
-function sbClient(): SupabaseClient | null {
-  if (_sb) return _sb;
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  _sb = createClient(url, key, { auth: { persistSession: false } });
-  return _sb;
-}
-function parseBody(req: any): any {
-  try { return typeof req.body === 'string' ? JSON.parse(req.body) : (req.body ?? {}); }
-  catch { return null; }
-}
+// 기존 구현은 pre-QStash 설계였다: failed job의 result_json을 무조건 null로 지우고
+// status를 queued로 되돌렸지만, QStash 재publish를 하지 않아 재시도된 job이 아무도
+// 집어가지 않는 orphan queued가 됐다(docs/debug/qstash-production-readiness.md §7-F1).
+// 완전한 QStash retry(재publish + result_json 보존)를 구현하기 전까지 이 endpoint는
+// DB를 일절 건드리지 않고 503 retry_temporarily_disabled만 반환한다.
+// 인증(ADMIN_RETRY_SECRET) 계약은 유지 — 미설정/불일치면 403(안전한 기본값 = 거부).
 
 const NO_STORE_HEADERS: Record<string, string> = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
@@ -33,45 +19,15 @@ function applyNoStore(res: any): void {
 export default async function handler(req: any, res: any): Promise<void> {
   applyNoStore(res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'method_not_allowed' }); return; }
-  const includeDiag = process.env.VERCEL_ENV !== 'production';
-  // 운영자 전용. 고객 화면에서는 호출하지 않는다. ADMIN_RETRY_SECRET 헤더가 일치할 때만 허용.
-  //   secret 미설정이거나 불일치면 403(안전한 기본값 = 거부).
+  // 운영자 전용 인증 유지. secret 미설정이거나 불일치면 403.
   const secret = process.env.ADMIN_RETRY_SECRET;
   const provided = (req.headers?.['x-admin-retry-secret'] ?? '').toString();
   if (!secret || provided !== secret) { res.status(403).json({ error: 'forbidden' }); return; }
-  const sb = sbClient();
-  if (!sb) { res.status(503).json({ error: 'not_configured', detail: 'supabase env missing' }); return; }
 
-  const body = parseBody(req);
-  const jobId = (body?.jobId ?? req.query?.id ?? '').toString();
-  if (!jobId) { res.status(400).json({ error: 'missing_id' }); return; }
-
-  const { data, error } = await sb.from(JOBS_TABLE).select().eq('id', jobId).maybeSingle();
-  if (error) { res.status(500).json({ error: 'store_error', detail: includeDiag ? error.message : undefined }); return; }
-  if (!data) { res.status(404).json({ error: 'not_found' }); return; }
-  const job = data as any;
-  if (job.status !== 'failed') { res.status(200).json({ jobId, status: job.status, note: 'not_failed_no_retry' }); return; }
-
-  // retry_count 제한: 초과 시 permanent_failed(더 이상 큐잉하지 않음, 프론트는 재시도 버튼 숨김).
-  const usedRetries = job.retry_count ?? 0;
-  if (usedRetries >= MAX_RETRIES) {
-    const prev = job.error_json ?? job.latest_error_json ?? {};
-    const permanent = { ...(typeof prev === 'object' ? prev : {}), errorType: 'permanent_failed', permanent: true };
-    await sb.from(JOBS_TABLE).update({ error_json: permanent, latest_error_json: permanent, updated_at: new Date().toISOString() }).eq('id', jobId);
-    // eslint-disable-next-line no-console
-    console.warn('[paid-job] RETRY blocked → permanent_failed', { jobId, usedRetries, MAX_RETRIES });
-    res.status(200).json({ jobId, status: 'failed', permanent: true, errorType: 'permanent_failed', retry_count: usedRetries });
-    return;
-  }
-
-  const nextRetry = usedRetries + 1;
-  const { error: upErr } = await sb.from(JOBS_TABLE).update({
-    status: 'queued', retry_count: nextRetry, result_json: null,
-    latest_error_json: job.error_json ?? job.latest_error_json ?? null,
-    completed_at: null, updated_at: new Date().toISOString(),
-  }).eq('id', jobId);
-  if (upErr) { res.status(500).json({ error: 'store_error', detail: includeDiag ? upErr.message : undefined }); return; }
   // eslint-disable-next-line no-console
-  console.log('[paid-job] RETRY', { jobId, retry_count: nextRetry });
-  res.status(200).json({ jobId, status: 'queued', retry_count: nextRetry });
+  console.warn('[paid-job] RETRY disabled — no DB mutation', { path: '/api/paid-job-retry' });
+  res.status(503).json({
+    error: 'retry_temporarily_disabled',
+    detail: 'admin retry is disabled until QStash-aware retry (republish + result_json guard) is implemented',
+  });
 }

@@ -50,6 +50,23 @@ DB 계측: `claude_duration_ms`, `runner_duration_ms`, `attempt_count`, `enqueue
 2. **Vercel 환경변수** (`.env.example` 참고): `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `PUBLIC_APP_URL`(= production 도메인), 기존 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`ANTHROPIC_API_KEY`. Production + Preview 모두.
 3. **Upstash**: QStash 활성화 → Token + Signing keys 복사. QStash가 도달할 public URL은 `PUBLIC_APP_URL/api/paid-analysis-runner`.
 
+## 환경별 동작 (Production / Preview / Local)
+
+| 환경 (`VERCEL_ENV`) | `POST /api/paid-job` | runner base URL | 비고 |
+|---|---|---|---|
+| **production** | job 생성 + QStash publish | `PUBLIC_APP_URL` → VERCEL_URL → 헤더 | 정상 흐름 |
+| **preview** | `ALLOW_PREVIEW_QSTASH=true`일 때만 생성+publish. 아니면 **insert 전 503**(`background_generation_disabled`) | `VERCEL_URL`(자기 프리뷰). PUBLIC_APP_URL 무시 | orphan queued row 안 만듦 → 무한 폴링 방지. preview job이 prod runner/DB 호출 방지 |
+| **local/dev** (`VERCEL_ENV` 미설정) | **insert 전 503** | — | QStash가 localhost 도달 불가 |
+
+프론트는 503(`background_generation_disabled`) 수신 시 job을 만들지 않고 안내 화면으로 종료(무한 폴링 없음).
+
+## 제출 idempotency (새로고침/응답유실 방어)
+
+- 프론트: 탭 세션 스코프(`career-compass-analytics-session-id`)로 `paid-analysis-request:{scope}`(clientRequestId)와 `paid-analysis-job:{scope}`(jobId)를 **sessionStorage**에 저장.
+- 재진입/새로고침: 저장된 jobId가 있으면 **새 POST 대신 GET 복구** 우선. terminal failed+result 없음이면 키 초기화(다음 제출은 새 job).
+- 서버: `client_request_id` **UNIQUE index** → 같은 키 재요청 시 새 row 안 만들고 기존 job 반환. 이미 `enqueued_at`/`qstash_message_id` 있으면 재publish 금지.
+- 새 리포트 의도: **PaidQuestionsView 진입 시 키 초기화**(명시적 reset 흐름).
+
 ## 미검증(배포 후 확인)
 
 - runner의 `./paid-analysis.ts` sibling import가 Vercel 번들에 포함되는지(과거 `../src` import에서 ERR_MODULE_NOT_FOUND 이력). runner 첫 delivery 로그로 확인.

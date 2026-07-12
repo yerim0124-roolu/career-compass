@@ -14,6 +14,10 @@ import { generatePaidResult, previewEvidence } from './paid-analysis.ts';
 
 // Vercel: 이 함수는 최대 300초까지 실행(Hobby 상한). Pro 전환 시 이 값 + vercel.json을 600~800으로.
 export const maxDuration = 300;
+// QStash 서명 검증에는 raw body가 필요하다. body parser를 끄고 스트림을 직접 읽는다.
+//   (Next 스타일 config. @vercel/node가 무시하더라도 req.body를 참조하지 않고 스트림을 읽으므로 무해.)
+export const config = { api: { bodyParser: false } };
+const MAX_BODY_BYTES = 256 * 1024; // 서명 대상 body 상한(정상 payload는 수십 바이트).
 
 // ── 타임아웃/리스 상수(한 곳에 모아 이유 주석) ────────────────────────────────
 //   runner 300s > lease 360s? 아니다 — lease는 runner보다 '길어야' stale 오판을 막는다.
@@ -39,9 +43,16 @@ function slog(event: string, fields: Record<string, unknown>): void {
   console.log(JSON.stringify({ event, ts: new Date().toISOString(), ...fields }));
 }
 // QStash 서명 검증을 위해 raw body가 필요하다. req.body를 건드리지 않고 스트림에서 직접 읽는다.
+//   과대 body는 상한에서 중단(에러 throw). 빈 body는 호출부에서 처리.
 async function readRawBody(req: any): Promise<string> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk as Buffer);
+  let total = 0;
+  for await (const chunk of req) {
+    const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk as Buffer;
+    total += buf.length;
+    if (total > MAX_BODY_BYTES) throw new Error('body_too_large');
+    chunks.push(buf);
+  }
   return Buffer.concat(chunks).toString('utf8');
 }
 void RUNNER_MAX_DURATION_S;
@@ -55,18 +66,26 @@ export default async function handler(req: any, res: any): Promise<void> {
   const nxt = process.env.QSTASH_NEXT_SIGNING_KEY;
   if (!apiKey || !cur || !nxt) { slog('runner_config_missing', { hasApiKey: !!apiKey, hasSigningKeys: !!(cur && nxt) }); res.status(503).json({ error: 'not_configured' }); return; }
 
-  // ── 서명 검증(raw body). body를 변형하기 전에 검증한다. ──
+  // ── 서명 검증(raw body). body를 변형(JSON.parse)하기 전에 검증한다. ──
   let raw: string;
-  try { raw = await readRawBody(req); } catch { res.status(400).json({ error: 'bad_body' }); return; }
+  try { raw = await readRawBody(req); }
+  catch (e) {
+    const tooLarge = e instanceof Error && e.message === 'body_too_large';
+    res.status(tooLarge ? 413 : 400).json({ error: tooLarge ? 'body_too_large' : 'bad_body' }); return;
+  }
+  if (!raw) { res.status(400).json({ error: 'empty_body' }); return; }
   const signature = (req.headers?.['upstash-signature'] ?? '').toString();
   if (!signature) { slog('runner_signature_missing', {}); res.status(401).json({ error: 'missing_signature' }); return; }
   let verified = false;
+  // Receiver.verify에는 raw body 문자열을 그대로 전달(변형 금지). url은 넘기지 않는다 —
+  //   프록시/host/proto 차이로 URL 불일치 검증 실패를 피하기 위함(body+signature로 충분히 검증).
   try { verified = await new Receiver({ currentSigningKey: cur, nextSigningKey: nxt }).verify({ signature, body: raw }); }
   catch { verified = false; }
   if (!verified) { slog('runner_signature_invalid', {}); res.status(403).json({ error: 'invalid_signature' }); return; }
 
+  // 서명 통과 후에만 JSON.parse.
   let jobId = '';
-  try { jobId = String(JSON.parse(raw)?.jobId ?? ''); } catch { /* below */ }
+  try { jobId = String(JSON.parse(raw)?.jobId ?? ''); } catch { res.status(400).json({ error: 'malformed_json' }); return; }
   if (!jobId) { res.status(400).json({ error: 'missing_job_id' }); return; }
   slog('runner_signature_verified', { jobId });
   slog('runner_started', { jobId });
@@ -144,10 +163,35 @@ export default async function handler(req: any, res: any): Promise<void> {
   const errorType = outcome.errorJson.errorType || outcome.errorJson.error || 'unknown';
   const retryable = RETRYABLE_ERROR_TYPES.has(errorType);
   if (retryable && attempt < MAX_ATTEMPTS) {
-    // lease 해제 → status=queued. 다음 QStash delivery가 다시 claim해 실행. non-2xx로 retry 트리거.
-    await sb.rpc('release_paid_analysis_lease', { p_job_id: jobId, p_lease_id: leaseId, p_error_code: errorType, p_error_message: String(outcome.errorJson.error ?? errorType) });
-    slog('runner_failed', { jobId, retryable: true, errorType, attemptCount: attempt });
-    res.status(503).json({ jobId, status: 'retry', errorType }); return;
+    // Claude 호출이 끝난 뒤에만 lease 해제 → status=queued. RPC는 (id + lease_id + status=processing +
+    //   result_json IS NULL)일 때만 1행 반환.
+    const { data: released, error: relErr } = await sb.rpc('release_paid_analysis_lease', { p_job_id: jobId, p_lease_id: leaseId, p_error_code: errorType, p_error_message: String(outcome.errorJson.error ?? errorType) });
+    if (relErr) {
+      // RPC 자체 오류 → 5xx(QStash retry로 회복 시도). lease는 만료되면 다른 delivery가 reclaim.
+      slog('runner_failed', { jobId, stage: 'release', retryable: true, message: relErr.message, attemptCount: attempt });
+      res.status(503).json({ error: 'store_error' }); return;
+    }
+    const releasedRow = Array.isArray(released) ? released[0] : released;
+    if (releasedRow) {
+      // release 성공(우리가 owner였고 result 없음) → 503으로 QStash 재delivery 유도.
+      slog('runner_failed', { jobId, retryable: true, errorType, attemptCount: attempt });
+      res.status(503).json({ jobId, status: 'retry', errorType }); return;
+    }
+    // 0행 → 재조회 후 분기(기존 결과/다른 lease owner를 덮어쓰지 않는다).
+    const { data: cur } = await sb.from(JOBS_TABLE).select().eq('id', jobId).maybeSingle();
+    const c: any = cur;
+    if (!c) { slog('runner_release_noop', { jobId, reason: 'not_found' }); res.status(200).json({ jobId, note: 'release_noop' }); return; }
+    if (c.result_json != null) { slog('runner_release_noop', { jobId, reason: 'already_saved' }); res.status(200).json({ jobId, status: 'ready', note: 'release_noop' }); return; }
+    if (c.status === 'ready') { slog('runner_release_noop', { jobId, reason: 'ready' }); res.status(200).json({ jobId, status: 'ready', note: 'release_noop' }); return; }
+    if (c.status === 'failed') { slog('runner_release_noop', { jobId, reason: 'failed_no_result' }); res.status(200).json({ jobId, status: 'failed', note: 'release_noop' }); return; }
+    const leaseValid = c.lease_expires_at && Date.parse(c.lease_expires_at) > Date.now();
+    if (c.status === 'processing' && c.lease_id && c.lease_id !== leaseId && leaseValid) {
+      // 다른 runner가 유효 lease로 처리 중 → 우리는 조용히 종료.
+      slog('runner_release_noop', { jobId, reason: 'other_valid_lease' }); res.status(200).json({ jobId, note: 'release_noop' }); return;
+    }
+    // 여전히 processing인데 우리 lease거나 원인 설명 불가 → 로그 후 5xx(안전하게 재시도 유도).
+    slog('runner_failed', { jobId, stage: 'release_unexpected', retryable: true, status: c.status, sameLease: c.lease_id === leaseId, attemptCount: attempt });
+    res.status(500).json({ error: 'release_unexpected' }); return;
   }
   // terminal(또는 attempts 소진): result 없을 때만 failed 기록. 2xx로 QStash retry 중단.
   const errPayload = { error: outcome.errorJson.error ?? 'failed', errorType, stage: 'runner', retryable: false, attemptCount: attempt };

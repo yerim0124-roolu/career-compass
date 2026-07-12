@@ -17,9 +17,15 @@ alter table public.paid_analysis_jobs add column if not exists runner_duration_m
 alter table public.paid_analysis_jobs add column if not exists last_error_code        text;
 alter table public.paid_analysis_jobs add column if not exists last_error_message     text;
 alter table public.paid_analysis_jobs add column if not exists last_error_retryable   boolean;
+-- 제출 단위 idempotency 키(프론트가 제출 1회당 1개 생성). 같은 키 재요청 시 새 row 생성 금지.
+alter table public.paid_analysis_jobs add column if not exists client_request_id      uuid;
 -- completed_at / model / usage_json / result_json / error_json 은 이미 존재 → 재사용.
 
 create index if not exists paid_analysis_jobs_lease_idx on public.paid_analysis_jobs (lease_expires_at);
+-- client_request_id 유니크(부분 인덱스: NULL 다중 허용 — 구버전 클라이언트 호환).
+create unique index if not exists paid_analysis_jobs_client_request_uidx
+  on public.paid_analysis_jobs (client_request_id)
+  where client_request_id is not null;
 
 -- ── 2) atomic lease claim ───────────────────────────────────────────────────
 -- queued 이거나, processing인데 lease 만료된(stale) job만 claim. result_json 있으면 claim 불가.
@@ -30,6 +36,8 @@ create or replace function public.claim_paid_analysis_job(
   p_lease_seconds integer
 ) returns setof public.paid_analysis_jobs
 language sql
+security definer
+set search_path = public, pg_temp
 as $$
   update public.paid_analysis_jobs j
   set status = 'processing',
@@ -59,6 +67,8 @@ create or replace function public.save_paid_analysis_result(
   p_runner_ms bigint
 ) returns setof public.paid_analysis_jobs
 language sql
+security definer
+set search_path = public, pg_temp
 as $$
   update public.paid_analysis_jobs j
   set result_json = p_result,
@@ -91,6 +101,8 @@ create or replace function public.release_paid_analysis_lease(
   p_error_message text
 ) returns setof public.paid_analysis_jobs
 language sql
+security definer
+set search_path = public, pg_temp
 as $$
   update public.paid_analysis_jobs j
   set status = 'queued',
@@ -102,7 +114,8 @@ as $$
       updated_at = now()
   where j.id = p_job_id
     and j.lease_id = p_lease_id
-    and j.result_json is null
+    and j.status = 'processing'   -- 현재 이 runner가 처리 중일 때만 release
+    and j.result_json is null     -- result 저장됐으면 절대 queued로 되돌리지 않음
   returning j.*;
 $$;
 
@@ -115,6 +128,8 @@ create or replace function public.fail_paid_analysis_job(
   p_error_message text
 ) returns setof public.paid_analysis_jobs
 language sql
+security definer
+set search_path = public, pg_temp
 as $$
   update public.paid_analysis_jobs j
   set status = 'failed',
@@ -132,5 +147,18 @@ as $$
     and j.result_json is null
   returning j.*;
 $$;
+
+-- ── 6) RPC 실행 권한 잠금 ────────────────────────────────────────────────────
+-- 서버 runner(service_role)만 호출 가능. PUBLIC/anon/authenticated는 EXECUTE 불가.
+-- SECURITY DEFINER + search_path 고정으로 하이재킹 방지. 시그니처는 위 정의와 정확히 일치.
+revoke execute on function public.claim_paid_analysis_job(uuid, uuid, integer)                                   from public, anon, authenticated;
+revoke execute on function public.save_paid_analysis_result(uuid, uuid, jsonb, jsonb, text, jsonb, bigint, bigint) from public, anon, authenticated;
+revoke execute on function public.release_paid_analysis_lease(uuid, uuid, text, text)                            from public, anon, authenticated;
+revoke execute on function public.fail_paid_analysis_job(uuid, uuid, jsonb, text, text)                          from public, anon, authenticated;
+
+grant execute on function public.claim_paid_analysis_job(uuid, uuid, integer)                                   to service_role;
+grant execute on function public.save_paid_analysis_result(uuid, uuid, jsonb, jsonb, text, jsonb, bigint, bigint) to service_role;
+grant execute on function public.release_paid_analysis_lease(uuid, uuid, text, text)                            to service_role;
+grant execute on function public.fail_paid_analysis_job(uuid, uuid, jsonb, text, text)                          to service_role;
 
 notify pgrst, 'reload schema';

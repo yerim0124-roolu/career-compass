@@ -7,6 +7,7 @@
 
 import { useMemo, useState } from 'react';
 import type { PaidAnswers } from './paidTypes.ts';
+import { storePaidAnswers } from './paidJobSession.ts';
 
 interface Props {
   onComplete: (answers: PaidAnswers) => void;
@@ -108,7 +109,8 @@ export default function PaidQuestionsView({ onComplete }: Props) {
 
   const goNext = () => {
     if (!canProceed) return;
-    if (isLast) { onComplete(answers); window.location.hash = '#paid-result'; return; }
+    // 화면 이동 전에 저장 — React state가 소실(새로고침·탭 재적재)돼도 결과 화면이 복구한다.
+    if (isLast) { storePaidAnswers(answers); onComplete(answers); window.location.hash = '#paid-result'; return; }
     setStepIndex((i) => i + 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

@@ -22,14 +22,23 @@ function slog(event: string, fields: Record<string, unknown>): void {
   console.log(JSON.stringify({ event, ts: new Date().toISOString(), ...fields }));
 }
 
-// QStash가 접근 가능한 절대 public URL. PUBLIC_APP_URL 우선, 없으면 요청 헤더로 결정, 최후 prod.
-function resolveBaseUrl(req: any): string {
-  const env = process.env.PUBLIC_APP_URL;
-  if (env) return env.replace(/\/$/, '');
+function hostBaseUrl(req: any): string {
   const proto = (req.headers?.['x-forwarded-proto'] ?? 'https').toString().split(',')[0];
   const host = (req.headers?.['x-forwarded-host'] ?? req.headers?.host ?? '').toString().split(',')[0];
-  if (host) return `${proto}://${host}`;
-  return PROD_APP_URL;
+  return host ? `${proto}://${host}` : '';
+}
+// recoveryUrl 등 사용자 표시용 base URL(항상 안정적인 public 도메인 우선).
+function displayBaseUrl(req: any): string {
+  return (process.env.PUBLIC_APP_URL?.replace(/\/$/, '')) || hostBaseUrl(req) || PROD_APP_URL;
+}
+// QStash가 도달할 runner base URL. 환경별로 '자기 자신'을 향하게 해 교차환경 호출을 막는다.
+//   - preview: VERCEL_URL(그 프리뷰 배포 자신). PUBLIC_APP_URL(=prod)을 쓰지 않는다.
+//   - production/기타: PUBLIC_APP_URL 우선 → VERCEL_URL → 헤더 → prod.
+function resolveRunnerBaseUrl(req: any): string {
+  const vercelEnv = process.env.VERCEL_ENV; // 'production' | 'preview' | 'development'
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '';
+  if (vercelEnv === 'preview') return vercelUrl || hostBaseUrl(req) || PROD_APP_URL;
+  return (process.env.PUBLIC_APP_URL?.replace(/\/$/, '')) || vercelUrl || hostBaseUrl(req) || PROD_APP_URL;
 }
 function sbClient(): SupabaseClient | null {
   if (_sb) return _sb;
@@ -98,7 +107,7 @@ export default async function handler(req: any, res: any): Promise<void> {
       jobId: job.id, status: job.status, payment_status: job.payment_status, retry_count: job.retry_count,
       attempt_count: job.attempt_count ?? 0, updated_at: job.updated_at,
       quality, can_pay: canPay, has_result: hasResult, displayable: hasResult,
-      recoveryUrl: `${resolveBaseUrl(req)}/?paidJobId=${job.id}`,
+      recoveryUrl: `${displayBaseUrl(req)}/?paidJobId=${job.id}`,
     };
     if (hasResult) out.result_json = job.result_json;
     // 민감한 내부 오류/prompt/stack은 제외. error 코드/타입만 노출.
@@ -131,10 +140,27 @@ export default async function handler(req: any, res: any): Promise<void> {
   const qstashToken = process.env.QSTASH_TOKEN;
   if (!qstashToken) { slog('qstash_not_configured', {}); res.status(503).json({ error: 'not_configured', detail: 'qstash token missing' }); return; }
 
+  // ── background generation 가용 환경인지 insert 전에 확인 ──
+  //   Production만 항상 publish. Preview는 ALLOW_PREVIEW_QSTASH=true일 때만. Local/dev(QStash가
+  //   localhost에 도달 불가)는 차단. 여기서 막으면 orphan queued row가 생기지 않아 무한 폴링을 방지.
+  const vercelEnv = process.env.VERCEL_ENV; // 'production' | 'preview' | undefined(local)
+  const publishDisabled =
+    (vercelEnv === 'preview' && process.env.ALLOW_PREVIEW_QSTASH !== 'true') ||
+    (vercelEnv !== 'production' && vercelEnv !== 'preview');
+  if (publishDisabled) {
+    slog('background_generation_disabled', { env: vercelEnv ?? 'local' });
+    res.status(503).json({ error: 'background_generation_disabled', env: vercelEnv ?? 'local', detail: 'QStash background generation is disabled in this environment' });
+    return;
+  }
+
+  // 제출 단위 idempotency 키(uuid). 프론트가 제출 1회당 1개 생성해 보낸다(구버전은 없을 수 있음).
+  const clientRequestId: string | null = typeof body.clientRequestId === 'string' && body.clientRequestId ? body.clientRequestId : null;
+
   const now = new Date().toISOString();
   const { data, error } = await sb.from(JOBS_TABLE).insert({
     user_session_id: body.userSessionId ?? null,
     test_result_id: body.testResultId ?? null,
+    client_request_id: clientRequestId,
     status: 'queued',
     input_json: { freeContext, paidAnswers },
     evidence_pack: null,
@@ -142,16 +168,32 @@ export default async function handler(req: any, res: any): Promise<void> {
     retry_count: 0, attempt_count: 0, payment_status: 'unpaid',
     created_at: now, updated_at: now,
   }).select().single();
+
+  let jobRow: any = data;
   if (error) {
-    slog('paid_job_create_store_error', { message: error.message });
-    res.status(500).json({ error: 'store_error', detail: includeDiag ? error.message : undefined });
-    return;
+    // 23505 = unique 위반(같은 client_request_id 재요청). 새 row 만들지 않고 기존 job을 반환한다.
+    if (error.code === '23505' && clientRequestId) {
+      const { data: existing } = await sb.from(JOBS_TABLE).select().eq('client_request_id', clientRequestId).maybeSingle();
+      if (existing) {
+        slog('paid_job_dedup_hit', { jobId: (existing as any).id });
+        jobRow = existing;
+      } else { slog('paid_job_create_store_error', { message: error.message }); res.status(500).json({ error: 'store_error', detail: includeDiag ? error.message : undefined }); return; }
+    } else {
+      slog('paid_job_create_store_error', { message: error.message });
+      res.status(500).json({ error: 'store_error', detail: includeDiag ? error.message : undefined });
+      return;
+    }
   }
-  const jobId = (data as any).id as string;
-  slog('paid_job_created', { jobId });
+  const jobId = jobRow.id as string;
+  slog('paid_job_created', { jobId, dedup: jobRow !== data });
+
+  // 이미 결과가 있으면 재publish 불필요.
+  if (jobRow.result_json != null) { res.status(201).json({ jobId, status: jobRow.status }); return; }
+  // 이미 enqueue된 job(재요청/새로고침)이면 중복 publish 금지.
+  if (jobRow.enqueued_at || jobRow.qstash_message_id) { slog('qstash_publish_skipped', { jobId, reason: 'already_enqueued' }); res.status(201).json({ jobId, status: jobRow.status }); return; }
 
   // ── QStash publish: runner를 background로 실행. 프론트는 Claude 완료를 기다리지 않는다. ──
-  const runnerUrl = `${resolveBaseUrl(req)}${RUNNER_PATH}`;
+  const runnerUrl = `${resolveRunnerBaseUrl(req)}${RUNNER_PATH}`;
   slog('qstash_publish_started', { jobId, runnerUrl });
   try {
     const qstash = new QStashClient({ token: qstashToken });
@@ -175,7 +217,6 @@ export default async function handler(req: any, res: any): Promise<void> {
       failed_at: new Date().toISOString(), last_error_code: 'qstash_publish', last_error_message: msg, last_error_retryable: true,
       updated_at: new Date().toISOString(),
     }).eq('id', jobId).is('result_json', null);
-    // jobId는 반환(복구/조회 가능). 프론트는 새 job을 무한 생성하지 않고 이 job을 폴링한다.
     res.status(201).json({ jobId, status: 'failed', enqueueError: 'qstash_publish', retryable: true });
   }
 }

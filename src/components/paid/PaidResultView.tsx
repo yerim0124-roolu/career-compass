@@ -13,12 +13,13 @@ import type { PaidAnswers } from './paidTypes.ts';
 import { readFreeContext } from './freeContext.ts';
 import { logPaidAnalysisFailed } from './paidAnalytics.ts';
 import { validationErrors, normalizePaidResult, type PaidResult, type NarrativeSection, type ExperimentItem } from './resultValidation.ts';
+import { getOrCreateClientRequestId, readStoredJobId, storeJobId, clearPaidKeys, storePaidAnswers, readStoredPaidAnswers } from './paidJobSession.ts';
 
 interface Props {
   paidAnswers?: PaidAnswers | null;
 }
 
-type Phase = 'loading' | 'success' | 'error' | 'no_answers' | 'insufficient_input' | 'permanent_failed';
+type Phase = 'loading' | 'success' | 'error' | 'no_answers' | 'insufficient_input' | 'permanent_failed' | 'not_found';
 
 // GET /api/paid-job polling 응답 shape. result_json/quality/can_pay는 ready일 때 채워진다.
 interface PollResponse {
@@ -71,9 +72,9 @@ function Header() {
 }
 
 export default function PaidResultView({ paidAnswers }: Props = {}) {
-  // ?paidJobId=<uuid> 조회 전용 진입은 paidAnswers 없이도 결과를 불러온다(문항 화면으로 안 보냄).
-  const hasViewJobId = getPaidJobIdFromUrl() !== '';
-  const [phase, setPhase] = useState<Phase>(paidAnswers || hasViewJobId ? 'loading' : 'no_answers');
+  // ?paidJobId=<uuid> 조회 전용, 또는 sessionStorage에 복구할 jobId/답변이 있으면 props 없이도 진행.
+  const hasEntry = !!paidAnswers || getPaidJobIdFromUrl() !== '' || readStoredJobId() !== '' || readStoredPaidAnswers() !== null;
+  const [phase, setPhase] = useState<Phase>(hasEntry ? 'loading' : 'no_answers');
   const [result, setResult] = useState<PaidResult | null>(null);
   // 실패 화면/복구 링크에 표시할 요청 ID(jobId). 생성/조회 시점에 채운다.
   const [jobIdForDisplay, setJobIdForDisplay] = useState('');
@@ -100,9 +101,13 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
 
   // mount당 1회만 실행. ?paidJobId= 조회 전용이면 paidAnswers 없이도 진행한다.
   useEffect(() => {
-    const paid = paidRef.current;
+    // React state 우선, 없으면 sessionStorage 복구(새로고침·탭 재적재로 state 소실 대비).
+    //   state가 있으면 저장소에 동기화해 이후 복구 경로와 항상 일치시킨다.
+    const statePaid = paidRef.current;
+    if (statePaid) storePaidAnswers(statePaid);
+    const paid = statePaid ?? readStoredPaidAnswers();
     const urlJobId = getPaidJobIdFromUrl();
-    if (!paid && !urlJobId) { setPhase('no_answers'); return; }
+    if (!paid && !urlJobId && !readStoredJobId()) { setPhase('no_answers'); return; }
     setPhase('loading');
     setResult(null);
 
@@ -139,6 +144,16 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
       console.log('[paid-job] → success: 저장된 result_json 렌더');
       setResult(data);
       setPhase('success');
+    };
+    // 실제 HTTP 404(job 없음)일 때만 '복구 불가' 화면. 키는 여기서 지우지 않는다(버튼 클릭 시에만).
+    const finishNotFound = () => {
+      if (!isActive()) return;
+      settled = true;
+      clearTimers();
+      logPaidAnalysisFailed('job_not_found');
+      // eslint-disable-next-line no-console
+      console.log('[paid-job] → not_found UI (실제 404)');
+      setPhase('not_found');
     };
 
     const timeout = window.setTimeout(() => { controller.abort(); finishError('timeout'); }, HARD_TIMEOUT_MS);
@@ -180,17 +195,18 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     const createJobOnce = (): Promise<string> => {
       if (createOnceRef.current) return createOnceRef.current;
       createOnceRef.current = (async () => {
-        const p = paidRef.current!;
+        const p = paid!; // state 또는 sessionStorage 복구본(호출부에서 존재 보장)
         const freeContext = readFreeContext();
         const answerVals = Object.values(p).flatMap((v) => (Array.isArray(v) ? v : [v]));
         const answerCount = answerVals.filter((v) => typeof v === 'string' && v.trim().length > 0).length;
+        // 답변 원문은 로그에 남기지 않는다(개수/존재 여부만).
         // eslint-disable-next-line no-console
         console.log('[paid-job] SEND | freeContext keys:', Object.keys(freeContext).join(','),
-          '| answerCount:', answerCount, '| candidateDirection:', p.candidateDirection, '| mustKeep:', p.mustKeep.join('/'));
+          '| answerCount:', answerCount, '| hasDirection:', p.candidateDirection.trim().length > 0, '| mustKeepCount:', p.mustKeep.length);
         // 새 job 1개 생성. abort 신호를 붙이지 않는다(중복 방지 목적).
         const resp = await fetch('/api/paid-job', {
           method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ freeContext, paidAnswers: p }),
+          body: JSON.stringify({ freeContext, paidAnswers: p, clientRequestId: getOrCreateClientRequestId() }),
         });
         const text = await resp.text();
         // eslint-disable-next-line no-console
@@ -199,10 +215,12 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           let serverErr = '';
           try { serverErr = String((JSON.parse(text) as { error?: unknown })?.error ?? ''); } catch { /* 비-JSON */ }
           if (serverErr === 'insufficient_input') throw new Error('insufficient_input');
+          if (serverErr === 'background_generation_disabled') throw new Error('background_generation_disabled');
           throw new Error(`create_http_${resp.status}${serverErr ? `_${serverErr}` : ''}`);
         }
         const id = String((JSON.parse(text) as { jobId?: string }).jobId ?? '');
         if (!id) throw new Error('no_job_id');
+        storeJobId(id); // 새로고침 복구용으로 즉시 저장
         return id;
       })();
       return createOnceRef.current;
@@ -214,22 +232,27 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
         //   (a) ?paidJobId=<uuid> → 조회 전용: create 금지, GET polling만. (결제 후 결과 재열람 경로)
         //   (b) 일반 진입 → 새 job 1개 생성(결제 1건 = job 1개). 생성 후 서버가 QStash로 runner를
         //       background 실행한다. 프론트는 /api/paid-analysis를 직접 호출하지 않는다.
+        //   (c) sessionStorage에 저장된 jobId가 있으면 새 POST보다 GET 복구를 우선(새로고침·응답유실 대비).
         const viewJobId = getPaidJobIdFromUrl();
+        const storedJobId = readStoredJobId();
         let jobId = '';
         if (viewJobId) {
           jobId = viewJobId;
           // eslint-disable-next-line no-console
           console.log('[paid-job] VIEW-ONLY paidJobId(조회만, 생성 안 함):', jobId);
-        } else {
+        } else if (storedJobId) {
+          jobId = storedJobId;
+          // eslint-disable-next-line no-console
+          console.log('[paid-job] RECOVER stored jobId(GET 복구, 새 POST 안 함):', jobId);
+        } else if (paid) {
           try { jobId = await createJobOnce(); }
           catch (e) {
-            if (e instanceof Error && e.message === 'insufficient_input') {
-              if (!isActive()) return;
-              settled = true; clearTimers(); setPhase('insufficient_input'); return;
-            }
+            const msg = e instanceof Error ? e.message : 'unknown';
+            if (msg === 'insufficient_input') { if (!isActive()) return; settled = true; clearTimers(); setPhase('insufficient_input'); return; }
+            if (msg === 'background_generation_disabled') { finishError('background_generation_disabled'); return; }
             throw e;
           }
-        }
+        } else { setPhase('no_answers'); return; }
         if (!isActive()) return;
 
         // 요청 ID + 복구 링크(로그 + 화면 표시용). jobId가 있으면 이 URL로 언제든 결과 재열람.
@@ -258,8 +281,12 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           } catch { continue; /* 일시적 네트워크 오류 → 다음 폴링(실패 확정 금지) */ }
           // 304가 오더라도(중간 프록시 등) 절대 fatal로 처리하지 않고 다음 폴링으로.
           if (pollResp.status === 304) { continue; }
-          // 404만 확정 실패(job 자체가 없음). 5xx 등 나머지는 다음 폴링으로.
-          if (!pollResp.ok) { if (pollResp.status === 404) { finishError('job_not_found'); return; } continue; }
+          // 실제 HTTP 404(job 자체가 없음)일 때만 '복구 불가' 화면. 일시적 network error/5xx는
+          //   위 catch/continue로 흡수(첫 실패로 확정하지 않음). 키는 여기서 지우지 않는다.
+          if (!pollResp.ok) {
+            if (pollResp.status === 404) { finishNotFound(); return; }
+            continue;
+          }
           let poll: PollResponse;
           try { poll = await pollResp.json() as PollResponse; } catch { continue; }
           const storedResult = poll.result_json ?? poll.result ?? null;
@@ -267,7 +294,8 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
           console.log('[paid-job] POLL status:', poll.status, '| hasResult:', storedResult != null, '| can_pay:', poll.can_pay);
           // (1) result_json이 있으면 status(ready/failed/processing)와 무관하게 무조건 렌더.
           if (storedResult != null) { renderStoredResult(poll); return; }
-          // (2) result가 없고 failed면 실패 화면(요청 ID 포함).
+          // (2) result가 없고 failed면 실패 화면(요청 ID). 저장 키는 자동 초기화하지 않는다 —
+          //     사용자가 명시적으로 '새 분석'을 선택하기 전까지 기존 jobId를 유지(같은 실패 job 복구).
           if (poll.status === 'failed') {
             const et = poll.error_json?.errorType || poll.error_json?.error || 'failed';
             finishError(`job_failed_${et}`);
@@ -369,8 +397,32 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
     );
   }
 
-  // ── 결과 생성 실패 — result_json이 정말 없을 때만(status failed && !result). 재시도 버튼 없음. ──
+  // 명시적 '새 심화 분석 시작' — 이때만 키를 초기화하고 문항 화면으로 이동한다.
+  const startNewAnalysis = () => { clearPaidKeys(); window.location.hash = '#paid-questions'; };
+
+  // ── 복구 불가(실제 404) — 저장된 job이 서버에 없음. 새 분석 시작 버튼 제공. ──
+  if (phase === 'not_found') {
+    return (
+      <div className="min-h-dvh bg-white">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
+          <p className="text-2xl" aria-hidden>🧭</p>
+          <p className="text-base font-black text-slate-800">저장된 분석을 찾을 수 없어요</p>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            이전 요청 정보를 더 이상 불러올 수 없어요. 새 심화 분석을 시작해 주세요.
+          </p>
+          <button type="button" onClick={startNewAnalysis}
+            className="px-6 py-3 rounded-2xl text-white font-bold" style={{ background: PURPLE }}>
+            새 심화 분석 시작 <span aria-hidden>→</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 결과 생성 실패 — result_json이 정말 없을 때만(status failed && !result). 자동 재시도 없음. ──
   //   result_json이 있으면 위 polling에서 무조건 렌더되므로 여기 오지 않는다.
+  //   '새 심화 분석 시작'을 누르기 전까지 기존 jobId를 유지한다(버튼 클릭 시에만 clearPaidKeys).
   if (phase === 'error' || phase === 'permanent_failed' || !result) {
     return (
       <div className="min-h-dvh bg-white">
@@ -388,6 +440,12 @@ export default function PaidResultView({ paidAnswers }: Props = {}) {
               <p className="text-[13px] font-bold text-slate-700 break-all">{jobIdForDisplay}</p>
             </div>
           )}
+          <div className="pt-2">
+            <button type="button" onClick={startNewAnalysis}
+              className="px-6 py-3 rounded-2xl text-white font-bold" style={{ background: PURPLE }}>
+              새 심화 분석 시작 <span aria-hidden>→</span>
+            </button>
+          </div>
         </div>
       </div>
     );
