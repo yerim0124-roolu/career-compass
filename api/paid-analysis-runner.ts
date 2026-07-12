@@ -10,7 +10,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Receiver } from '@upstash/qstash';
 import { randomUUID } from 'node:crypto';
-import { generatePaidResult, previewEvidence } from './paid-analysis.ts';
+// Vercel(@vercel/node) 번들은 각 .ts를 .js로 emit하므로 런타임 specifier는 '.js'여야 한다.
+//   '.ts' specifier는 emit 후 존재하지 않아 모듈 로드 실패(FUNCTION_INVOCATION_FAILED)를 유발했다.
+//   tsc(bundler resolution)는 '.js' → 형제 '.ts' 소스로 해석한다.
+import { generatePaidResult, previewEvidence } from './paid-analysis.js';
 
 // Vercel: 이 함수는 최대 300초까지 실행(Hobby 상한). Pro 전환 시 이 값 + vercel.json을 600~800으로.
 export const maxDuration = 300;
