@@ -201,7 +201,8 @@ export default async function handler(req: any, res: any): Promise<void> {
       url: runnerUrl,
       body: { jobId },
       retries: QSTASH_RETRIES,
-      deduplicationId: `paid-analysis:${jobId}`,
+      // QStash DeduplicationId는 ':'를 허용하지 않는다(400 "DeduplicationId cannot contain ':'").
+      deduplicationId: `paid-analysis-${jobId}`,
     });
     const messageId = Array.isArray(pub) ? pub[0]?.messageId : (pub as any)?.messageId;
     await sb.from(JOBS_TABLE).update({ enqueued_at: new Date().toISOString(), qstash_message_id: messageId ?? null, updated_at: new Date().toISOString() }).eq('id', jobId);

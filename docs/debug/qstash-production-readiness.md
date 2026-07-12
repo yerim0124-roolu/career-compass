@@ -37,7 +37,7 @@
 - 4개 RPC 모두 `security definer` + `set search_path = public, pg_temp` + `revoke from public/anon/authenticated` + `grant to service_role` (SQL L151-162) ✓. 시그니처와 revoke/grant의 인자 타입 나열 일치 확인.
 - **결과 보호 종합**: result_json이 있으면 claim 불가·save 불가·release 불가·fail 불가 + runner가 사전 skip(L102-108). 저장된 결과를 지우는 경로는 runner/RPC에 없음 ✓. (예외는 §7-F1의 admin retry.)
 - lease(360s) > runner maxDuration(300s) → 실행 중 stale 오판 방지 ✓. `MAX_ATTEMPTS=3` = QStash 최초 1 + retries 2 ✓.
-- **중복 Claude 방지 체인**: publish `deduplicationId: paid-analysis:${jobId}`(중복 publish 차단) → atomic claim(중복 delivery 차단) → already_has_result skip(재실행 차단) → save의 lease-owner 조건(늦은 저장 차단). 정합 ✓.
+- **중복 Claude 방지 체인**: publish `deduplicationId: paid-analysis-${jobId}`(중복 publish 차단; ':'는 QStash가 400으로 거부해 '-' 사용 — 2026-07-13 production 장애로 확인) → atomic claim(중복 delivery 차단) → already_has_result skip(재실행 차단) → save의 lease-owner 조건(늦은 저장 차단). 정합 ✓.
 
 ## 3. production 환경변수 대응표
 
