@@ -5,7 +5,6 @@ import { MAIN_TYPE_NARRATIVES, selectTraps } from '../../data/mainTypeNarratives
 import { getExperimentJobHint } from '../../data/jobRoleExperimentHints.ts';
 import ClosingQuoteCard from './ClosingQuoteCard.tsx';
 import { getClosingMessage } from '../../data/closingMessages.ts';
-import MobileResultPager from './MobileResultPager.tsx';
 // 파스텔 인포그래픽 토큰 — 색에 '단일 의미'를 부여 (design-critique 권장 2).
 //   progress(라벤더) = 강점·진행 / caution(피치) = 주의·부족 / done(민트) = 완료·안전 / neutral(회색)
 const TONE = {
@@ -751,9 +750,14 @@ export default function ResultSpineView({ spine, onRestart, hideDeepSections = f
           {closingBlock}
           {footerBlock}
         </div>
-        {/* 모바일 — 6페이지 스텝형(요약→분석→실행→재판정→대안→근거). .cc-mobile 스코프에서만 밀도 축소 */}
+        {/* 모바일 — 데스크톱과 동일하게 한 페이지 연속 스크롤(페이저 제거). 모바일 최적화(m*)
+            블록과 .cc-mobile 밀도는 유지하고, 각 섹션을 세로로 이어 붙인 뒤 끝에 footer(결제 CTA). */}
         <div className="sm:hidden cc-mobile">
-          <MobileResultPager pages={mobilePages} />
+          <div className="space-y-10">
+            {mobilePages.filter((p) => p.content).map((p) => (
+              <div key={p.label} className="space-y-5">{p.content}</div>
+            ))}
+          </div>
           <div className="mt-8">{footerBlock}</div>
         </div>
       </div>
