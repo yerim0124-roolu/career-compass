@@ -38,6 +38,7 @@ import ChatLikeFlow from '../careerCompassV2/ChatLikeFlow';
 import QuestionStepRenderer from '../careerCompassV2/QuestionStepRenderer';
 import LiveInsightCard from '../careerCompassV2/LiveInsightCard';
 import ResultSpineView from '../careerCompassV2/ResultSpineView';
+import PatternTeaserView from '../careerCompassV2/PatternTeaserView';
 import { buildLiveInsight } from '../careerCompassV2/liveInsight';
 import ChatMessage from '../chatV1/ChatMessage';
 import ChatChoiceButton from '../chatV1/ChatChoiceButton';
@@ -312,9 +313,13 @@ export default function HybridFlowView() {
             <span aria-hidden>←</span> 답변 수정하러 돌아가기
           </button>
         </div>
-        {/* 유료 기능 on이면 무료 리포트는 요약형으로: '30일 후 다시 볼 질문'·'근거 자세히 보기'는
-            숨기고, 유료 심화 분석 CTA(PaidEntryBanner)로 대체한다(데이터 저장은 그대로). */}
-        <ResultSpineView spine={spine} onRestart={restartAll} hideDeepSections={FEATURE_FLAGS.paidAnalysis} />
+        {/* 유료 기능 on이면 무료 화면은 커리어 고민 패턴 티저(PatternTeaserView)로 대체한다.
+            기존 상세 해석·실행 처방은 화면에서만 숨기고, spine 데이터는 그대로 유지된다(위 계산).
+            심층 분석 미리보기·결제 CTA는 형제 컴포넌트 PaidEntryBanner가 제공한다.
+            플래그 off(레거시)면 기존 상세 무료 리포트(ResultSpineView)를 그대로 렌더한다. */}
+        {FEATURE_FLAGS.paidAnalysis
+          ? <PatternTeaserView pattern={spine.patternProfile} />
+          : <ResultSpineView spine={spine} onRestart={restartAll} hideDeepSections={false} />}
       </div>
     );
   }

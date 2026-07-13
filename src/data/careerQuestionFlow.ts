@@ -381,7 +381,78 @@ const actionExperiment: QuestionStep = {
 // 결과지·narrative 어디에서도 읽지 않던 죽은 필드라(입력해도 사라짐) 마지막 문항을 30일
 // 실험 선택(actionExperiment)으로 끝낸다.
 
-// ─── Assembled flow (마지막은 30일 실험 선택) ─────────────────────────────────
+// ─── Career Pattern v1 판별 문항 (Q1~Q4) — effect-free ────────────────────────
+// 16개 커리어 고민 패턴 분류(biasPatternEngine)만 읽는 추론 전용 문항. ar_narrow·
+// cs_blocker와 동일하게 scoreEffects/constructEffects를 비워, 벡터·construct·gate·
+// mainType·subtype·friction·readiness 산출에 0 기여한다(기존 결과 완전 불변).
+// ID는 'pt_' 네임스페이스로 기존 문항 ID(cs_/ar_/cv_/fc_/sc_/rc_/or_/ap_)와 미충돌.
+// 근거: docs/research/career-pattern-v1-spec.md §3.
+const patternHold: QuestionStep = {
+  id: 'pt_hold',
+  stage: 'action_preferences',
+  inputType: 'single_select',
+  title: '놓기 어려운 것',
+  assistantPrompt: "지금 결정을 미루게 하는 '아까움'에 가장 가까운 것은?",
+  minSelect: 1,
+  maxSelect: 1,
+  options: [
+    { id: 'pt_hold_sunk', label: '지금까지 들인 시간·노력이 아까워서', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_hold_endow', label: '지금 가진 것(직함·안정·관계)을 넘기는 게 아까워서', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_hold_loss', label: '무엇을 고르든 다른 하나를 잃는 게 두려워서', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_hold_none', label: '특별히 아까운 건 없다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+  ],
+};
+
+const patternDelay: QuestionStep = {
+  id: 'pt_delay',
+  stage: 'action_preferences',
+  inputType: 'single_select',
+  title: '미루는 이유',
+  assistantPrompt: "'작게라도 한번 해보기'를 아직 안 한 이유에 가장 가까운 것은?",
+  minSelect: 1,
+  maxSelect: 1,
+  options: [
+    { id: 'pt_delay_analysis', label: '정보를 더 모으면 답이 나올 것 같아 계속 알아보는 중', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_delay_ambiguity', label: '결과가 어떻게 될지 몰라 시작이 망설여진다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_delay_fear', label: '잘못될까 두려워 내보내지 못한다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_delay_busy', label: '다른 급한 일들 때문에 손을 못 댄다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_delay_acting', label: '이미 작게 해보고 있다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+  ],
+};
+
+const patternConfidence: QuestionStep = {
+  id: 'pt_confidence',
+  stage: 'action_preferences',
+  inputType: 'single_select',
+  title: '확신의 근거',
+  assistantPrompt: '지금까지의 성과나 인정에 대해 가장 가까운 느낌은?',
+  minSelect: 1,
+  maxSelect: 1,
+  options: [
+    { id: 'pt_conf_impostor', label: "좋은 평가를 받아도 '운이 좋았을 뿐'이라는 생각이 든다", tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_conf_lowself', label: '아직 내세울 만한 성과 자체가 부족하다고 느낀다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_conf_healthy', label: '성과도 있고 그만큼 내 실력이라 느낀다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_conf_unknown', label: '잘 모르겠다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+  ],
+};
+
+const patternDirection: QuestionStep = {
+  id: 'pt_direction',
+  stage: 'action_preferences',
+  inputType: 'single_select',
+  title: '방향에 대한 태도',
+  assistantPrompt: '지금 방향에 대한 태도에 가장 가까운 것은?',
+  minSelect: 1,
+  maxSelect: 1,
+  options: [
+    { id: 'pt_dir_closed', label: '방향은 이미 정했고, 다른 가능성은 별로 안 본다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_dir_between', label: '예전 방향은 놓았는데 새 방향은 아직 안 잡혔다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_dir_open', label: '여러 가능성을 아직 열어두고 살펴보는 중', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_dir_na', label: '특별히 해당 없다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+  ],
+};
+
+// ─── Assembled flow (마지막은 패턴 판별 문항 Q1~Q4) ────────────────────────────
 export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   currentState,
   attractiveRoles,
@@ -400,6 +471,11 @@ export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   reactionInternal,
   decisionBlocker,
   actionExperiment,
+  // Career Pattern v1 판별 문항(effect-free) — 배열 말미. 기존 스코어링 무영향.
+  patternHold,
+  patternDelay,
+  patternConfidence,
+  patternDirection,
 ];
 
 // Maps each output-format card to the career option whose timing/fit/reeval it routes

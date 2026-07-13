@@ -10,6 +10,7 @@ import { normalizeJobRole } from '../../lib/jobRoleNormalizer.ts';
 import { buildProfileContextSummary, personalizeNarrativeOpening } from '../../lib/profileContextSummary.ts';
 import { buildNarrativePayload } from '../../lib/narrativePayload.ts';
 import { buildStoryInsight } from '../../lib/storyInsight.ts';
+import { buildCareerPatternProfile } from '../../lib/biasPatternEngine.ts';
 
 export interface StepResponse2 {
   selectedOptionIds?: string[];
@@ -362,7 +363,11 @@ export function buildResultFromResponses(
     pullDirectionKey: withProfileCtx.strategicDirection?.optionKey ?? withProfileCtx.currentBestMove.optionKey,
     pullConfident: withProfileCtx.resultMode === 'direct_now' || !!withProfileCtx.strategicDirection,
   });
-  return { ...withProfileCtx, resultContext };
+  // Career Pattern v1 — ADDITIVE 별도 계층(biasPatternEngine). storyInsight와 동일한 표시 전용
+  // 패스스루: 엔진 라우팅·분류·게이트가 절대 읽지 않으며 라우팅 핑거프린트에서 제외된다.
+  // 기존 결과 필드(mainType/subtype/friction/…)를 대체·재해석하지 않는다. 무료 화면 전용.
+  const patternProfile = buildCareerPatternProfile({ responses, construct, vector, gates, profile });
+  return { ...withProfileCtx, resultContext, patternProfile };
 }
 
 // P2.0 — thin SessionState adapter. Equivalent to

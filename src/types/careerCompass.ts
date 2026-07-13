@@ -752,6 +752,34 @@ export interface ResultContext {
   signals: string[];                       // 4섹션: 이렇게 판단한 이유
 }
 
+// ─── Career Pattern v1 (ADDITIVE — 별도 계층) ─────────────────────────────────
+// 16개 커리어 고민 패턴 분류(인지편향·정체성 축). 기존 mainType/subtype/friction과
+// 다른 온톨로지이며 그 값을 대체·재해석하지 않는다. 엔진 라우팅·분류·게이트는 이 값을
+// 절대 읽지 않는다(storyInsight/profileContext와 동일한 표시 전용 패스스루 계약).
+// 설계 근거: docs/research/career-pattern-v1-spec.md. UserProfile.careerPattern(전환
+// 패턴 문자열)과는 별개다 — 혼동을 피해 스파인 필드명은 patternProfile로 둔다.
+export type PatternCategory =
+  | 'instinctTrap'        // A. 본능의 덫
+  | 'cognitiveOverload'   // B. 인지 과부하
+  | 'avoidance'           // C. 회피 행동
+  | 'identityConfusion';  // D. 정체성 혼란
+
+export type PatternId =
+  | 'lossAversion' | 'endowmentEffect' | 'sunkCost' | 'ambiguityAversion'
+  | 'maximizer' | 'anticipatedRegret' | 'analysisParalysis' | 'noSelectionCriteria'
+  | 'productiveProcrastination' | 'movingGoalposts' | 'experimentAvoidance'
+  | 'liminality' | 'tyrannyOfShoulds' | 'identityForeclosure' | 'impostor' | 'lowSelfEfficacy';
+
+export interface CareerPatternProfile {
+  primaryPattern?: PatternId;
+  secondaryPattern?: PatternId;
+  category?: PatternCategory;
+  confidence: 'low' | 'medium' | 'high';
+  evidenceCodes: string[];  // 판정 기여 신호 토큰(재현·튜닝). 자유입력 원문·개인정보 미포함.
+  resolution: 'pattern' | 'category_only' | 'insufficient_signal';
+  version: 'pattern-v1';
+}
+
 export interface ResultSpine {
   identityAxis: IdentityAxis;
   resultMode: ResultMode;
@@ -816,6 +844,12 @@ export interface ResultSpine {
   // 개인화 레이어(resultContextEngine) 산출 — subtype 기반 결과지 4섹션 + 신호.
   // ADDITIVE 메타데이터: 엔진은 읽지 않고, 라우팅 핑거프린트에서 제외된다.
   resultContext?: ResultContext;
+  // ─── Career Pattern v1 (ADDITIVE) ──────────────────────────────────────────
+  // 16개 커리어 고민 패턴 분류(biasPatternEngine). storyInsight/narrativeSeed와 동일한
+  // 표시 전용 패스스루 계약: 엔진 라우팅·분류·게이트가 절대 읽지 않으며, 라우팅
+  // 핑거프린트에서 제외된다. 구버전 세션·신규 문항 미응답이면 resolution이
+  // category_only 또는 insufficient_signal일 수 있다. 무료 화면 전용(유료 미전달).
+  patternProfile?: CareerPatternProfile;
 }
 
 // ─── ADR-001 — LLM narrative layer payload ────────────────────────────────────
