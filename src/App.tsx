@@ -7,7 +7,6 @@ import CareerCompassV2Page from './components/careerCompassV2/CareerCompassV2Pag
 import GuidedChatView from './components/chatV1/GuidedChatView';
 import HybridFlowView from './components/hybridV3/HybridFlowView';
 import PaidResultView from './components/paid/PaidResultView';
-import PaidEntryBanner from './components/paid/PaidEntryBanner';
 import PaidPreviewView from './components/paid/PaidPreviewView';
 import PaidQuestionsView from './components/paid/PaidQuestionsView';
 import type { PaidAnswers } from './components/paid/paidTypes';
@@ -45,13 +44,10 @@ export default function App() {
 
   if (route === 'v2') return <CareerCompassV2Page />;
   if (route === 'chat') return <GuidedChatView />;
-  // 무료 결과 화면. 플래그가 켜졌을 때만 결과 하단에 유료 진입 배너를 형제로 얹는다
-  // (HybridFlowView 내부는 건드리지 않음). 플래그 off면 기존과 100% 동일.
-  if (route === 'hybrid') {
-    return paidOn
-      ? (<><HybridFlowView /><PaidEntryBanner /></>)
-      : <HybridFlowView />;
-  }
+  // 무료 결과 화면. 유료 진입 CTA·심층 미리보기는 이제 무료 결과의 PatternTeaserView가
+  // 직접 담는다(플래그 on일 때). 과거 하단 형제 배너(PaidEntryBanner)는 중복 CTA가 되어
+  // 제거한다 — "기존 유료 CTA 진입"은 티저 CTA(→ #paid-preview)로 그대로 유지된다.
+  if (route === 'hybrid') return <HybridFlowView />;
   // 유료 퍼널 라우트: 플래그가 켜졌을 때만 접근 가능. 꺼져 있으면 무료 홈(hybrid)으로
   // 폴백해, 이 단계 배포 시 사용자 경험이 변하지 않게 한다(1단계와 동일 패턴).
   if (route === 'paidPreview') return paidOn ? <PaidPreviewView /> : <HybridFlowView />;
