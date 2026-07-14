@@ -1,72 +1,32 @@
 // Career Compass — 유료 미리보기 화면 (#paid-preview).
 //
-// "결제하면 이런 걸 받는다"를 보여주고 결제로 유도한다. AI 호출 없이, 기존 무료
-// 결과값(resultContext)만으로 맛보기 한 문단을 조합한다. session.ts의 순수 빌더를
-// '읽어서 재사용'만 하고(수정 안 함), 결과는 hybrid 세션 localStorage에서 만든다.
+// "결제하면 이런 걸 받는다"를 보여주고 결제로 유도한다. 표시 카피만 담당하며 결과
+// 생성·결제·유료 파이프라인은 건드리지 않는다. 상단 소개는 사용자 답변 조각을 조합하지
+// 않고(어색한 명사구 결합 제거), 심층 분석이 실제로 제공하는 가치를 설명하는 안전한 단일
+// 기본 문장을 쓴다. 근거: docs/research/paid-preview-copy-final-review.md.
 
-import { useEffect, useMemo } from 'react';
-import { CAREER_QUESTION_FLOW } from '../../data/careerQuestionFlow.ts';
-import { parsePersistedSession, buildResultFromSession } from '../careerCompassV2/session.ts';
-import { subtypeToKorean } from './labelMap.ts';
+import { useEffect } from 'react';
 import { logPaidPreviewViewed, logPaidCheckoutClicked } from './paidAnalytics.ts';
 
-const HYBRID_STORAGE_KEY = 'career-compass-hybrid-session-v1';
+// 상단 소개 — 모든 사용자에게 자연스러운 단일 기본 문장(개인화 명사구 조합 미사용).
+//   · 2인칭 반복·따옴표 개념어·문학적 은유 없음
+//   · 지금 무엇이 막혀 있는지 + 심층 분석이 주는 가치(원인·현실 조건·선택지·30일 실험)만 설명
+const INTRO =
+  '지금은 내가 잘하는 것과 해보고 싶은 일이 아직 하나의 방향으로 연결되지 않았어요. ' +
+  '심층 분석에서는 결정을 막는 이유를 정리하고, 현실 조건에 맞는 전환 방향과 이번 달 바로 시작할 수 있는 30일 실험을 제안해드려요.';
 
-// ── 한글 조사 자동 선택 (앞 명사 마지막 글자의 받침 유무 기반) ─────────────────
-/** 받침 있으면 '과', 없으면 '와'. 한글이 아니면 기본 '와'. */
-function josaWaGwa(word: string): string {
-  const last = word[word.length - 1];
-  const code = last?.charCodeAt(0) ?? 0;
-  if (code < 0xac00 || code > 0xd7a3) return '와';
-  return (code - 0xac00) % 28 !== 0 ? '과' : '와';
-}
-/** 받침 있으면 '을', 없으면 '를'. 한글이 아니면 기본 '를'. */
-function josaEulReul(word: string): string {
-  const last = word[word.length - 1];
-  const code = last?.charCodeAt(0) ?? 0;
-  if (code < 0xac00 || code > 0xd7a3) return '를';
-  return (code - 0xac00) % 28 !== 0 ? '을' : '를';
-}
-
-// "이런 리포트를 받아요" 정적 목록.
-const REPORT_ITEMS: Array<{ lead?: string; text: string }> = [
-  { lead: '📋', text: '1분 요약 카드 (핵심 진단 · 가장 큰 리스크 · 이번 달 할 것)' },
-  { text: '왜 하필 지금 이 고민이 왔는지' },
-  { text: '두 마음의 줄다리기 (당신을 붙잡는 심리의 정체)' },
-  { text: '현실 리스크 지도 (당신의 돈·시간·가족 상황 반영)' },
-  { text: '당신이 이미 가진 전환 자산 (3갈래)' },
-  { text: '이번 달의 30일 실험 (구체적 실행 계획)' },
-  { text: '30일 뒤 판단 기준' },
+// 심층 분석에서 확인할 내용 — 제목(굵게) + 보조 설명(있을 때만). 은유·'진단'·'1분'·괄호 제거.
+const REPORT_ITEMS: Array<{ lead?: string; title: string; sub?: string }> = [
+  { lead: '📋', title: '한눈에 보는 핵심 요약', sub: '현재 고민 · 가장 큰 변수 · 이번 달 우선순위' },
+  { title: '지금 이 고민이 생긴 이유' },
+  { title: '서로 충돌하는 선택 기준', sub: '무엇을 얻고 싶고, 무엇을 잃기 싫은지' },
+  { title: '돈·시간·가족 조건을 반영한 현실 점검' },
+  { title: '전환에 활용할 수 있는 경험과 강점', sub: '실무 경험 · 전문성 · 관계 자산' },
+  { title: '이번 달 실행할 30일 실험', sub: '무엇을 언제까지 시험할지 정리한 실행 계획' },
+  { title: '30일 후 계속할지 바꿀지 판단하는 기준' },
 ];
 
-/** 무료 결과의 resultContext에서 맛보기 문장을 조합. 코드값은 한글로 변환. */
-function useTeaser(): string {
-  return useMemo(() => {
-    let primary = '';
-    let secondary = '';
-    try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(HYBRID_STORAGE_KEY) : null;
-      const parsed = parsePersistedSession(raw, CAREER_QUESTION_FLOW.length);
-      const spine = buildResultFromSession({ responses: parsed.responses, profile: parsed.profile });
-      primary = subtypeToKorean(spine.resultContext?.primarySubtype);
-      secondary = subtypeToKorean(spine.resultContext?.secondarySubtype);
-    } catch {
-      primary = subtypeToKorean(undefined);
-      secondary = subtypeToKorean(undefined);
-    }
-    const tail = '이 마음의 정체와, 그래서 이번 달 무엇을 하면 좋을지 — 더 깊은 분석에서 구체적으로 짚어드릴게요.';
-    // primary === secondary(단일 subtype 유형)면 "사이에서 흔들리고"가 어색하므로 변형.
-    if (primary === secondary) {
-      return `지금 당신은 '${primary}'${josaEulReul(primary)} 두고 고민하고 있어요. ${tail}`;
-    }
-    // 앞 명사(primary)의 받침에 맞춰 '와/과' 자동 선택.
-    return `지금 당신은 '${primary}'${josaWaGwa(primary)} '${secondary}' 사이에서 흔들리고 있어요. ${tail}`;
-  }, []);
-}
-
 export default function PaidPreviewView() {
-  const teaser = useTeaser();
-
   // 미리보기 진입 이벤트 — 마운트 1회.
   useEffect(() => { logPaidPreviewViewed(); }, []);
 
@@ -86,22 +46,25 @@ export default function PaidPreviewView() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
-        {/* (A) 맛보기 문단 */}
+        {/* (A) 소개 문단 */}
         <section
           className="rounded-2xl p-5"
           style={{ background: '#F5F1FC', border: '1px solid #E4DAF7' }}
         >
-          <p className="text-[15px] leading-[1.75] text-slate-800">{teaser}</p>
+          <p className="text-[15px] leading-[1.75] text-slate-800">{INTRO}</p>
         </section>
 
-        {/* (B) 이런 리포트를 받아요 */}
+        {/* (B) 심층 분석에서 확인할 내용 */}
         <section className="space-y-3">
-          <h2 className="text-base font-black text-slate-800">이런 리포트를 받아요</h2>
-          <ul className="space-y-2.5">
+          <h2 className="text-base font-black text-slate-800">심층 분석에서 확인할 내용</h2>
+          <ul className="space-y-3">
             {REPORT_ITEMS.map((item, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-[14px] leading-relaxed text-slate-700">
-                <span aria-hidden style={{ color: '#8C6FD6' }}>{item.lead ?? '·'}</span>
-                <span>{item.text}</span>
+              <li key={i} className="flex items-start gap-2.5">
+                <span aria-hidden className="mt-0.5 text-[14px]" style={{ color: '#8C6FD6' }}>{item.lead ?? '·'}</span>
+                <div>
+                  <p className="text-[14.5px] font-bold text-slate-800 leading-snug">{item.title}</p>
+                  {item.sub && <p className="text-[13px] text-slate-500 leading-relaxed mt-0.5">{item.sub}</p>}
+                </div>
               </li>
             ))}
           </ul>
@@ -115,8 +78,9 @@ export default function PaidPreviewView() {
             className="w-full py-3.5 rounded-2xl text-white font-bold transition-colors"
             style={{ background: '#8C6FD6', boxShadow: '0 2px 8px rgba(140,111,214,0.28)' }}
           >
-            결제하고 전체 받기 <span aria-hidden>→</span>
+            결제하고 심층 분석 받기 <span aria-hidden>→</span>
           </button>
+          <p className="mt-2 text-[12px] text-slate-500 text-center">추가 질문 약 3분 · 개인화된 심층 리포트</p>
         </section>
       </main>
     </div>

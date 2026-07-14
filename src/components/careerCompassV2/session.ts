@@ -2,7 +2,7 @@
 // flow responses to the engines so it can be unit-tested headlessly.
 
 import type { QuestionStep, ChoiceOption, CareerOptionKey, CareerVector, ConstructProfile, ResultSpine, MeasuredSignals, UserProfile } from '../../types/careerCompass.ts';
-import { CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CARD, assembleGatesFromSelections, assembleConstructProfile } from '../../data/careerQuestionFlow.ts';
+import { CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CARD, assembleGatesFromSelections, assembleConstructProfile, shouldAskPtHold } from '../../data/careerQuestionFlow.ts';
 import { createEmptyCareerVector, applyMultipleChoiceEffects, applyRankingEffects, normalizeCareerVector, rankCareerOptions } from '../../lib/careerVectorEngine.ts';
 import { buildResultSpine } from '../../lib/resultSpineEngine.ts';
 import { buildResultContext } from '../../lib/resultContextEngine.ts';
@@ -366,7 +366,14 @@ export function buildResultFromResponses(
   // Career Pattern v1 — ADDITIVE 별도 계층(biasPatternEngine). storyInsight와 동일한 표시 전용
   // 패스스루: 엔진 라우팅·분류·게이트가 절대 읽지 않으며 라우팅 핑거프린트에서 제외된다.
   // 기존 결과 필드(mainType/subtype/friction/…)를 대체·재해석하지 않는다. 무료 화면 전용.
-  const patternProfile = buildCareerPatternProfile({ responses, construct, vector, gates, profile });
+  // 조건부 후속(pt_hold) stale 처리: pt_hold 노출 조건이 아니면 pattern 계산에서 pt_hold
+  // 응답을 제외한다(effectiveResponses). 숨겨진/구버전 pt_hold로 q1:* evidence가 생겨
+  // lossAversion/endowmentEffect/sunkCost가 억지로 구체 분류되는 것을 막는다(spec §6·§8).
+  // pt_hold를 실제로 노출·응답한 경우에만 q1 discriminator가 구체 패턴 판별에 쓰인다.
+  const patternResponses = shouldAskPtHold(responses)
+    ? responses
+    : (() => { const { pt_hold: _omit, ...rest } = responses; return rest as FlowResponses; })();
+  const patternProfile = buildCareerPatternProfile({ responses: patternResponses, construct, vector, gates, profile });
   return { ...withProfileCtx, resultContext, patternProfile };
 }
 

@@ -114,6 +114,27 @@ PATTERN_VARIANTS.forEach((variant, i) => {
   ok('통제: patternProfile이 신규 응답에 따라 달라짐(독립 계층)', a.primaryPattern !== b.primaryPattern);
 }
 
+// ── 3b) 조건부 pt_hold 게이팅(spec §6·§8): 손실 신호가 없으면 pt_hold를 pattern 계산에서 제외 ──
+//   → 숨겨진/구버전 pt_hold로 lossAversion/endowmentEffect/sunkCost가 억지로 구체 산출되지 않는다.
+{
+  const FORCED = ['sunkCost', 'endowmentEffect', 'lossAversion'];
+  // 손실 신호 없음(nr_explore·blk_time·rc_risk_cost) + pt_hold_sunk(stale) → sunkCost 강제 안 함.
+  const noLoss: FlowResponses = {
+    cs_main: { selectedOptionIds: ['cs_stay'] },
+    ar_narrow: { selectedOptionIds: ['nr_explore'] },
+    rc_energy: { selectedOptionIds: ['rc_energy_ok'] },
+    cs_blocker: { selectedOptionIds: ['blk_time'] },
+    rc_risk: { selectedOptionIds: ['rc_risk_cost'] },
+    pt_hold: { selectedOptionIds: ['pt_hold_sunk'] },
+  };
+  const pNo = buildResultFromResponses(noLoss, { profile }).patternProfile!;
+  ok('게이팅: 손실 신호 없으면 pt_hold 제외 → q1 구체 패턴(sunk/endow/loss) 미산출', !FORCED.includes(pNo.primaryPattern ?? ''));
+  // 같은 pt_hold_sunk이라도 손실 신호(nr_continuity)가 있으면 sunkCost 정상 산출.
+  const withLoss: FlowResponses = { ...noLoss, ar_narrow: { selectedOptionIds: ['nr_continuity'] } };
+  const pYes = buildResultFromResponses(withLoss, { profile }).patternProfile!;
+  ok('게이팅: 손실 신호(nr_continuity) 있으면 pt_hold_sunk → sunkCost 정상 산출', pYes.resolution === 'pattern' && pYes.primaryPattern === 'sunkCost');
+}
+
 // ── 4) 두 번째 대표 프로필(번아웃형)로도 불변성 재확인 ──
 {
   const burnout: FlowResponses = {

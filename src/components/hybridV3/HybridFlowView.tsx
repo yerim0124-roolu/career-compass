@@ -31,7 +31,7 @@ import {
   applyConstraintTagToggle,
 } from '../careerCompassV2/session.ts';
 import { inferCareerArchetypes } from '../../lib/careerVectorEngine.ts';
-import { CAREER_QUESTION_FLOW } from '../../data/careerQuestionFlow.ts';
+import { CAREER_QUESTION_FLOW, getActiveCareerQuestionFlow, shouldAskPtHold } from '../../data/careerQuestionFlow.ts';
 import ProgressHeader from '../careerCompassV2/ProgressHeader';
 import ChatLikeFlow from '../careerCompassV2/ChatLikeFlow';
 import QuestionStepRenderer from '../careerCompassV2/QuestionStepRenderer';
@@ -88,17 +88,22 @@ function loadHybridSession(): {
   }
   const raw = window.localStorage.getItem(HYBRID_STORAGE_KEY);
   const parsed = parsePersistedSession(raw, CAREER_QUESTION_FLOW.length);
+  // 조건부 후속(pt_hold) stale 처리 — 현재 노출 조건이 false인데 저장된 pt_hold 응답이
+  // 남아 있으면(구버전/조건 변경 후 종료) 제거한다. 다시 조건이 true가 되면 재응답을 요구.
+  const responses = parsed.responses;
+  if (!shouldAskPtHold(responses) && responses.pt_hold) delete responses.pt_hold;
   let phase: Phase;
   if (parsed.done) phase = 'result';
   else if (parsed.profileDone) phase = 'mainFlow';
   else phase = 'profile';
-  // 문항 재배열 하위호환 — 응답은 문항 ID로 저장되므로 raw stepIndex를 그대로 신뢰하지 않는다.
-  // 새 질문 순서에서 '첫 번째 미응답 문항'을 재개 지점으로 삼는다(순서가 바뀌어도 다른 질문으로
-  // 튀지 않음). 모든 문항에 답했다면 마지막 문항에 둔다(done이면 위에서 이미 result).
+  // 문항 순서·조건부 흐름 하위호환 — raw stepIndex를 그대로 신뢰하지 않는다. 응답은 문항 ID로
+  // 저장되므로 '활성 흐름(getActiveCareerQuestionFlow)의 첫 미응답 문항'을 재개 지점으로 삼는다.
+  // 조건이 false여서 pt_hold가 빠진 세션도 다음 유효 문항으로 안전하게 이동한다.
   let stepIndex = parsed.stepIndex;
   if (phase === 'mainFlow') {
-    const firstUnanswered = CAREER_QUESTION_FLOW.findIndex((s) => !isStepComplete(s, parsed.responses[s.id]));
-    stepIndex = firstUnanswered === -1 ? Math.max(CAREER_QUESTION_FLOW.length - 1, 0) : firstUnanswered;
+    const active = getActiveCareerQuestionFlow(responses);
+    const firstUnanswered = active.findIndex((s) => !isStepComplete(s, responses[s.id]));
+    stepIndex = firstUnanswered === -1 ? Math.max(active.length - 1, 0) : firstUnanswered;
   }
   // Cursor: if resuming profile, land on first field that's missing.
   let profileCursor = 0;
@@ -158,12 +163,38 @@ export default function HybridFlowView() {
     } catch { /* noop */ }
   }, [stepIndex, responses, profile, done, phase]);
 
-  // ─── Derived: main-flow current step ─────────────────────────────────────
-  const flowStep = CAREER_QUESTION_FLOW[stepIndex];
-  const isLastFlowStep = stepIndex === CAREER_QUESTION_FLOW.length - 1;
-  const flowComplete = isStepComplete(flowStep, responses[flowStep.id]);
+  // ─── 조건부 pt_hold stale 처리 ────────────────────────────────────────────
+  // 이전 답변을 수정해 노출 조건이 true→false가 되면, 숨겨진 pt_hold 응답을 제거한다.
+  // (결과 계산에 남지 않고, 다시 조건이 true가 되면 재응답을 요구하도록.)
+  useEffect(() => {
+    if (!shouldAskPtHold(responses) && responses.pt_hold) {
+      setResponses((r) => { const { pt_hold: _omit, ...rest } = r; return rest; });
+    }
+  }, [responses]);
 
-  const showInsight = stepIndex > 0 && !!CAREER_QUESTION_FLOW[stepIndex - 1].liveInsightTrigger;
+
+  // ─── Derived: 활성 흐름(조건부 pt_hold 포함/제외) + 현재 스텝 ────────────────
+  // 정적 정의와 실제 노출 흐름을 분리한다. 모든 UI(현재/다음/이전/진행률/결과/복구)는
+  // 활성 흐름 기준으로 동작한다(공용 helper 사용, 컴포넌트에서 직접 filter하지 않음).
+  const activeFlow = useMemo(() => getActiveCareerQuestionFlow(responses), [responses]);
+  // 활성 흐름 길이가 바뀌어도(pt_hold 삽입/제거) 인덱스가 범위를 벗어나지 않게 clamp.
+  const idx = Math.min(Math.max(stepIndex, 0), Math.max(activeFlow.length - 1, 0));
+  const flowStep = activeFlow[idx];
+  const isLastFlowStep = idx === activeFlow.length - 1;
+  const flowComplete = isStepComplete(flowStep, responses[flowStep.id]);
+  const showInsight = idx > 0 && !!activeFlow[idx - 1]?.liveInsightTrigger;
+
+  // 진행률 — 기본 22문항 기준. countsTowardProgress:false(pt_hold)는 분모/번호에서 제외하고
+  // "추가 확인"으로 표시하며, 진행률 바는 직전 일반 문항 위치를 유지한다.
+  const countsTotal = activeFlow.filter((s) => s.countsTowardProgress !== false).length;
+  const countedBefore = activeFlow.slice(0, idx).filter((s) => s.countsTowardProgress !== false).length;
+  const isConditionalStep = flowStep.countsTowardProgress === false;
+  const progressCurrent = isConditionalStep ? countedBefore : countedBefore + 1;
+
+  // 활성 흐름 길이 변화(pt_hold 삽입/제거)로 stepIndex가 유효 범위를 벗어나면 되돌린다.
+  useEffect(() => {
+    if (phase === 'mainFlow' && stepIndex !== idx) setStepIndex(idx);
+  }, [phase, stepIndex, idx]);
   const insightText = useMemo(() => buildLiveInsight(responses), [responses]);
 
   const partialArchetypes = useMemo(
@@ -245,12 +276,12 @@ export default function HybridFlowView() {
   const setForFlowStep = (v: StepResponse2) => setResponses((r) => ({ ...r, [flowStep.id]: v }));
   const advanceFlow = () => {
     if (!flowComplete) return;
-    logProgress(stepIndex, flowStep.id, responses[flowStep.id]);
+    logProgress(idx, flowStep.id, responses[flowStep.id]);
     if (isLastFlowStep) {
       setDone(true);
       setPhase('result');
     } else {
-      setStepIndex((i) => i + 1);
+      setStepIndex(idx + 1);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -258,8 +289,8 @@ export default function HybridFlowView() {
     if (done) {
       setDone(false);
       setPhase('mainFlow');
-    } else if (stepIndex > 0) {
-      setStepIndex((i) => i - 1);
+    } else if (idx > 0) {
+      setStepIndex(idx - 1);
     } else {
       // Step 0 → return to profile review.
       setPhase('profileReview');
@@ -356,9 +387,10 @@ export default function HybridFlowView() {
         <div className="max-w-5xl mx-auto px-4 py-6 lg:grid lg:grid-cols-3 lg:gap-8">
           <main className="lg:col-span-2 space-y-5 pb-28 lg:pb-6">
             <ProgressHeader
-              current={stepIndex + 1}
-              total={CAREER_QUESTION_FLOW.length}
+              current={progressCurrent}
+              total={countsTotal}
               stageLabel={STAGE_LABELS[flowStep.stage]}
+              conditionalLabel={isConditionalStep ? (flowStep.comparisonLabel ?? '추가 확인') : undefined}
               canBack
               onBack={backFlow}
             />
@@ -388,7 +420,9 @@ export default function HybridFlowView() {
             <div className="sticky top-6 space-y-4 cc-sketch-q p-5 bg-white">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">진행 현황</p>
               <div>
-                <p className="text-2xl font-black" style={{ color: '#8C6FD6' }}>{stepIndex + 1}<span className="text-base text-slate-300"> / {CAREER_QUESTION_FLOW.length}</span></p>
+                {isConditionalStep
+                  ? <p className="text-2xl font-black" style={{ color: '#8C6FD6' }}>추가 확인</p>
+                  : <p className="text-2xl font-black" style={{ color: '#8C6FD6' }}>{progressCurrent}<span className="text-base text-slate-300"> / {countsTotal}</span></p>}
                 <p className="text-xs text-slate-500 mt-0.5">답변을 실시간으로 반영 중</p>
               </div>
               <div>

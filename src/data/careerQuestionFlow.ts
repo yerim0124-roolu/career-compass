@@ -17,6 +17,8 @@ import type {
   ConstructProfile,
 } from '../types/careerCompass.ts';
 import { createEmptyConstructProfile, applyConstructEffects, normalizeConstructProfile } from '../lib/careerConstructEngine.ts';
+// 타입 전용 import(런타임 순환 없음) — 조건부 흐름 helper의 입력 타입.
+import type { FlowResponses } from '../components/careerCompassV2/session.ts';
 
 // ─── Stage 1: current_state (single_select) ───────────────────────────────────
 const currentState: QuestionStep = {
@@ -351,7 +353,9 @@ const decisionBlocker: QuestionStep = {
   stage: 'current_state', // 결정 상태(무엇이 막는지) — reaction 3종 카운트와 분리
   inputType: 'single_select',
   title: '결정을 막는 것',
-  assistantPrompt: '지금 결정을 가장 미루게 만드는 건 무엇에 가까운가요? 하나만 골라주세요.',
+  // 상위 질문: 전체 장애물을 넓게 확인(방향 불명확/자신감/현실 조건/주변 기대/되돌리기
+  // 두려움/시간·에너지). 손실·아까움 신호가 나타난 경우에만 pt_hold(조건부 후속)로 이어진다.
+  assistantPrompt: '지금 행동으로 옮기는 데 가장 크게 걸리는 것은 무엇인가요? 하나만 골라주세요.',
   minSelect: 1,
   maxSelect: 1,
   options: [
@@ -397,19 +401,28 @@ const actionExperiment: QuestionStep = {
 // mainType·subtype·friction·readiness 산출에 0 기여한다(기존 결과 완전 불변).
 // ID는 'pt_' 네임스페이스로 기존 문항 ID(cs_/ar_/cv_/fc_/sc_/rc_/or_/ap_)와 미충돌.
 // 근거: docs/research/career-pattern-v1-spec.md §3.
+// pt_hold — cs_blocker의 '조건부 후속 질문'. 정적 정의에는 남겨두되(길이·하위호환 유지),
+// 실제 노출은 getActiveCareerQuestionFlow가 shouldAskPtHold=true일 때만 cs_blocker 바로 뒤에
+// 삽입한다. 기본 진행률 분모에는 포함하지 않는다(countsTowardProgress:false → '추가 확인').
+// 옵션 ID와 evidence 매핑(q1:*)은 그대로 유지하고 라벨만 재작성. effect-free 유지.
 const patternHold: QuestionStep = {
   id: 'pt_hold',
   stage: 'action_preferences',
-  inputType: 'single_select',
   title: '놓기 어려운 것',
-  assistantPrompt: "지금 결정을 미루게 하는 '아까움'에 가장 가까운 것은?",
+  inputType: 'single_select',
+  comparisonLabel: '추가 확인',
+  assistantPrompt: '새로운 선택을 할 때, 가장 포기하기 어려운 것은 무엇인가요?',
+  helperText: '결정을 막는 전체 이유가 아니라, 지금 놓기 어려운 대상에 가까운 것을 골라주세요.',
+  conditionalFollowUp: true,
+  countsTowardProgress: false,
+  parentQuestionId: 'cs_blocker',
   minSelect: 1,
   maxSelect: 1,
   options: [
-    { id: 'pt_hold_sunk', label: '지금까지 들인 시간·노력이 아까워서', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_hold_endow', label: '지금 가진 것(직함·안정·관계)을 넘기는 게 아까워서', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_hold_loss', label: '무엇을 고르든 다른 하나를 잃는 게 두려워서', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_hold_none', label: '특별히 아까운 건 없다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_hold_sunk', label: '이미 들인 시간과 노력', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },        // → sunkCost
+    { id: 'pt_hold_endow', label: '지금 가진 직함·안정·관계', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },     // → endowmentEffect
+    { id: 'pt_hold_loss', label: '선택하지 않게 될 다른 가능성', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },   // → lossAversion
+    { id: 'pt_hold_none', label: '특별히 포기하기 어려운 것은 없다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} }, // → 코드 없음
   ],
 };
 
@@ -477,7 +490,8 @@ export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   coreValues,          // cv_values — 포기하기 싫은 가치
   corePriorities,      // cv_priorities — 우선순위
   ...forcedChoices,    // fc_1~fc_4 — 더 끌리는 쪽(가치 타이브레이커)
-  patternHold,         // pt_hold — 놓기 어려운 것(effect-free)
+  patternHold,         // pt_hold — cs_blocker의 조건부 후속(정적 정의만; 실제 노출은
+                       //   getActiveCareerQuestionFlow가 조건 충족 시 cs_blocker 뒤로 이동·삽입)
   // D. 현실 조건과 검증
   realityRunway,       // rc_runway — 버틸 수 있는 기간
   realityRisk,         // rc_risk — 감당 가능한 손실
@@ -490,6 +504,34 @@ export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   selfOutlook,         // sc_outlook — 해낼 수 있다는 감각
   patternDirection,    // pt_direction — 지금 커리어와 자기 정체성의 관계(effect-free, 마지막)
 ];
+
+// ─── 조건부 후속 질문(pt_hold) 노출 조건 + 활성 흐름 ───────────────────────────
+// pt_hold를 노출할지 판단하는 단일 순수 함수. 손실·아까움·기존 것에 대한 집착 신호가
+// 하나라도 있으면 true. UI 노출 여부와 결과 계산(effectiveResponses) 판단에 동일하게 쓴다.
+// scoring/construct/biasPatternEngine 규칙은 이 함수를 읽지 않는다(점수·임계값 무변경).
+//   A. cs_blocker: 잘못되면 되돌리기 어려울 것 같다(blk_fail)
+//   B. ar_narrow: 잃는 느낌(nr_loss) / 안정 못 버림(nr_safety) / 기존 경력 연속성(nr_continuity)
+//   C. rc_risk: 감당 가능한 손실이 매우 낮음(rc_risk_none)
+// 방향 불명확·자신감 부족·시간/에너지·주변 시선·정보 부족·모호성·실행 계획 부족만 있으면 false.
+export function shouldAskPtHold(responses: FlowResponses): boolean {
+  const has = (q: string, id: string) => (responses[q]?.selectedOptionIds ?? []).includes(id);
+  if (has('cs_blocker', 'blk_fail')) return true;
+  if (has('ar_narrow', 'nr_loss') || has('ar_narrow', 'nr_safety') || has('ar_narrow', 'nr_continuity')) return true;
+  if (has('rc_risk', 'rc_risk_none')) return true;
+  return false;
+}
+
+// 정적 정의(CAREER_QUESTION_FLOW)와 실제 노출 흐름을 분리한다. pt_hold는 정적 배열에서 항상
+// 제거하고, shouldAskPtHold=true일 때만 cs_blocker 바로 뒤에 삽입한다. 모든 UI(현재/다음/
+// 이전/진행률/결과/수정/첫 미응답 복구)는 이 활성 흐름을 기준으로 동작해야 한다.
+export function getActiveCareerQuestionFlow(responses: FlowResponses): QuestionStep[] {
+  const base = CAREER_QUESTION_FLOW.filter((s) => s.id !== 'pt_hold');
+  if (!shouldAskPtHold(responses)) return base;
+  const ptHold = CAREER_QUESTION_FLOW.find((s) => s.id === 'pt_hold');
+  if (!ptHold) return base;
+  const at = base.findIndex((s) => s.id === 'cs_blocker');
+  return at < 0 ? [...base, ptHold] : [...base.slice(0, at + 1), ptHold, ...base.slice(at + 1)];
+}
 
 // Maps each output-format card to the career option whose timing/fit/reeval it routes
 // through (engine routing only — the user-facing label stays general; see EXPERIMENT_LABEL_BY_CARD).

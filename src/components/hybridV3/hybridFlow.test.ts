@@ -19,7 +19,7 @@
 
 import { buildResultFromResponses, buildResultFromSession, isStepComplete } from '../careerCompassV2/session.ts';
 import type { FlowResponses } from '../careerCompassV2/session.ts';
-import { CAREER_QUESTION_FLOW } from '../../data/careerQuestionFlow.ts';
+import { CAREER_QUESTION_FLOW, getActiveCareerQuestionFlow, shouldAskPtHold } from '../../data/careerQuestionFlow.ts';
 import type { ResultSpine } from '../../types/careerCompass.ts';
 
 // node builtins — same approach as chatFlow.test.ts (excluded from app tsconfig)
@@ -104,8 +104,8 @@ check('REQUIRED A: HybridFlowView imports V2 LiveInsightCard (insight chip)',
 {
   check('REQUIRED B: HybridFlowView does NOT map() over CAREER_QUESTION_FLOW (one-card-at-a-time)',
     !/CAREER_QUESTION_FLOW\.map\b/.test(hybridSrc));
-  check('REQUIRED B: HybridFlowView drives a single flowStep via stepIndex',
-    /const flowStep = CAREER_QUESTION_FLOW\[stepIndex\]/.test(hybridSrc));
+  check('REQUIRED B: HybridFlowView drives a single flowStep via the active flow index',
+    /const flowStep = activeFlow\[idx\]/.test(hybridSrc));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -116,8 +116,8 @@ check('REQUIRED A: HybridFlowView imports V2 LiveInsightCard (insight chip)',
 // ═══════════════════════════════════════════════════════════════════════════════
 check('REQUIRED C: HybridFlowView defines backFlow handler',
   /const backFlow\s*=\s*\(\)\s*=>/.test(hybridSrc));
-check('REQUIRED C: backFlow decrements stepIndex when > 0',
-  /setStepIndex\(\(i\)\s*=>\s*i\s*-\s*1\)/.test(hybridSrc));
+check('REQUIRED C: backFlow decrements the active index when > 0',
+  /setStepIndex\(idx - 1\)/.test(hybridSrc));
 check('REQUIRED C: backFlow at step 0 returns to profileReview',
   /setPhase\(\s*['"]profileReview['"]\s*\)/.test(hybridSrc));
 check('REQUIRED C: ProgressHeader wired with canBack + onBack={backFlow}',
@@ -128,10 +128,12 @@ check('REQUIRED C: ProgressHeader wired with canBack + onBack={backFlow}',
 // ProgressHeader renders `current / total + stageLabel`. The hybrid passes
 // (stepIndex + 1, CAREER_QUESTION_FLOW.length, STAGE_LABELS[step.stage]).
 // ═══════════════════════════════════════════════════════════════════════════════
-check('REQUIRED D: ProgressHeader receives current = stepIndex + 1',
-  /current=\{stepIndex \+ 1\}/.test(hybridSrc));
-check('REQUIRED D: ProgressHeader receives total = CAREER_QUESTION_FLOW.length',
-  /total=\{CAREER_QUESTION_FLOW\.length\}/.test(hybridSrc));
+check('REQUIRED D: ProgressHeader receives current = counted progress position',
+  /current=\{progressCurrent\}/.test(hybridSrc));
+check('REQUIRED D: ProgressHeader receives total = counted total (기본 22, 조건부 제외)',
+  /total=\{countsTotal\}/.test(hybridSrc));
+check('REQUIRED D: 조건부 후속 스텝에서 "추가 확인" conditionalLabel 전달',
+  /conditionalLabel=\{isConditionalStep \? \(flowStep\.comparisonLabel \?\? '추가 확인'\) : undefined\}/.test(hybridSrc));
 check('REQUIRED D: ProgressHeader receives the stage label',
   /stageLabel=\{STAGE_LABELS\[flowStep\.stage\]\}/.test(hybridSrc));
 
@@ -366,15 +368,15 @@ check('REQUIRED O: 새 진행 문구 "답변을 실시간으로 반영 중" 노�
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REQUIRED P — 문항 재배열 하위호환: 세션 복구는 raw stepIndex가 아니라 문항 ID 기준
-// '첫 번째 미응답 문항'에서 재개한다(loadHybridSession).
+// REQUIRED P — 세션 복구는 raw stepIndex가 아니라 '활성 흐름의 첫 미응답 문항'에서 재개한다.
 // ═══════════════════════════════════════════════════════════════════════════════
-check('REQUIRED P: loadHybridSession이 첫 미응답 문항으로 재개(findIndex + !isStepComplete + responses[s.id])',
-  /findIndex\(\(s\)\s*=>\s*!isStepComplete\(s,\s*parsed\.responses\[s\.id\]\)\)/.test(hybridSrc));
+check('REQUIRED P: loadHybridSession이 활성 흐름 첫 미응답 문항으로 재개(active.findIndex + !isStepComplete)',
+  /const active = getActiveCareerQuestionFlow\(responses\);/.test(hybridSrc)
+  && /active\.findIndex\(\(s\)\s*=>\s*!isStepComplete\(s,\s*responses\[s\.id\]\)\)/.test(hybridSrc));
 check('REQUIRED P: raw parsed.stepIndex를 그대로 반환하지 않고 재개 인덱스를 계산',
   /let stepIndex = parsed\.stepIndex;/.test(hybridSrc) && /firstUnanswered === -1/.test(hybridSrc));
 {
-  // loadHybridSession의 재개 로직과 동일한 순수 계산(순서 무관, ID 기준).
+  // loadHybridSession의 재개 로직과 동일한 순수 계산(활성 흐름 기준).
   type Q = (typeof CAREER_QUESTION_FLOW)[number];
   const firstAnswer = (step: Q): FlowResponses[string] => {
     const ids = (step.options ?? []).map((o) => o.id);
@@ -382,26 +384,57 @@ check('REQUIRED P: raw parsed.stepIndex를 그대로 반환하지 않고 재개 
     return step.inputType === 'ranking' ? { ranking: ids.slice(0, n) } : { selectedOptionIds: ids.slice(0, n) };
   };
   const resumeIndex = (responses: FlowResponses): number => {
-    const fu = CAREER_QUESTION_FLOW.findIndex((s) => !isStepComplete(s, responses[s.id]));
-    return fu === -1 ? Math.max(CAREER_QUESTION_FLOW.length - 1, 0) : fu;
+    const active = getActiveCareerQuestionFlow(responses);
+    const fu = active.findIndex((s) => !isStepComplete(s, responses[s.id]));
+    return fu === -1 ? Math.max(active.length - 1, 0) : fu;
   };
-  // 앞 2문항만 답한 세션 → 세 번째 문항(index 2)에서 재개.
-  const partial: FlowResponses = {
-    [CAREER_QUESTION_FLOW[0].id]: firstAnswer(CAREER_QUESTION_FLOW[0]),
-    [CAREER_QUESTION_FLOW[1].id]: firstAnswer(CAREER_QUESTION_FLOW[1]),
-  };
+  // 손실 신호 없는(=pt_hold 미노출) 활성 흐름의 앞 2문항만 답한 세션 → index 2에서 재개.
+  const base = getActiveCareerQuestionFlow({});
+  const partial: FlowResponses = { [base[0].id]: firstAnswer(base[0]), [base[1].id]: firstAnswer(base[1]) };
   check('REQUIRED P: 앞 2문항 답변 → 첫 미응답 index=2에서 재개', resumeIndex(partial) === 2);
   check('REQUIRED P: 빈 세션 → index 0에서 시작', resumeIndex({}) === 0);
-  // 중간에 구멍이 있는(비연속) 세션도 첫 구멍에서 재개 — raw stepIndex를 신뢰하지 않음.
-  const gappy: FlowResponses = {
-    [CAREER_QUESTION_FLOW[0].id]: firstAnswer(CAREER_QUESTION_FLOW[0]),
-    [CAREER_QUESTION_FLOW[2].id]: firstAnswer(CAREER_QUESTION_FLOW[2]),
-  };
+  const gappy: FlowResponses = { [base[0].id]: firstAnswer(base[0]), [base[2].id]: firstAnswer(base[2]) };
   check('REQUIRED P: 비연속 응답(0,2만) → 첫 구멍 index=1에서 재개', resumeIndex(gappy) === 1);
-  // 전부 답한 세션(비-done) → 마지막 index에서 정상 진행.
-  const all: FlowResponses = {};
-  for (const s of CAREER_QUESTION_FLOW) all[s.id] = firstAnswer(s);
-  check('REQUIRED P: 전부 답변 → 마지막 index에서(정상 진행/결과 이동)', resumeIndex(all) === CAREER_QUESTION_FLOW.length - 1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REQUIRED Q — 조건부 후속 pt_hold: 노출 조건 + 활성 흐름 + 진행률 분모.
+// ═══════════════════════════════════════════════════════════════════════════════
+{
+  const sel = (q: string, id: string): FlowResponses => ({ [q]: { selectedOptionIds: [id] } });
+  // 노출 조건(shouldAskPtHold)
+  check('REQUIRED Q: 손실 신호 없음 → pt_hold 미노출', shouldAskPtHold({}) === false);
+  check('REQUIRED Q: cs_blocker=blk_fail(되돌리기 어려움) → 노출', shouldAskPtHold(sel('cs_blocker', 'blk_fail')) === true);
+  check('REQUIRED Q: ar_narrow=nr_loss → 노출', shouldAskPtHold(sel('ar_narrow', 'nr_loss')) === true);
+  check('REQUIRED Q: ar_narrow=nr_safety → 노출', shouldAskPtHold(sel('ar_narrow', 'nr_safety')) === true);
+  check('REQUIRED Q: ar_narrow=nr_continuity → 노출', shouldAskPtHold(sel('ar_narrow', 'nr_continuity')) === true);
+  check('REQUIRED Q: rc_risk=rc_risk_none(강한 손실 회피) → 노출', shouldAskPtHold(sel('rc_risk', 'rc_risk_none')) === true);
+  // 비손실 신호만 → 미노출
+  check('REQUIRED Q: cs_blocker=blk_confidence(자신감) → 미노출', shouldAskPtHold(sel('cs_blocker', 'blk_confidence')) === false);
+  check('REQUIRED Q: cs_blocker=blk_time(시간·에너지) → 미노출', shouldAskPtHold(sel('cs_blocker', 'blk_time')) === false);
+  check('REQUIRED Q: cs_blocker=blk_eyes(주변 시선) → 미노출', shouldAskPtHold(sel('cs_blocker', 'blk_eyes')) === false);
+  check('REQUIRED Q: cs_blocker=blk_unclear(방향 불명확) → 미노출', shouldAskPtHold(sel('cs_blocker', 'blk_unclear')) === false);
+  check('REQUIRED Q: ar_narrow=nr_unsure(모호성) → 미노출', shouldAskPtHold(sel('ar_narrow', 'nr_unsure')) === false);
+
+  // 활성 흐름: 미노출=22, 노출=23, pt_hold는 cs_blocker 바로 뒤.
+  const baseFlow = getActiveCareerQuestionFlow({});
+  const withHold = getActiveCareerQuestionFlow(sel('cs_blocker', 'blk_fail'));
+  check('REQUIRED Q: 미노출 활성 흐름 = 22문항', baseFlow.length === 22);
+  check('REQUIRED Q: 노출 활성 흐름 = 23문항', withHold.length === 23);
+  check('REQUIRED Q: 미노출 흐름에 pt_hold 없음', !baseFlow.some((s) => s.id === 'pt_hold'));
+  check('REQUIRED Q: 노출 흐름에서 pt_hold는 cs_blocker 바로 뒤', (() => {
+    const cb = withHold.findIndex((s) => s.id === 'cs_blocker');
+    return withHold[cb + 1]?.id === 'pt_hold';
+  })());
+
+  // 진행률 분모: 두 흐름 모두 countsTowardProgress!==false 개수는 22.
+  const counted = (flow: typeof baseFlow) => flow.filter((s) => s.countsTowardProgress !== false).length;
+  check('REQUIRED Q: 진행률 분모 항상 22(미노출)', counted(baseFlow) === 22);
+  check('REQUIRED Q: 진행률 분모 항상 22(노출: pt_hold는 분모 제외)', counted(withHold) === 22);
+  check('REQUIRED Q: pt_hold는 countsTowardProgress:false', withHold.find((s) => s.id === 'pt_hold')?.countsTowardProgress === false);
+
+  // 정적 정의는 23 유지(하위호환·다른 소비자 무변경).
+  check('REQUIRED Q: CAREER_QUESTION_FLOW 정적 길이 23 유지', CAREER_QUESTION_FLOW.length === 23);
 }
 
 // ─── Final report ──────────────────────────────────────────────────────────

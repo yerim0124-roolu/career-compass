@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FlowStage, UserProfile } from '../../types/careerCompass.ts';
 import { ARCHETYPE_LABELS } from '../../types/careerCompass.ts';
-import { CAREER_QUESTION_FLOW } from '../../data/careerQuestionFlow.ts';
+import { CAREER_QUESTION_FLOW, getActiveCareerQuestionFlow, shouldAskPtHold } from '../../data/careerQuestionFlow.ts';
 import { inferCareerArchetypes } from '../../lib/careerVectorEngine.ts';
 import type { FlowResponses, StepResponse2 } from './session';
 import { isStepComplete, buildResultFromSession, buildPartialVector, normalizeProfile, parsePersistedSession } from './session';
@@ -61,12 +61,31 @@ export default function CareerCompassV2Page() {
     );
   }, [stepIndex, responses, profile, done, profileDone]);
 
-  const step = CAREER_QUESTION_FLOW[stepIndex];
+  // 활성 흐름(조건부 pt_hold 포함/제외) — 공용 helper 사용. HybridFlowView와 동일 규칙.
+  const activeFlow = useMemo(() => getActiveCareerQuestionFlow(responses), [responses]);
+  const idx = Math.min(Math.max(stepIndex, 0), Math.max(activeFlow.length - 1, 0));
+  const step = activeFlow[idx];
   const complete = isStepComplete(step, responses[step.id]);
-  const isLast = stepIndex === CAREER_QUESTION_FLOW.length - 1;
+  const isLast = idx === activeFlow.length - 1;
 
-  const showInsight = stepIndex > 0 && !!CAREER_QUESTION_FLOW[stepIndex - 1].liveInsightTrigger;
+  const showInsight = idx > 0 && !!activeFlow[idx - 1]?.liveInsightTrigger;
   const insightText = useMemo(() => buildLiveInsight(responses), [responses]);
+
+  // 진행률 — 기본 22 기준(pt_hold=countsTowardProgress:false → "추가 확인").
+  const countsTotal = activeFlow.filter((s) => s.countsTowardProgress !== false).length;
+  const countedBefore = activeFlow.slice(0, idx).filter((s) => s.countsTowardProgress !== false).length;
+  const isConditionalStep = step.countsTowardProgress === false;
+  const progressCurrent = isConditionalStep ? countedBefore : countedBefore + 1;
+
+  // 조건 true→false 시 숨겨진 pt_hold 응답 제거 + 인덱스 범위 보정.
+  useEffect(() => {
+    if (!shouldAskPtHold(responses) && responses.pt_hold) {
+      setResponses((r) => { const { pt_hold: _omit, ...rest } = r; return rest; });
+    }
+  }, [responses]);
+  useEffect(() => {
+    if (profileDone && !done && stepIndex !== idx) setStepIndex(idx);
+  }, [profileDone, done, stepIndex, idx]);
 
   const partialArchetypes = useMemo(
     () => inferCareerArchetypes(buildPartialVector(responses)).slice(0, 3),
@@ -89,7 +108,7 @@ export default function CareerCompassV2Page() {
   const next = () => {
     if (!complete) return;
     if (isLast) setDone(true);
-    else setStepIndex((i) => i + 1);
+    else setStepIndex(idx + 1);
     scrollTop();
   };
   const back = () => {
@@ -99,7 +118,7 @@ export default function CareerCompassV2Page() {
     //   step 0        → back to profile form (profileDone=false)
     //   profile form  → no further back (entry screen)
     if (done) setDone(false);
-    else if (stepIndex > 0) setStepIndex((i) => i - 1);
+    else if (idx > 0) setStepIndex(idx - 1);
     else if (profileDone) setProfileDone(false);
     scrollTop();
   };
@@ -144,9 +163,10 @@ export default function CareerCompassV2Page() {
         {/* Left: question flow */}
         <main className="lg:col-span-2 space-y-5 pb-28 lg:pb-6">
           <ProgressHeader
-            current={stepIndex + 1}
-            total={CAREER_QUESTION_FLOW.length}
+            current={progressCurrent}
+            total={countsTotal}
             stageLabel={STAGE_LABELS[step.stage]}
+            conditionalLabel={isConditionalStep ? (step.comparisonLabel ?? '추가 확인') : undefined}
             // P2.2 — back is always available in main flow: step 0 returns to the
             // profile form (the new entry screen), not a dead-end.
             canBack
@@ -178,7 +198,9 @@ export default function CareerCompassV2Page() {
           <div className="sticky top-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">진행 현황</p>
             <div>
-              <p className="text-2xl font-black text-indigo-600">{stepIndex + 1}<span className="text-base text-slate-300"> / {CAREER_QUESTION_FLOW.length}</span></p>
+              {isConditionalStep
+                ? <p className="text-2xl font-black text-indigo-600">추가 확인</p>
+                : <p className="text-2xl font-black text-indigo-600">{progressCurrent}<span className="text-base text-slate-300"> / {countsTotal}</span></p>}
               <p className="text-xs text-slate-500 mt-0.5">답변을 실시간으로 반영 중</p>
             </div>
             <div>

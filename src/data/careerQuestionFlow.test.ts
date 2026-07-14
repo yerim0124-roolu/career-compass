@@ -2,7 +2,7 @@
 // Self-contained (no test-runner deps): run with `node` (Node 24 strips types).
 // No UI is exercised. A failing assertion throws → non-zero exit.
 
-import { assembleGatesFromSelections, assembleConstructProfile, CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CARD } from './careerQuestionFlow.ts';
+import { assembleGatesFromSelections, assembleConstructProfile, CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CARD, shouldAskPtHold, getActiveCareerQuestionFlow } from './careerQuestionFlow.ts';
 import { MOCK_RESPONSE_SETS } from './careerQuestionFlow.examples.ts';
 import {
   createEmptyCareerVector,
@@ -241,6 +241,45 @@ check('regression: ar_expert expertise=5 불변', opt('ar_expert').scoreEffects.
 check('regression: rc_runway_1y financialReadiness=5 불변', opt('rc_runway_1y').scoreEffects.financialReadiness === 5);
 check('regression: sc_both selfEfficacy/outcomeExpectation=5 불변',
   opt('sc_both').constructEffects?.scct?.selfEfficacy === 5 && opt('sc_both').constructEffects?.scct?.outcomeExpectation === 5);
+
+// ─── P: cs_blocker 상위 질문 + pt_hold 조건부 후속 ────────────────────────────
+// cs_blocker 문구 수정(상위 질문). 선택지·효과값은 불변.
+check('cs_blocker: 상위 질문 문구 수정', stepById2('cs_blocker').assistantPrompt === '지금 행동으로 옮기는 데 가장 크게 걸리는 것은 무엇인가요? 하나만 골라주세요.');
+check('cs_blocker: 선택지 6개·ID 불변', (() => {
+  const ids = (stepById2('cs_blocker').options ?? []).map((o) => o.id);
+  return JSON.stringify(ids) === JSON.stringify(['blk_unclear', 'blk_confidence', 'blk_money', 'blk_eyes', 'blk_fail', 'blk_time']);
+})());
+
+// pt_hold 조건부 후속 질문 — 소라벨/문구/안내/메타/옵션 라벨 재작성, ID·effect 불변.
+{
+  const h = stepById2('pt_hold');
+  check('pt_hold: comparisonLabel = 추가 확인', h.comparisonLabel === '추가 확인');
+  check('pt_hold: 질문 문구', h.assistantPrompt === '새로운 선택을 할 때, 가장 포기하기 어려운 것은 무엇인가요?');
+  check('pt_hold: 안내 문구', !!h.helperText && h.helperText.includes('지금 놓기 어려운 대상'));
+  check('pt_hold: conditionalFollowUp=true', h.conditionalFollowUp === true);
+  check('pt_hold: countsTowardProgress=false(진행률 제외)', h.countsTowardProgress === false);
+  check('pt_hold: parentQuestionId=cs_blocker', h.parentQuestionId === 'cs_blocker');
+  const ids = (h.options ?? []).map((o) => o.id);
+  check('pt_hold: 옵션 ID 불변(sunk/endow/loss/none)', JSON.stringify(ids) === JSON.stringify(['pt_hold_sunk', 'pt_hold_endow', 'pt_hold_loss', 'pt_hold_none']));
+  check('pt_hold: 옵션 라벨 재작성', opt('pt_hold_sunk').label === '이미 들인 시간과 노력' && opt('pt_hold_loss').label === '선택하지 않게 될 다른 가능성' && opt('pt_hold_none').label === '특별히 포기하기 어려운 것은 없다');
+  check('pt_hold: effect-free 유지', (h.options ?? []).every((o) => Object.keys(o.scoreEffects).length === 0 && (!o.constructEffects || Object.keys(o.constructEffects).length === 0) && o.gateAssignment === undefined));
+}
+
+// shouldAskPtHold 노출 조건(중앙 순수 함수).
+check('shouldAskPtHold: 손실 신호 없음 → false', shouldAskPtHold({}) === false);
+check('shouldAskPtHold: blk_fail → true', shouldAskPtHold({ cs_blocker: { selectedOptionIds: ['blk_fail'] } }) === true);
+check('shouldAskPtHold: nr_loss/nr_safety/nr_continuity → true', ['nr_loss', 'nr_safety', 'nr_continuity'].every((id) => shouldAskPtHold({ ar_narrow: { selectedOptionIds: [id] } }) === true));
+check('shouldAskPtHold: rc_risk_none → true', shouldAskPtHold({ rc_risk: { selectedOptionIds: ['rc_risk_none'] } }) === true);
+check('shouldAskPtHold: 자신감/시간/시선/방향불명확만 → false', ['blk_confidence', 'blk_time', 'blk_eyes', 'blk_unclear'].every((id) => shouldAskPtHold({ cs_blocker: { selectedOptionIds: [id] } }) === false));
+
+// getActiveCareerQuestionFlow: 미노출=22, 노출=23, pt_hold는 cs_blocker 바로 뒤.
+check('getActiveCareerQuestionFlow: 미노출 22문항', getActiveCareerQuestionFlow({}).length === 22);
+check('getActiveCareerQuestionFlow: 노출 23문항 + pt_hold cs_blocker 바로 뒤', (() => {
+  const a = getActiveCareerQuestionFlow({ cs_blocker: { selectedOptionIds: ['blk_fail'] } });
+  const cb = a.findIndex((s) => s.id === 'cs_blocker');
+  return a.length === 23 && a[cb + 1]?.id === 'pt_hold';
+})());
+check('getActiveCareerQuestionFlow: 미노출 흐름에 pt_hold 없음', !getActiveCareerQuestionFlow({}).some((s) => s.id === 'pt_hold'));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);
