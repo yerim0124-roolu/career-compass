@@ -144,8 +144,11 @@ check('or_internal: labels match spec',
 check('or_internal: helperText present (org-internal hint)', !!orInternal.helperText && orInternal.helperText.includes('사내 이동'));
 check('liveInsight trigger moved: or_internal=true, or_venture removed', orInternal.liveInsightTrigger === true && !stepById2('or_venture').liveInsightTrigger);
 check('option_reactions stage count === 3', CAREER_QUESTION_FLOW.filter((s) => s.stage === 'option_reactions').length === 3);
-// 20 기존 문항 + Career Pattern v1 판별 문항 4개(pt_hold/pt_delay/pt_confidence/pt_direction, effect-free).
-check('CAREER_QUESTION_FLOW length === 24 (기존 20 + 패턴 판별 4)', CAREER_QUESTION_FLOW.length === 24);
+// 20 기존 문항 + Career Pattern v1 판별 문항 3개(pt_hold/pt_delay/pt_direction, effect-free).
+// pt_confidence 제거(24→23): impostor 전용 문항이었고 신규 흐름에서 impostor를 산출하지 않는다.
+check('CAREER_QUESTION_FLOW length === 23 (기존 20 + 패턴 판별 3)', CAREER_QUESTION_FLOW.length === 23);
+check('pt_confidence 문항 미노출 (제거됨)', !CAREER_QUESTION_FLOW.some((s) => s.id === 'pt_confidence'));
+check('pt_hold/pt_delay/pt_direction 문항 노출 유지', ['pt_hold', 'pt_delay', 'pt_direction'].every((id) => CAREER_QUESTION_FLOW.some((s) => s.id === id)));
 
 // ─── rc_options (perceived option visibility — Hope Theory pathways probe) ──────
 const rcOptions = stepById2('rc_options');

@@ -420,22 +420,6 @@ const patternDelay: QuestionStep = {
   ],
 };
 
-const patternConfidence: QuestionStep = {
-  id: 'pt_confidence',
-  stage: 'action_preferences',
-  inputType: 'single_select',
-  title: '확신의 근거',
-  assistantPrompt: '지금까지의 성과나 인정에 대해 가장 가까운 느낌은?',
-  minSelect: 1,
-  maxSelect: 1,
-  options: [
-    { id: 'pt_conf_impostor', label: "좋은 평가를 받아도 '운이 좋았을 뿐'이라는 생각이 든다", tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_conf_lowself', label: '아직 내세울 만한 성과 자체가 부족하다고 느낀다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_conf_healthy', label: '성과도 있고 그만큼 내 실력이라 느낀다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_conf_unknown', label: '잘 모르겠다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-  ],
-};
-
 const patternDirection: QuestionStep = {
   id: 'pt_direction',
   stage: 'action_preferences',
@@ -474,7 +458,6 @@ export const CAREER_QUESTION_FLOW: QuestionStep[] = [
   // Career Pattern v1 판별 문항(effect-free) — 배열 말미. 기존 스코어링 무영향.
   patternHold,
   patternDelay,
-  patternConfidence,
   patternDirection,
 ];
 

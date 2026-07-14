@@ -5,8 +5,10 @@
 import assert from 'node:assert';
 import {
   classifyFromEvidence, extractEvidence, buildCareerPatternProfile, CATEGORY_OF, teaserTags,
+  PATTERN_LABELS,
   type PatternId, type PatternCategory,
 } from './biasPatternEngine.ts';
+import { PATTERN_COPY } from '../components/careerCompassV2/patternTeaserCopy.ts';
 
 let passed = 0;
 const ok = (label: string, cond: boolean) => { assert.ok(cond, label); passed++; };
@@ -34,7 +36,9 @@ const SIMS: Array<{ n: number; codes: string[]; exp: Exp }> = [
   { n: 11, codes: ['q2:experimentAvoidance', 'val:rc_val_none'], exp: { resolution: 'pattern', primary: 'experimentAvoidance', confidence: 'medium' } },
   { n: 12, codes: ['blocker:blk_time', 'q2:procrastination'], exp: { resolution: 'pattern', primary: 'productiveProcrastination', confidence: 'high' } },
   { n: 13, codes: ['blocker:blk_time'], exp: { resolution: 'category_only', category: 'avoidance', confidence: 'low' } },
-  { n: 14, codes: ['q3:impostor', 'sc:sc_market_only'], exp: { resolution: 'pattern', primary: 'impostor', confidence: 'medium' } },
+  // impostor는 neverPrimary(pt_confidence 제거, 24→23) → 구체 패턴 미산출. 전용 신호만 있으면
+  // lowSelfEfficacy 기준(cx:selfEfficacyLow 등) 미충족 시 상위 범주(identityConfusion)로만 귀결.
+  { n: 14, codes: ['q3:impostor', 'sc:sc_market_only'], exp: { resolution: 'category_only', category: 'identityConfusion', confidence: 'low' } },
   { n: 15, codes: ['sc:sc_market_only', 'blocker:blk_confidence', 'cx:selfEfficacyLow'], exp: { resolution: 'pattern', primary: 'lowSelfEfficacy', confidence: 'high' } },
   { n: 16, codes: ['q3:lowEfficacy', 'sc:sc_unsure'], exp: { resolution: 'pattern', primary: 'lowSelfEfficacy', confidence: 'medium' } },
   { n: 17, codes: ['blocker:blk_eyes', 'stated:safetyTop+challengeExp'], exp: { resolution: 'pattern', primary: 'tyrannyOfShoulds', confidence: 'medium' } },
@@ -115,6 +119,36 @@ for (const { n, codes, exp } of SIMS) {
   ok('CATEGORY_OF covers 16', (Object.keys(CATEGORY_OF).length === 16));
 }
 
+// ── 불변식(pt_confidence 제거, 24→23): impostor는 신규 분석에서 primary·secondary 모두 아님 ──
+{
+  // 전용 신호(q3:impostor)를 강하게 넣어도 impostor는 산출되지 않는다.
+  const r1 = classifyFromEvidence(['q3:impostor', 'sc:sc_market_only']);
+  ok('invariant: impostor never primary (전용 신호 넣어도)', r1.primaryPattern !== 'impostor');
+  ok('invariant: impostor never secondary (전용 신호 넣어도)', r1.secondaryPattern !== 'impostor');
+  // impostor 신호가 다른 후보와 경쟁해도 secondary로 새어나오지 않는다.
+  const r2 = classifyFromEvidence(['q3:impostor', 'sc:sc_market_only', 'csMain:cs_between', 'cx:goalClarityLow']);
+  ok('invariant: impostor 경쟁 상황에서도 primary 아님', r2.primaryPattern !== 'impostor');
+  ok('invariant: impostor 경쟁 상황에서도 secondary 아님', r2.secondaryPattern !== 'impostor');
+}
+
+// ── 하위 호환: 신규 흐름(pt_confidence 미존재)이라도 lowSelfEfficacy는 실제 경로(cx:selfEfficacyLow)로 구체 분류 유지 ──
+{
+  const r = classifyFromEvidence(['cx:selfEfficacyLow', 'sc:sc_market_only', 'blocker:blk_confidence']);
+  ok('compat: cx:selfEfficacyLow 경로로 lowSelfEfficacy 구체 분류 유지', r.resolution === 'pattern' && r.primaryPattern === 'lowSelfEfficacy');
+}
+
+// ── 하위 호환(렌더): PatternId 타입·라벨·카피에서 impostor를 삭제하지 않는다.
+//    과거 세션이 primaryPattern:'impostor'를 갖고 있어도 PatternTeaserView가 기존 카피로 렌더 가능해야 한다. ──
+{
+  ok('compat: PATTERN_LABELS에 impostor 라벨 유지(과거 세션 렌더)', typeof PATTERN_LABELS.impostor === 'string' && PATTERN_LABELS.impostor.length > 0);
+  const c = PATTERN_COPY.impostor;
+  ok('compat: PATTERN_COPY에 impostor 카피 유지(과거 세션 렌더)',
+    !!c && typeof c.inverted === 'string' && typeof c.statePara === 'string' && typeof c.mechanismPara === 'string' && typeof c.question === 'string');
+  // 과거 저장 프로필(수동 구성)이 그대로 카피 조회 경로를 통과하는지 확인.
+  const legacyProfile = { primaryPattern: 'impostor' as PatternId };
+  ok('compat: 과거 impostor 프로필 → 라벨/카피 조회 성공', !!PATTERN_LABELS[legacyProfile.primaryPattern] && !!PATTERN_COPY[legacyProfile.primaryPattern]);
+}
+
 // ── extractEvidence 매핑 정확성(대표 응답 → 코드) ──
 {
   const codes = extractEvidence({
@@ -125,6 +159,7 @@ for (const { n, codes, exp } of SIMS) {
       sc_outlook: { selectedOptionIds: ['sc_market_only'] },
       pt_hold: { selectedOptionIds: ['pt_hold_sunk'] },
       pt_delay: { selectedOptionIds: ['pt_delay_fear'] },
+      // 과거 저장 세션이 남긴 pt_confidence — 신규 코드에서 매핑 제거됨(24→23). 안전 무시되어야 한다.
       pt_confidence: { selectedOptionIds: ['pt_conf_impostor'] },
       pt_direction: { selectedOptionIds: ['pt_dir_closed'] },
       cv_values: { selectedOptionIds: ['a', 'b', 'c', 'd'] },
@@ -133,9 +168,11 @@ for (const { n, codes, exp } of SIMS) {
     },
   });
   const wants = ['csMain:cs_between', 'arNarrow:nr_loss', 'blocker:blk_eyes', 'sc:sc_market_only',
-    'q1:sunkCost', 'q2:experimentAvoidance', 'q3:impostor', 'q4:closedEarly',
+    'q1:sunkCost', 'q2:experimentAvoidance', 'q4:closedEarly',
     'values:cvValuesMany', 'stated:safetyTop+challengeExp'];
   ok('extract: 대표 응답 → 코드 매핑', wants.every((w) => codes.includes(w)));
+  // pt_confidence 제거: 저장된 응답이 있어도 q3:* 코드는 더 이상 생성되지 않는다(하위 호환 무시).
+  ok('extract: 저장된 pt_confidence는 q3 코드 미생성(안전 무시)', !codes.some((c) => c.startsWith('q3:')));
   ok('extract: 자유입력·원문 코드 없음(토큰만)', codes.every((c) => /^[a-zA-Z0-9_:+]+$/.test(c)));
 }
 

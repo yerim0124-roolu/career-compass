@@ -594,6 +594,27 @@ const FLOW_LEN = 20; // current CAREER_QUESTION_FLOW.length (cs_blocker 추가)
     s.stepIndex === 0);
 }
 
+// P10 — pt_confidence 제거(24→23) 하위 호환: 과거 24문항 흐름에서 저장된 in-progress 세션
+// (stepIndex가 이전 마지막 인덱스 23까지 가능)이 이제 23문항 흐름 길이로 열려도 범위를 벗어나지
+// 않고 안전한 유효 인덱스로 clamp되어야 한다(크래시 없이 계속 진행/결과 화면 이동 가능).
+{
+  const CUR_LEN = CAREER_QUESTION_FLOW.length; // 이제 23
+  check('P10: 현재 흐름 길이 === 23 (pt_confidence 제거 반영)', CUR_LEN === 23);
+  // 과거 24문항 흐름의 마지막 인덱스(23)로 저장된 세션을 새 길이(23)로 로드.
+  const legacy24 = JSON.stringify({
+    stepIndex: 23,
+    responses: { cs_main: { selectedOptionIds: ['cs_between'] }, pt_confidence: { selectedOptionIds: ['pt_conf_impostor'] } },
+    done: false,
+  });
+  const s = parsePersistedSession(legacy24, CUR_LEN);
+  check('P10: 과거 24문항 stepIndex=23 → 유효 범위 [0, len-1]로 clamp',
+    s.stepIndex >= 0 && s.stepIndex <= CUR_LEN - 1);
+  check('P10: 과거 24문항 세션 stepIndex는 새 마지막 인덱스(22)로 clamp',
+    s.stepIndex === CUR_LEN - 1);
+  check('P10: 과거 세션에 남은 pt_confidence 응답은 보존되지만 흐름을 깨지 않음',
+    s.responses.pt_confidence?.selectedOptionIds?.[0] === 'pt_conf_impostor');
+}
+
 // 8. Done flag preserved.
 {
   const donePayload = JSON.stringify({ stepIndex: 18, responses: {}, done: true });

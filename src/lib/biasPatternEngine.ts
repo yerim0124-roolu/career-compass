@@ -67,7 +67,8 @@ export function extractEvidence(input: PatternInput): string[] {
   const map = (q: string, m: Record<string, string>) => { const id = first(r, q); if (id && m[id]) add(m[id]); };
   map('pt_hold', { pt_hold_sunk: 'q1:sunkCost', pt_hold_endow: 'q1:endowment', pt_hold_loss: 'q1:lossAversion', pt_hold_none: 'q1:none' });
   map('pt_delay', { pt_delay_analysis: 'q2:analysisParalysis', pt_delay_ambiguity: 'q2:ambiguity', pt_delay_fear: 'q2:experimentAvoidance', pt_delay_busy: 'q2:procrastination', pt_delay_acting: 'q2:acting' });
-  map('pt_confidence', { pt_conf_impostor: 'q3:impostor', pt_conf_lowself: 'q3:lowEfficacy', pt_conf_healthy: 'q3:healthy', pt_conf_unknown: 'q3:unknown' });
+  // pt_confidence 문항 제거(24→23). 신규 흐름에서는 q3:* 코드가 더 이상 생성되지 않는다.
+  // 과거 저장 세션의 responses.pt_confidence는 매핑하지 않아 안전하게 무시된다.
   map('pt_direction', { pt_dir_closed: 'q4:closedEarly', pt_dir_between: 'q4:inBetween', pt_dir_open: 'q4:open' });
 
   // 기존 문항(원답변 읽기만)
@@ -204,6 +205,11 @@ const RULES: Record<PatternId, Rule> = {
     neg: { 'q3:lowEfficacy': 2, 'q3:healthy': 2 },
     discriminator: (h) => h('q3:impostor'),
     primaryRequires: (h) => h('q3:impostor'),
+    // pt_confidence 문항 제거(24→23)에 따라 impostor 전용 판별 신호(q3:impostor)가
+    // 신규 흐름에서 더 이상 생성되지 않는다. 신규 분석에서 impostor를 구체 패턴으로
+    // 산출하지 않도록 primary·secondary 후보에서 영구 제외한다. 규칙/라벨/카피는 과거
+    // 세션 렌더 호환을 위해 그대로 유지한다(PatternId 타입도 삭제하지 않음).
+    neverPrimary: true,
   },
   lowSelfEfficacy: {
     pos: { 'cx:selfEfficacyLow': 2, 'sc:sc_market_only': 2, 'blocker:blk_confidence': 2, 'sc:sc_unsure': 1, 'q3:lowEfficacy': 2 },

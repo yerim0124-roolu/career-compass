@@ -72,18 +72,28 @@ ok('기존 결과 산출 정상(신규 문항 미응답)', fpNoPattern.length > 
     ['pattern', 'category_only', 'insufficient_signal'].includes(s.patternProfile!.resolution));
 }
 
-// ── 2) Q1~Q4를 서로 다른 4가지 조합으로 바꿔도 기존 지문 완전 동일 ──
+// ── 2) 신규 판별 문항(pt_hold/pt_delay/pt_direction)을 서로 다른 4가지 조합으로 바꿔도 기존 지문 완전 동일 ──
+//   pt_confidence는 제거되었으므로(24→23) 신규 문항은 3개. 여전히 effect-free여야 한다.
 const PATTERN_VARIANTS: FlowResponses[] = [
-  { pt_hold: { selectedOptionIds: ['pt_hold_sunk'] }, pt_delay: { selectedOptionIds: ['pt_delay_analysis'] }, pt_confidence: { selectedOptionIds: ['pt_conf_impostor'] }, pt_direction: { selectedOptionIds: ['pt_dir_closed'] } },
-  { pt_hold: { selectedOptionIds: ['pt_hold_endow'] }, pt_delay: { selectedOptionIds: ['pt_delay_fear'] }, pt_confidence: { selectedOptionIds: ['pt_conf_lowself'] }, pt_direction: { selectedOptionIds: ['pt_dir_between'] } },
-  { pt_hold: { selectedOptionIds: ['pt_hold_loss'] }, pt_delay: { selectedOptionIds: ['pt_delay_busy'] }, pt_confidence: { selectedOptionIds: ['pt_conf_healthy'] }, pt_direction: { selectedOptionIds: ['pt_dir_open'] } },
-  { pt_hold: { selectedOptionIds: ['pt_hold_none'] }, pt_delay: { selectedOptionIds: ['pt_delay_acting'] }, pt_confidence: { selectedOptionIds: ['pt_conf_unknown'] }, pt_direction: { selectedOptionIds: ['pt_dir_na'] } },
+  { pt_hold: { selectedOptionIds: ['pt_hold_sunk'] }, pt_delay: { selectedOptionIds: ['pt_delay_analysis'] }, pt_direction: { selectedOptionIds: ['pt_dir_closed'] } },
+  { pt_hold: { selectedOptionIds: ['pt_hold_endow'] }, pt_delay: { selectedOptionIds: ['pt_delay_fear'] }, pt_direction: { selectedOptionIds: ['pt_dir_between'] } },
+  { pt_hold: { selectedOptionIds: ['pt_hold_loss'] }, pt_delay: { selectedOptionIds: ['pt_delay_busy'] }, pt_direction: { selectedOptionIds: ['pt_dir_open'] } },
+  { pt_hold: { selectedOptionIds: ['pt_hold_none'] }, pt_delay: { selectedOptionIds: ['pt_delay_acting'] }, pt_direction: { selectedOptionIds: ['pt_dir_na'] } },
 ];
 
 PATTERN_VARIANTS.forEach((variant, i) => {
   const resp = { ...BASE, ...variant };
   ok(`variant#${i + 1}: 기존 결과 필드 완전 동일(신규 문항 무영향)`, existingFingerprint(resp) === fpNoPattern);
 });
+
+// ── 2b) 하위 호환: 과거 세션이 남긴 pt_confidence 응답이 있어도 기존 결과·패턴이 안전(무영향) ──
+{
+  const legacy = { ...BASE, pt_confidence: { selectedOptionIds: ['pt_conf_impostor'] } } as FlowResponses;
+  ok('legacy pt_confidence: 기존 결과 지문 동일(무영향)', existingFingerprint(legacy) === fpNoPattern);
+  const s = buildResultFromResponses(legacy, { profile });
+  ok('legacy pt_confidence: patternProfile 안전 산출', !!s.patternProfile && s.patternProfile.version === 'pattern-v1');
+  ok('legacy pt_confidence: impostor를 primary로 산출하지 않음', s.patternProfile!.primaryPattern !== 'impostor');
+}
 
 // ── 3) patternProfile은 신규 응답에 따라 실제로 달라진다(독립 계층 증명) ──
 //   통제 케이스: 기존 응답은 동일하게 두고 pt_hold만 sunk vs loss로 바꾸면 patternProfile primary가 달라진다.

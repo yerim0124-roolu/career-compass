@@ -33,19 +33,22 @@ interface Resolved {
 }
 
 function resolve(p?: CareerPatternProfile): Resolved {
-  const LABEL = '현재 답변에서 가장 강하게 나타난 고민 패턴';
-  const signals = readSignals(p?.evidenceCodes ?? [], 3);
+  const LABEL = '지금 답변에서 읽은 핵심 고민 패턴';
+  const codes = p?.evidenceCodes ?? [];
 
   if (p && p.resolution === 'pattern' && p.primaryPattern) {
     const c = PATTERN_COPY[p.primaryPattern];
     const name = PATTERN_LABELS[p.primaryPattern];
+    // 확정 진단 어투 금지: high도 "경향이 가장 강하게 나타났어요"로 완화. medium은 근사 어투.
+    // name(PATTERN_LABELS)이 '…패턴'으로 끝나는 경우가 있어 뒤에 '패턴'을 또 붙이지 않는다.
     const nameLine = p.confidence === 'high'
-      ? `${LABEL}은 ‘${name}’입니다.`
-      : `현재 답변은 ‘${name}’ 패턴에 가까워 보여요.`;
+      ? `현재 답변에서는 ‘${name}’ 경향이 가장 강하게 나타났어요.`
+      : `현재 답변은 ‘${name}’ 쪽에 가까워 보여요.`;
     return {
       label: LABEL, inverted: c.inverted, nameLine, academic: c.academic,
       category: p.category ? CATEGORY_LABELS[p.category] : undefined,
-      statePara: c.statePara, mechanismPara: c.mechanismPara, signals, question: c.question,
+      statePara: c.statePara, mechanismPara: c.mechanismPara,
+      signals: readSignals(codes, 3, { pattern: p.primaryPattern }), question: c.question,
     };
   }
 
@@ -53,9 +56,10 @@ function resolve(p?: CareerPatternProfile): Resolved {
     const c = CATEGORY_COPY[p.category];
     return {
       label: LABEL, inverted: c.inverted,
-      nameLine: `지금은 ‘${CATEGORY_LABELS[p.category]}’ 쪽 고민이 크게 보여요. (구체적인 유형은 아직 단정하지 않아요.)`,
+      nameLine: `현재 답변에서는 ‘${CATEGORY_LABELS[p.category]}’ 범주의 고민이 비교적 크게 나타났어요.`,
       category: CATEGORY_LABELS[p.category],
-      statePara: c.statePara, mechanismPara: c.mechanismPara, signals, question: c.question,
+      statePara: c.statePara, mechanismPara: c.mechanismPara,
+      signals: readSignals(codes, 3, { category: p.category }), question: c.question,
     };
   }
 
@@ -63,7 +67,7 @@ function resolve(p?: CareerPatternProfile): Resolved {
   return {
     label: LABEL, inverted: INSUFFICIENT_COPY.inverted,
     statePara: INSUFFICIENT_COPY.statePara, mechanismPara: INSUFFICIENT_COPY.mechanismPara,
-    signals, question: INSUFFICIENT_COPY.question,
+    signals: readSignals(codes, 3), question: INSUFFICIENT_COPY.question,
   };
 }
 
