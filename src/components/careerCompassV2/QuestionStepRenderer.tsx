@@ -38,11 +38,17 @@ export default function QuestionStepRenderer({ step, value, onChange }: Props) {
         const next = has ? selectedIds.filter((x) => x !== id) : [...selectedIds, id];
         onChange({ ...value, selectedOptionIds: next });
       };
+      // 질문 본문(assistantPrompt)에는 선택 개수 제한을 넣지 않는다. 선택 제한 안내는
+      // step.maxSelect를 보고 렌더러가 일관된 문구로 자동 생성한다(문항별 하드코딩 없음).
       return (
         <div className="space-y-2">
+          {step.maxSelect !== undefined && (
+            <p className="text-xs text-slate-400">최대 {step.maxSelect}개까지 선택 가능</p>
+          )}
           <MultiSelectCardGrid options={options} selectedIds={selectedIds} maxSelect={step.maxSelect} onToggle={onToggle} />
+          {/* 제한 안내와 중복되지 않는 간결한 선택 완료 수만 표시. */}
           <p className="text-xs text-slate-400">
-            {selectedIds.length}개 선택{step.maxSelect ? ` · 최대 ${step.maxSelect}개` : ''}
+            {step.maxSelect !== undefined ? `${selectedIds.length}/${step.maxSelect} 선택` : `${selectedIds.length}개 선택`}
             {step.minSelect ? ` · 최소 ${step.minSelect}개` : ''}
           </p>
         </div>

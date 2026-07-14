@@ -208,20 +208,20 @@ export const PROFILE_CHAT_STEPS: ChatStep[] = [
   },
   {
     id: 'pc_concernTags', phase: 'profile',
-    message: '요즘 가장 큰 커리어 고민은 무엇인가요? 최대 2개까지 골라주세요.',
+    message: '요즘 가장 큰 커리어 고민은 무엇인가요?',
     answerType: 'multi_select', targetField: 'concernTags',
     options: PROFILE_CONCERN_TAGS, required: false, maxSelect: 2,
   },
   {
     id: 'pc_constraintTags', phase: 'profile',
-    message: '현실적으로 가장 걸리는 제약은 무엇인가요? 최대 2개까지 골라주세요.',
+    message: '현실적으로 가장 걸리는 제약은 무엇인가요?',
     answerType: 'multi_select', targetField: 'constraintTags',
     options: PROFILE_CONSTRAINT_TAGS, required: false,
     maxSelect: 2, noneExclusive: true,
   },
   {
     id: 'pc_desiredPaths', phase: 'profile',
-    message: '관심 있는 방향은 무엇인가요? 최대 2개까지 골라주세요.',
+    message: '관심 있는 방향은 무엇인가요?',
     answerType: 'multi_select', targetField: 'desiredPaths',
     options: PROFILE_DESIRED_PATHS, required: false, maxSelect: 2,
   },

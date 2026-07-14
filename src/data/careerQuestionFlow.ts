@@ -100,7 +100,7 @@ const coreValues: QuestionStep = {
   stage: 'core_values',
   inputType: 'multi_select',
   title: '포기하기 싫은 가치',
-  assistantPrompt: '앞으로의 일에서 포기하기 싫은 것을 최대 5개까지 골라주세요.',
+  assistantPrompt: '앞으로의 일에서 포기하기 싫은 것을 골라주세요.',
   minSelect: 1,
   maxSelect: 5,
   options: [

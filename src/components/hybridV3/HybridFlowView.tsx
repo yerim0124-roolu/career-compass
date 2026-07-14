@@ -38,6 +38,7 @@ import QuestionStepRenderer from '../careerCompassV2/QuestionStepRenderer';
 import LiveInsightCard from '../careerCompassV2/LiveInsightCard';
 import ResultSpineView from '../careerCompassV2/ResultSpineView';
 import PatternTeaserView from '../careerCompassV2/PatternTeaserView';
+import WholeResponseSummary from '../careerCompassV2/WholeResponseSummary';
 import { buildLiveInsight } from '../careerCompassV2/liveInsight';
 import ChatMessage from '../chatV1/ChatMessage';
 import ChatChoiceButton from '../chatV1/ChatChoiceButton';
@@ -355,7 +356,13 @@ export default function HybridFlowView() {
             심층 분석 미리보기·결제 CTA는 형제 컴포넌트 PaidEntryBanner가 제공한다.
             플래그 off(레거시)면 기존 상세 무료 리포트(ResultSpineView)를 그대로 렌더한다. */}
         {FEATURE_FLAGS.paidAnalysis
-          ? <PatternTeaserView pattern={spine.patternProfile} />
+          ? (<>
+              {/* 전체 답변으로 본 현재 상태 — 기존 무료 결과 엔진의 mainType + resultContext
+                  (pullDirection/primaryFriction/readinessLevel) 재사용. 패턴 카드 위, '답변
+                  수정' 아래의 작은 맥락 블록. 전체 무료 답변이 반영됐음을 보여준다. */}
+              <WholeResponseSummary mainType={spine.solutionLayer.mainTypeKey} resultContext={spine.resultContext} />
+              <PatternTeaserView pattern={spine.patternProfile} />
+            </>)
           : <ResultSpineView spine={spine} onRestart={restartAll} hideDeepSections={false} />}
       </div>
     );
@@ -601,7 +608,9 @@ function ProfileChatStepView({
     setDraft(applyCappedToggle(draft, value, max));
   };
 
-  const helperText = max !== undefined ? `최대 ${max}개 선택` : '여러 개 선택 가능';
+  // 질문 본문(step.message)에는 선택 개수 제한을 넣지 않는다. 안내는 step.maxSelect를
+  // 보고 자동 생성(문항별 하드코딩 없음), CAREER_QUESTION_FLOW 렌더러와 동일한 문구 형식.
+  const helperText = max !== undefined ? `최대 ${max}개까지 선택 가능` : '여러 개 선택 가능';
   const noneSelected = useNoneRule && draft.includes('none');
 
   return (

@@ -33,7 +33,7 @@ interface Resolved {
 }
 
 function resolve(p?: CareerPatternProfile): Resolved {
-  const LABEL = '지금 답변에서 읽은 핵심 고민 패턴';
+  const LABEL = '핵심 고민 패턴';
   const codes = p?.evidenceCodes ?? [];
 
   if (p && p.resolution === 'pattern' && p.primaryPattern) {

@@ -251,6 +251,26 @@ check('REQUIRED I: HybridFlowView imports V2 ResultSpineView',
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// REQUIRED R — '전체 답변으로 본 현재 상태' 블록: 기존 mainType + resultContext 재사용,
+// 패턴 카드 위(답변 수정 아래), PatternTeaser/patternTeaserCopy 무변경.
+// ═══════════════════════════════════════════════════════════════════════════════
+check('REQUIRED R: WholeResponseSummary import',
+  /import\s+WholeResponseSummary\s+from\s+['"]\.\.\/careerCompassV2\/WholeResponseSummary['"]/.test(hybridSrc));
+check('REQUIRED R: mainType + resultContext(둘 다 기존 spine 필드)만 전달(새 분류·raw 응답 재분석 없음)',
+  /<WholeResponseSummary\s+mainType=\{spine\.solutionLayer\.mainTypeKey\}\s+resultContext=\{spine\.resultContext\}\s*\/>/.test(hybridSrc));
+check('REQUIRED R: CurrentPositionSummary(구 컴포넌트) 더 이상 참조하지 않음(중복 렌더 없음)',
+  !/CurrentPositionSummary/.test(hybridSrc));
+{
+  // 전체 답변 종합은 PatternTeaserView '위'(먼저)에 렌더된다.
+  const ws = hybridSrc.indexOf('<WholeResponseSummary');
+  const pt = hybridSrc.indexOf('<PatternTeaserView');
+  check('REQUIRED R: 전체 답변 종합이 패턴 카드보다 위(먼저 렌더)', ws > 0 && pt > 0 && ws < pt);
+  // 패턴 프로필이 아니라 mainType/resultContext를 쓰므로 pt_* 변화에 독립(카피 테스트가 값 독립성 검증).
+  check('REQUIRED R: WholeResponseSummary는 patternProfile·raw responses를 입력으로 받지 않음',
+    !/<WholeResponseSummary[^>]*(patternProfile|responses=)/.test(hybridSrc));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // REQUIRED J — All 9 required result sections are present in V2's
 // ResultSpineView (which the hybrid renders verbatim).
 // ═══════════════════════════════════════════════════════════════════════════════
