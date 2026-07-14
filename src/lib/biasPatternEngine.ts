@@ -69,7 +69,13 @@ export function extractEvidence(input: PatternInput): string[] {
   map('pt_delay', { pt_delay_analysis: 'q2:analysisParalysis', pt_delay_ambiguity: 'q2:ambiguity', pt_delay_fear: 'q2:experimentAvoidance', pt_delay_busy: 'q2:procrastination', pt_delay_acting: 'q2:acting' });
   // pt_confidence 문항 제거(24→23). 신규 흐름에서는 q3:* 코드가 더 이상 생성되지 않는다.
   // 과거 저장 세션의 responses.pt_confidence는 매핑하지 않아 안전하게 무시된다.
-  map('pt_direction', { pt_dir_closed: 'q4:closedEarly', pt_dir_between: 'q4:inBetween', pt_dir_open: 'q4:open' });
+  // pt_direction 재작성('방향의 유무' → '커리어-정체성 관계'): 신규 옵션 ID는 동일 evidence
+  // code(q4:*)로 매핑돼 identityForeclosure/liminality 판별이 그대로 유지된다. 구버전 옵션
+  // ID(pt_dir_closed/between/open)도 하위호환으로 같은 코드에 매핑한다. aligned/na → 코드 없음.
+  map('pt_direction', {
+    pt_dir_foreclosed: 'q4:closedEarly', pt_dir_liminal: 'q4:inBetween', pt_dir_exploring: 'q4:open',
+    pt_dir_closed: 'q4:closedEarly', pt_dir_between: 'q4:inBetween', pt_dir_open: 'q4:open',
+  });
 
   // 기존 문항(원답변 읽기만)
   const cs = first(r, 'cs_main'); if (cs) add(`csMain:${cs}`);

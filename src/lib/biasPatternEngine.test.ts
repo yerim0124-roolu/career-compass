@@ -149,6 +149,35 @@ for (const { n, codes, exp } of SIMS) {
   ok('compat: 과거 impostor 프로필 → 라벨/카피 조회 성공', !!PATTERN_LABELS[legacyProfile.primaryPattern] && !!PATTERN_COPY[legacyProfile.primaryPattern]);
 }
 
+// ── pt_direction 재작성('방향의 유무' → '커리어-정체성 관계'): 신규 옵션 ID → 동일 q4 코드,
+//    옵션1(aligned)·옵션4(exploring)은 부정 유형을 억지로 생성하지 않음, 구 옵션 ID 하위호환 ──
+{
+  const ev = (optId: string) => extractEvidence({ responses: { pt_direction: { selectedOptionIds: [optId] } } });
+  // 신규 옵션 → evidence code 매핑
+  ok('pt_direction: foreclosed → q4:closedEarly', ev('pt_dir_foreclosed').includes('q4:closedEarly'));
+  ok('pt_direction: liminal → q4:inBetween', ev('pt_dir_liminal').includes('q4:inBetween'));
+  ok('pt_direction: exploring → q4:open', ev('pt_dir_exploring').includes('q4:open'));
+  // 옵션1(aligned): q4 코드 없음 → 부정 패턴 신호 없음
+  ok('pt_direction: aligned → q4 코드 없음(부정 패턴 신호 없음)', !ev('pt_dir_aligned').some((c) => c.startsWith('q4:')));
+  // 구버전 옵션 ID 하위호환(과거 저장 세션)
+  ok('pt_direction(legacy): pt_dir_closed → q4:closedEarly', ev('pt_dir_closed').includes('q4:closedEarly'));
+  ok('pt_direction(legacy): pt_dir_between → q4:inBetween', ev('pt_dir_between').includes('q4:inBetween'));
+  ok('pt_direction(legacy): pt_dir_open → q4:open', ev('pt_dir_open').includes('q4:open'));
+  ok('pt_direction(legacy): pt_dir_na → q4 코드 없음', !ev('pt_dir_na').some((c) => c.startsWith('q4:')));
+
+  // 옵션2(foreclosed) → identityForeclosure 판별
+  const foreclosed = buildCareerPatternProfile({ responses: { pt_direction: { selectedOptionIds: ['pt_dir_foreclosed'] }, ar_narrow: { selectedOptionIds: ['nr_decided'] } } });
+  ok('pt_direction: foreclosed(+nr_decided) → identityForeclosure', foreclosed.resolution === 'pattern' && foreclosed.primaryPattern === 'identityForeclosure');
+  // 옵션3(liminal) → liminality 판별
+  const liminal = buildCareerPatternProfile({ responses: { pt_direction: { selectedOptionIds: ['pt_dir_liminal'] }, cs_main: { selectedOptionIds: ['cs_stay'] } } });
+  ok('pt_direction: liminal(+cs_stay) → liminality', liminal.resolution === 'pattern' && liminal.primaryPattern === 'liminality');
+  // 옵션1(aligned)·4(exploring)은 identityForeclosure/liminality를 강제하지 않는다
+  const aligned = buildCareerPatternProfile({ responses: { pt_direction: { selectedOptionIds: ['pt_dir_aligned'] } } });
+  ok('pt_direction: aligned → identityForeclosure/liminality 강제 안 함', aligned.primaryPattern !== 'identityForeclosure' && aligned.primaryPattern !== 'liminality');
+  const exploring = buildCareerPatternProfile({ responses: { pt_direction: { selectedOptionIds: ['pt_dir_exploring'] } } });
+  ok('pt_direction: exploring → identityForeclosure/liminality 강제 안 함', exploring.primaryPattern !== 'identityForeclosure' && exploring.primaryPattern !== 'liminality');
+}
+
 // ── extractEvidence 매핑 정확성(대표 응답 → 코드) ──
 {
   const codes = extractEvidence({

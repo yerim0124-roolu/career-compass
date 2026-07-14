@@ -76,7 +76,10 @@ const narrowingReason: QuestionStep = {
   stage: 'attractive_roles',
   inputType: 'single_select',
   title: '좁히기 어려운 이유',
-  assistantPrompt: '여러 방향을 두고 고민 중이라면, 아직 하나로 좁히지 못하는 가장 큰 이유는 무엇에 가깝나요?',
+  // 문구 수정만: rc_options(선택지 수) 직후라 전제('여러 방향을 두고 고민 중')가 안 맞는 사용자를
+  // 위해 리드를 중립화하고, 방향이 없어도 답할 수 있게 안내를 추가. 선택지·효과값 불변.
+  assistantPrompt: '지금 방향을 하나로 좁히기 어려운 가장 큰 이유는 무엇인가요?',
+  helperText: '아직 뚜렷한 방향이 없다면, 지금 마음에 가장 가까운 항목을 골라주세요.',
   minSelect: 1,
   maxSelect: 1,
   options: [
@@ -277,12 +280,17 @@ const realityValidation: QuestionStep = {
 };
 
 // ─── Stage 6: option_reactions (feeling cards → fit + validation + value conflict) ──
+// or_content/or_venture/or_internal — 세 방향을 '같은 척도'로 비교하는 세트(가능성 비교 1~3/3).
+// 소라벨 + 첫 문장 리드를 방향별로 명확히 달리해 '반복'이 아니라 '의도된 비교'로 읽히게 한다.
+// 선택지·ID·scoreEffects·constructEffects·응답 저장·엔진 매핑은 변경하지 않는다.
 const reactionContent: QuestionStep = {
   id: 'or_content',
   stage: 'option_reactions',
   inputType: 'single_select',
   title: '콘텐츠·자문 방향',
-  assistantPrompt: '콘텐츠·자문 같은 방향에 1년을 쓴다면, 잘 풀리는 날과 지치는 날을 모두 떠올렸을 때 가장 가까운 느낌은?',
+  comparisonLabel: '가능성 비교 · 1/3',
+  assistantPrompt: '전문지식을 콘텐츠로 풀어내는 일을 떠올리면, 가장 먼저 어떤 느낌이 드나요?',
+  helperText: '세 가지 방향을 같은 기준으로 빠르게 비교해볼게요.',
   minSelect: 1,
   maxSelect: 1,
   options: [
@@ -299,7 +307,8 @@ const reactionVenture: QuestionStep = {
   stage: 'option_reactions',
   inputType: 'single_select',
   title: '창업·독립 방향',
-  assistantPrompt: '창업·독립 같은 방향에 1년을 쓴다면, 잘 풀리는 날과 지치는 날을 모두 떠올렸을 때 가장 가까운 느낌은?',
+  comparisonLabel: '가능성 비교 · 2/3',
+  assistantPrompt: '직접 사업이나 프로젝트를 만드는 일을 떠올리면, 가장 먼저 어떤 느낌이 드나요?',
   minSelect: 1,
   maxSelect: 1,
   // liveInsightTrigger moved to or_internal so the insight fires after the full option_reactions stage.
@@ -319,7 +328,8 @@ const reactionInternal: QuestionStep = {
   stage: 'option_reactions',
   inputType: 'single_select',
   title: '사내·현직 방향',
-  assistantPrompt: '지금 있는 자리에서 역할이나 일하는 방식을 바꿔본다면 어떤 느낌인가요?',
+  comparisonLabel: '가능성 비교 · 3/3',
+  assistantPrompt: '조직 안에서 새로운 역할로 확장하는 일을 떠올리면, 가장 먼저 어떤 느낌이 드나요?',
   helperText: '사내 이동, 역할 확장, 업무 방식 개선, 새 책임 맡기처럼 현재 기반 안에서 바꾸는 방향을 떠올려보세요.',
   minSelect: 1,
   maxSelect: 1,
@@ -408,7 +418,10 @@ const patternDelay: QuestionStep = {
   stage: 'action_preferences',
   inputType: 'single_select',
   title: '미루는 이유',
-  assistantPrompt: "'작게라도 한번 해보기'를 아직 안 한 이유에 가장 가까운 것은?",
+  // 문구 수정만: 직전 문항(ap_experiment)에서 고른 '결과물'을 앵커로 삼아 cs_blocker와의 반복감을
+  // 없애고, 이 문항이 '그 행동을 아직 시작 못 한 이유'임을 명확히 한다. 이미 실행 중인 사용자는
+  // 'pt_delay_acting(이미 작게 해보고 있다)'로 답할 수 있다. 선택지·효과값 불변.
+  assistantPrompt: '방금 고른 결과물을 아직 시작하지 못했다면, 가장 큰 이유는 무엇인가요?',
   minSelect: 1,
   maxSelect: 1,
   options: [
@@ -420,45 +433,62 @@ const patternDelay: QuestionStep = {
   ],
 };
 
+// pt_direction — '방향의 유무'(기존 선택지 수·방향성 문항과 체감 중복)를 '현재 커리어와
+// 자기 정체성의 관계'를 묻는 회고형 문항으로 전면 재작성. 마지막 문항으로 배치.
+// evidence code(q4:closedEarly/inBetween/open)는 그대로 유지된다(의미가 여전히 정합):
+//   - pt_dir_aligned  : 현재 정체성 일치 → 코드 없음(부정 패턴 신호 없음)
+//   - pt_dir_foreclosed: 익숙함으로 유지·확신 없음 → q4:closedEarly(identityForeclosure)
+//   - pt_dir_liminal  : 현재 길 부적합·다음 미정 → q4:inBetween(liminality)
+//   - pt_dir_exploring: 새 방향 탐색 중 → q4:open(구체 부정 패턴 강제 안 함)
+// 구버전 옵션 ID(pt_dir_closed/between/open/na)는 biasPatternEngine에서 하위호환 매핑한다.
 const patternDirection: QuestionStep = {
   id: 'pt_direction',
   stage: 'action_preferences',
   inputType: 'single_select',
-  title: '방향에 대한 태도',
-  assistantPrompt: '지금 방향에 대한 태도에 가장 가까운 것은?',
+  title: '지금 커리어와 나',
+  assistantPrompt: '지금까지 이어온 커리어가 현재의 나와 얼마나 잘 맞는다고 느끼나요?',
   minSelect: 1,
   maxSelect: 1,
   options: [
-    { id: 'pt_dir_closed', label: '방향은 이미 정했고, 다른 가능성은 별로 안 본다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_dir_between', label: '예전 방향은 놓았는데 새 방향은 아직 안 잡혔다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_dir_open', label: '여러 가능성을 아직 열어두고 살펴보는 중', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
-    { id: 'pt_dir_na', label: '특별히 해당 없다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_dir_aligned', label: '지금도 나와 잘 맞고, 앞으로도 계속 이어가고 싶다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_dir_foreclosed', label: '익숙해서 이어가고 있지만, 정말 내가 원하는 길인지는 확신이 없다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_dir_liminal', label: '지금의 길은 더 이상 나와 맞지 않지만, 다음 방향은 아직 정하지 못했다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
+    { id: 'pt_dir_exploring', label: '여러 경험을 해보며 나에게 맞는 새로운 방향을 찾는 중이다', tags: ['pattern'], scoreEffects: {}, constructEffects: {} },
   ],
 };
 
-// ─── Assembled flow (마지막은 패턴 판별 문항 Q1~Q4) ────────────────────────────
+// ─── Assembled flow — 사용자 서사(A~F) 순서 ────────────────────────────────────
+// 배열 순서만 바꾼다. 문항 ID·scoreEffects·constructEffects는 불변이라 모든 응답은
+// ID 기준으로 그대로 해석되고 기존 무료 결과(mainType/subtype/friction/…)는 완전 불변.
+// 쉬운 현재 상태 → 점차 심리적·개인적 문항으로 이동, pt_direction은 마지막 회고형.
+// 근거: docs/research/career-question-flow-order-review.md.
 export const CAREER_QUESTION_FLOW: QuestionStep[] = [
-  currentState,
-  attractiveRoles,
-  narrowingReason,
-  coreValues,
-  corePriorities,
-  ...forcedChoices,
-  selfOutlook,
-  realityOptions,
-  realityRunway,
-  realityEnergy,
-  realityRisk,
-  realityValidation,
-  reactionContent,
-  reactionVenture,
-  reactionInternal,
-  decisionBlocker,
-  actionExperiment,
-  // Career Pattern v1 판별 문항(effect-free) — 배열 말미. 기존 스코어링 무영향.
-  patternHold,
-  patternDelay,
-  patternDirection,
+  // A. 현재 위치
+  currentState,        // cs_main — 지금 상태
+  realityEnergy,       // rc_energy — 지금 에너지
+  // B. 방향과 선택지
+  attractiveRoles,     // ar_roles — 끌리는 역할
+  realityOptions,      // rc_options — 떠오르는 선택지(수·구체성)
+  narrowingReason,     // ar_narrow — 좁히기 어려운 이유
+  reactionContent,     // or_content — 콘텐츠·자문 방향 반응
+  reactionVenture,     // or_venture — 창업·독립 방향 반응
+  reactionInternal,    // or_internal — 사내·현직 방향 반응
+  // C. 선택 기준과 지킬 조건
+  coreValues,          // cv_values — 포기하기 싫은 가치
+  corePriorities,      // cv_priorities — 우선순위
+  ...forcedChoices,    // fc_1~fc_4 — 더 끌리는 쪽(가치 타이브레이커)
+  patternHold,         // pt_hold — 놓기 어려운 것(effect-free)
+  // D. 현실 조건과 검증
+  realityRunway,       // rc_runway — 버틸 수 있는 기간
+  realityRisk,         // rc_risk — 감당 가능한 손실
+  realityValidation,   // rc_validation — 지금 방향에 받은 반응(검증)
+  // E. 행동과 장애물
+  decisionBlocker,     // cs_blocker — 결정을 막는 것
+  actionExperiment,    // ap_experiment — 이번 달 결과물(시도할 행동)
+  patternDelay,        // pt_delay — 작게 해보기를 미룬 이유(effect-free)
+  // F. 정체성과 전환
+  selfOutlook,         // sc_outlook — 해낼 수 있다는 감각
+  patternDirection,    // pt_direction — 지금 커리어와 자기 정체성의 관계(effect-free, 마지막)
 ];
 
 // Maps each output-format card to the career option whose timing/fit/reeval it routes

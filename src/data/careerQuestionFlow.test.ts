@@ -192,5 +192,55 @@ check('ori_meaning_slow increases difficulty.valueConflict (> 0)', cMeaningSlow.
 const cEnergizedC = applyConstructEffects(createEmptyConstructProfile(), opt('ori_energized').constructEffects ?? {}, 1);
 check('ori_energized increases outcomeExpectation/selfEfficacy/control (> 0)', cEnergizedC.scct.outcomeExpectation > 0 && cEnergizedC.scct.selfEfficacy > 0 && cEnergizedC.adaptability.control > 0);
 
+// ─── P: 서사 순서 재배열 + pt_direction 재작성 ────────────────────────────────
+// 1) 문항 ID 고유성
+{
+  const ids = CAREER_QUESTION_FLOW.map((s) => s.id);
+  check('all question IDs unique (23)', new Set(ids).size === ids.length && ids.length === 23);
+}
+// 2) 서사 순서: 첫 문항 = cs_main(현재 위치), 마지막 = pt_direction(회고형 정체성)
+check('flow order: 첫 문항 = cs_main', CAREER_QUESTION_FLOW[0].id === 'cs_main');
+check('flow order: 마지막 문항 = pt_direction (마지막 회고형)', CAREER_QUESTION_FLOW[CAREER_QUESTION_FLOW.length - 1].id === 'pt_direction');
+// 체감 중복 쌍은 인접 배치하지 않는다(section 6).
+const idxOf = (id: string) => CAREER_QUESTION_FLOW.findIndex((s) => s.id === id);
+check('order: rc_options와 pt_direction 비인접', Math.abs(idxOf('rc_options') - idxOf('pt_direction')) > 1);
+check('order: cs_blocker와 pt_delay 비인접', Math.abs(idxOf('cs_blocker') - idxOf('pt_delay')) > 1);
+check('order: cv_priorities와 pt_hold 비인접', Math.abs(idxOf('cv_priorities') - idxOf('pt_hold')) > 1);
+check('order: rc_validation와 ap_experiment 비인접', Math.abs(idxOf('rc_validation') - idxOf('ap_experiment')) > 1);
+
+// 3) pt_direction 재작성 — 커리어-정체성 관계 문항
+{
+  const d = stepById2('pt_direction');
+  check('pt_direction: title = 지금 커리어와 나', d.title === '지금 커리어와 나');
+  check('pt_direction: assistantPrompt = 정체성 관계 질문',
+    d.assistantPrompt === '지금까지 이어온 커리어가 현재의 나와 얼마나 잘 맞는다고 느끼나요?');
+  const dids = (d.options ?? []).map((o) => o.id);
+  check('pt_direction: 옵션 ID = aligned/foreclosed/liminal/exploring',
+    JSON.stringify(dids) === JSON.stringify(['pt_dir_aligned', 'pt_dir_foreclosed', 'pt_dir_liminal', 'pt_dir_exploring']));
+  check('pt_direction: 옵션1(aligned) label', opt('pt_dir_aligned').label === '지금도 나와 잘 맞고, 앞으로도 계속 이어가고 싶다');
+  check('pt_direction: 옵션2(foreclosed) label', opt('pt_dir_foreclosed').label.includes('익숙해서 이어가고 있지만'));
+  check('pt_direction: 옵션3(liminal) label', opt('pt_dir_liminal').label.includes('더 이상 나와 맞지 않지만'));
+  check('pt_direction: 옵션4(exploring) label', opt('pt_dir_exploring').label.includes('새로운 방향을 찾는 중'));
+  check('pt_direction: 구 옵션 ID(closed/between/open/na) 제거',
+    !['pt_dir_closed', 'pt_dir_between', 'pt_dir_open', 'pt_dir_na'].some((id) => dids.includes(id)));
+}
+
+// 4) 신규 패턴 문항 3종 effect-free 유지(벡터·construct·gate 0 기여)
+{
+  const isEffectFree = (id: string) => (stepById2(id).options ?? []).every((o) =>
+    Object.keys(o.scoreEffects).length === 0 &&
+    (!o.constructEffects || Object.keys(o.constructEffects).length === 0) &&
+    o.gateAssignment === undefined,
+  );
+  check('pt_hold/pt_delay/pt_direction effect-free 유지', ['pt_hold', 'pt_delay', 'pt_direction'].every(isEffectFree));
+}
+
+// 5) 기존 문항 대표 효과값 불변(재배열이 효과를 바꾸지 않음)
+check('regression: cs_many optionOverload=5 불변', opt('cs_many').constructEffects?.difficulty?.optionOverload === 5);
+check('regression: ar_expert expertise=5 불변', opt('ar_expert').scoreEffects.expertise === 5);
+check('regression: rc_runway_1y financialReadiness=5 불변', opt('rc_runway_1y').scoreEffects.financialReadiness === 5);
+check('regression: sc_both selfEfficacy/outcomeExpectation=5 불변',
+  opt('sc_both').constructEffects?.scct?.selfEfficacy === 5 && opt('sc_both').constructEffects?.scct?.outcomeExpectation === 5);
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

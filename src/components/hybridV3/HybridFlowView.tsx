@@ -25,7 +25,6 @@ import type {
 import {
   buildResultFromSession,
   buildPartialVector,
-  collectSelectedCards,
   isStepComplete,
   normalizeProfile,
   parsePersistedSession,
@@ -93,6 +92,14 @@ function loadHybridSession(): {
   if (parsed.done) phase = 'result';
   else if (parsed.profileDone) phase = 'mainFlow';
   else phase = 'profile';
+  // 문항 재배열 하위호환 — 응답은 문항 ID로 저장되므로 raw stepIndex를 그대로 신뢰하지 않는다.
+  // 새 질문 순서에서 '첫 번째 미응답 문항'을 재개 지점으로 삼는다(순서가 바뀌어도 다른 질문으로
+  // 튀지 않음). 모든 문항에 답했다면 마지막 문항에 둔다(done이면 위에서 이미 result).
+  let stepIndex = parsed.stepIndex;
+  if (phase === 'mainFlow') {
+    const firstUnanswered = CAREER_QUESTION_FLOW.findIndex((s) => !isStepComplete(s, parsed.responses[s.id]));
+    stepIndex = firstUnanswered === -1 ? Math.max(CAREER_QUESTION_FLOW.length - 1, 0) : firstUnanswered;
+  }
   // Cursor: if resuming profile, land on first field that's missing.
   let profileCursor = 0;
   if (phase === 'profile') {
@@ -112,7 +119,7 @@ function loadHybridSession(): {
   return {
     profile: parsed.profile,
     responses: parsed.responses,
-    stepIndex: parsed.stepIndex,
+    stepIndex,
     done: parsed.done,
     phase,
     profileCursor,
@@ -163,7 +170,6 @@ export default function HybridFlowView() {
     () => inferCareerArchetypes(buildPartialVector(responses)).slice(0, 3),
     [responses],
   );
-  const selectedCount = useMemo(() => collectSelectedCards(responses).length, [responses]);
 
   // ─── Derived: result spine ───────────────────────────────────────────────
   const spine: ResultSpine | null = useMemo(
@@ -383,7 +389,7 @@ export default function HybridFlowView() {
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">진행 현황</p>
               <div>
                 <p className="text-2xl font-black" style={{ color: '#8C6FD6' }}>{stepIndex + 1}<span className="text-base text-slate-300"> / {CAREER_QUESTION_FLOW.length}</span></p>
-                <p className="text-xs text-slate-500 mt-0.5">선택 {selectedCount}개 반영 중</p>
+                <p className="text-xs text-slate-500 mt-0.5">답변을 실시간으로 반영 중</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-slate-400 mb-1.5">지금까지의 성향</p>

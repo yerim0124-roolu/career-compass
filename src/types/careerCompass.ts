@@ -270,6 +270,9 @@ export interface QuestionStep {
   title: string;                 // short heading (mobile-friendly)
   assistantPrompt: string;       // chat-style message shown above the cards
   helperText?: string;
+  // 표시 전용 소라벨(예: '가능성 비교 · 1/3'). 연속 비교 문항이 '반복'이 아니라 '의도된
+  // 비교 과정'으로 읽히도록 질문 위에 노출한다. 스코어링·엔진은 이 필드를 절대 읽지 않는다.
+  comparisonLabel?: string;
   options?: ChoiceOption[];      // single_select / multi_select / forced_choice / ranking
   sliders?: SliderDefinition[];  // slider_group
   minSelect?: number;            // multi_select / ranking

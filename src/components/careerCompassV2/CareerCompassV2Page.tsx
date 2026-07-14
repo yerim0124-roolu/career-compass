@@ -4,7 +4,7 @@ import { ARCHETYPE_LABELS } from '../../types/careerCompass.ts';
 import { CAREER_QUESTION_FLOW } from '../../data/careerQuestionFlow.ts';
 import { inferCareerArchetypes } from '../../lib/careerVectorEngine.ts';
 import type { FlowResponses, StepResponse2 } from './session';
-import { isStepComplete, buildResultFromSession, buildPartialVector, collectSelectedCards, normalizeProfile, parsePersistedSession } from './session';
+import { isStepComplete, buildResultFromSession, buildPartialVector, normalizeProfile, parsePersistedSession } from './session';
 import { buildLiveInsight } from './liveInsight';
 import ProgressHeader from './ProgressHeader';
 import ChatLikeFlow from './ChatLikeFlow';
@@ -72,7 +72,6 @@ export default function CareerCompassV2Page() {
     () => inferCareerArchetypes(buildPartialVector(responses)).slice(0, 3),
     [responses],
   );
-  const selectedCount = useMemo(() => collectSelectedCards(responses).length, [responses]);
 
   // P2.2 — spine builds when the main flow is done. Profile is a pre-flow gate now,
   // so by the time `done === true`, `profileDone === true` is already guaranteed.
@@ -180,7 +179,7 @@ export default function CareerCompassV2Page() {
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">진행 현황</p>
             <div>
               <p className="text-2xl font-black text-indigo-600">{stepIndex + 1}<span className="text-base text-slate-300"> / {CAREER_QUESTION_FLOW.length}</span></p>
-              <p className="text-xs text-slate-500 mt-0.5">선택 {selectedCount}개 반영 중</p>
+              <p className="text-xs text-slate-500 mt-0.5">답변을 실시간으로 반영 중</p>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 mb-1.5">지금까지의 성향</p>

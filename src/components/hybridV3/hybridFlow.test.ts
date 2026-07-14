@@ -17,7 +17,7 @@
 // surface that proves "the hybrid uses the V2 card UI" rather than rebuilding
 // a chat stream.
 
-import { buildResultFromResponses, buildResultFromSession } from '../careerCompassV2/session.ts';
+import { buildResultFromResponses, buildResultFromSession, isStepComplete } from '../careerCompassV2/session.ts';
 import type { FlowResponses } from '../careerCompassV2/session.ts';
 import { CAREER_QUESTION_FLOW } from '../../data/careerQuestionFlow.ts';
 import type { ResultSpine } from '../../types/careerCompass.ts';
@@ -353,6 +353,56 @@ check('REQUIRED I: HybridFlowView imports V2 ResultSpineView',
 // ═══════════════════════════════════════════════════════════════════════════════
 check('REQUIRED N: HybridFlowView declares Phase = profile | profileReview | mainFlow | result',
   /type Phase\s*=\s*['"]profile['"]\s*\|\s*['"]profileReview['"]\s*\|\s*['"]mainFlow['"]\s*\|\s*['"]result['"]/.test(hybridSrc));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REQUIRED O — 진행 현황 문구: 오래된 '선택 N개 반영 중' 수치 문구 제거, 비수치 문구로 교체.
+// ═══════════════════════════════════════════════════════════════════════════════
+check('REQUIRED O: 진행 현황에서 "개 반영 중" 수치 문구 제거(hybrid)', !/개 반영 중/.test(hybridSrc));
+check('REQUIRED O: 새 진행 문구 "답변을 실시간으로 반영 중" 노출(hybrid)', hybridSrc.includes('답변을 실시간으로 반영 중'));
+{
+  const v2PageSrc = readFileSync(resolve(__dirname, '../careerCompassV2/CareerCompassV2Page.tsx'), 'utf-8');
+  check('REQUIRED O: CareerCompassV2Page도 "개 반영 중" 제거', !/개 반영 중/.test(v2PageSrc));
+  check('REQUIRED O: CareerCompassV2Page도 새 문구 노출', v2PageSrc.includes('답변을 실시간으로 반영 중'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REQUIRED P — 문항 재배열 하위호환: 세션 복구는 raw stepIndex가 아니라 문항 ID 기준
+// '첫 번째 미응답 문항'에서 재개한다(loadHybridSession).
+// ═══════════════════════════════════════════════════════════════════════════════
+check('REQUIRED P: loadHybridSession이 첫 미응답 문항으로 재개(findIndex + !isStepComplete + responses[s.id])',
+  /findIndex\(\(s\)\s*=>\s*!isStepComplete\(s,\s*parsed\.responses\[s\.id\]\)\)/.test(hybridSrc));
+check('REQUIRED P: raw parsed.stepIndex를 그대로 반환하지 않고 재개 인덱스를 계산',
+  /let stepIndex = parsed\.stepIndex;/.test(hybridSrc) && /firstUnanswered === -1/.test(hybridSrc));
+{
+  // loadHybridSession의 재개 로직과 동일한 순수 계산(순서 무관, ID 기준).
+  type Q = (typeof CAREER_QUESTION_FLOW)[number];
+  const firstAnswer = (step: Q): FlowResponses[string] => {
+    const ids = (step.options ?? []).map((o) => o.id);
+    const n = Math.max(1, step.minSelect ?? 1);
+    return step.inputType === 'ranking' ? { ranking: ids.slice(0, n) } : { selectedOptionIds: ids.slice(0, n) };
+  };
+  const resumeIndex = (responses: FlowResponses): number => {
+    const fu = CAREER_QUESTION_FLOW.findIndex((s) => !isStepComplete(s, responses[s.id]));
+    return fu === -1 ? Math.max(CAREER_QUESTION_FLOW.length - 1, 0) : fu;
+  };
+  // 앞 2문항만 답한 세션 → 세 번째 문항(index 2)에서 재개.
+  const partial: FlowResponses = {
+    [CAREER_QUESTION_FLOW[0].id]: firstAnswer(CAREER_QUESTION_FLOW[0]),
+    [CAREER_QUESTION_FLOW[1].id]: firstAnswer(CAREER_QUESTION_FLOW[1]),
+  };
+  check('REQUIRED P: 앞 2문항 답변 → 첫 미응답 index=2에서 재개', resumeIndex(partial) === 2);
+  check('REQUIRED P: 빈 세션 → index 0에서 시작', resumeIndex({}) === 0);
+  // 중간에 구멍이 있는(비연속) 세션도 첫 구멍에서 재개 — raw stepIndex를 신뢰하지 않음.
+  const gappy: FlowResponses = {
+    [CAREER_QUESTION_FLOW[0].id]: firstAnswer(CAREER_QUESTION_FLOW[0]),
+    [CAREER_QUESTION_FLOW[2].id]: firstAnswer(CAREER_QUESTION_FLOW[2]),
+  };
+  check('REQUIRED P: 비연속 응답(0,2만) → 첫 구멍 index=1에서 재개', resumeIndex(gappy) === 1);
+  // 전부 답한 세션(비-done) → 마지막 index에서 정상 진행.
+  const all: FlowResponses = {};
+  for (const s of CAREER_QUESTION_FLOW) all[s.id] = firstAnswer(s);
+  check('REQUIRED P: 전부 답변 → 마지막 index에서(정상 진행/결과 이동)', resumeIndex(all) === CAREER_QUESTION_FLOW.length - 1);
+}
 
 // ─── Final report ──────────────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
