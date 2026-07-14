@@ -9,7 +9,7 @@
 // category_only→상위 범주만 / insufficient_signal→"좁히기 어렵다" + 유료 필요성.
 
 import type { CareerPatternProfile } from '../../types/careerCompass.ts';
-import { PATTERN_LABELS, CATEGORY_LABELS } from '../../lib/biasPatternEngine.ts';
+import { CATEGORY_LABELS } from '../../lib/biasPatternEngine.ts';
 import {
   PATTERN_COPY, CATEGORY_COPY, INSUFFICIENT_COPY, readSignals,
   DEEP_PREVIEW_ITEMS, CTA_PRIMARY, CTA_SUB,
@@ -38,14 +38,10 @@ function resolve(p?: CareerPatternProfile): Resolved {
 
   if (p && p.resolution === 'pattern' && p.primaryPattern) {
     const c = PATTERN_COPY[p.primaryPattern];
-    const name = PATTERN_LABELS[p.primaryPattern];
-    // 확정 진단 어투 금지: high도 "경향이 가장 강하게 나타났어요"로 완화. medium은 근사 어투.
-    // name(PATTERN_LABELS)이 '…패턴'으로 끝나는 경우가 있어 뒤에 '패턴'을 또 붙이지 않는다.
-    const nameLine = p.confidence === 'high'
-      ? `현재 답변에서는 ‘${name}’ 경향이 가장 강하게 나타났어요.`
-      : `현재 답변은 ‘${name}’ 쪽에 가까워 보여요.`;
+    // confidence 문장은 라벨을 따옴표로 끼워 넣지 않고(인공적 조합·중첩 따옴표 방지) 패턴별
+    // 완성 문장을 그대로 쓴다. 확정 진단 어투 금지(경향/모습이 나타났어요). 패턴명은 academic 칩으로.
     return {
-      label: LABEL, inverted: c.inverted, nameLine, academic: c.academic,
+      label: LABEL, inverted: c.inverted, nameLine: c.confidence, academic: c.academic,
       category: p.category ? CATEGORY_LABELS[p.category] : undefined,
       statePara: c.statePara, mechanismPara: c.mechanismPara,
       signals: readSignals(codes, 3, { pattern: p.primaryPattern }), question: c.question,

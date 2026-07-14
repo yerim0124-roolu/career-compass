@@ -11,6 +11,9 @@ import type { PatternId, PatternCategory } from '../../types/careerCompass.ts';
 export interface PatternCopy {
   academic: string;      // 이론적 패턴명(개념어)
   inverted: string;      // 반전형 헤드라인(패턴명 반복 대신 재해석)
+  // confidence 한 줄 — 라벨을 따옴표로 끼워 넣는 인공적 조합('○○ 마음' 쪽에…) 대신, 패턴별
+  // 완성된 자연 문장으로 경향을 하나만 짚는다. 확정 진단 어투 금지(경향/모습이 나타났어요).
+  confidence: string;
   statePara: string;     // 현재 답변에서 보이는 상태
   mechanismPara: string; // 놓치고 있을 핵심 메커니즘
   question: string;      // 아직 풀리지 않은 핵심 질문(무료에선 답을 주지 않음)
@@ -21,6 +24,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   lossAversion: {
     academic: '손실 회피',
     inverted: '결정을 못 하는 게 아니라, 잃을 가능성을 더 크게 보고 있는 거예요.',
+    confidence: '현재 답변에서는 얻는 것보다 잃는 것을 먼저 따지는 경향이 나타났어요.',
     statePara: '지금 답변에서는 새로 얻을 것보다 잃게 될 것을 먼저 계산하는 모습이 두드러져요. 그래서 조건을 여러 번 비교해도 쉽게 한쪽을 고르지 못해요.',
     mechanismPara: '필요한 건 더 정밀한 비교가 아니라, 무엇을 잃어도 괜찮고 무엇은 지켜야 하는지 먼저 정하는 일이에요. 그 선이 없으면 어떤 선택지든 손해처럼 보여요.',
     question: '지금 지키려는 건 꼭 필요한 안전일까요, 아니면 익숙함을 놓치기 싫은 마음일까요?',
@@ -28,6 +32,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   endowmentEffect: {
     academic: '소유 효과',
     inverted: '방향이 틀린 게 아니라, 지금 가진 자리를 실제보다 높게 매기고 있는 거예요.',
+    confidence: '현재 답변에서는 지금 가진 것을 실제보다 크게 두고 판단하는 경향이 나타났어요.',
     statePara: '답변을 보면 지금의 자리·소속·관계를 내려놓는 결정이 유독 크게 다가와요. 새 선택지의 장점보다 지금 것을 잃는다는 감각이 앞서요.',
     mechanismPara: '같은 조건이라도 이미 내 것이 된 건 더 비싸게 느껴지기 마련이에요. 그 웃돈을 걷어내고 봐야 지금 자리의 진짜 가치가 보여요.',
     question: '지금 가진 걸 남이 새로 제안한 조건이라 생각해도, 똑같이 붙잡게 될까요?',
@@ -35,6 +40,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   sunkCost: {
     academic: '매몰비용',
     inverted: '앞으로 얻을 것보다, 이미 들인 시간이 결정을 붙잡고 있어요.',
+    confidence: '현재 답변에서는 앞으로의 이득보다 이미 들인 것을 기준으로 판단하는 경향이 나타났어요.',
     statePara: '답변에는 지금까지 쏟은 시간과 노력이 아까워 방향을 바꾸기 어려워하는 마음이 뚜렷해요. 앞으로의 이득보다 지나온 과정이 판단 기준이 되고 있어요.',
     mechanismPara: '이미 쓴 시간은 어느 쪽을 골라도 돌아오지 않아요. 그래서 진짜 질문은 얼마나 들였나가 아니라, 지금부터 무엇이 남느냐예요.',
     question: '과거에 들인 시간을 빼고 본다면, 지금도 같은 선택을 하게 될까요?',
@@ -42,6 +48,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   ambiguityAversion: {
     academic: '모호성 회피',
     inverted: '실력이 부족한 게 아니라, 결과를 알 수 없다는 것 자체가 발을 붙잡는 거예요.',
+    confidence: '현재 답변에서는 결과를 예측하기 어려운 선택을 미루는 경향이 나타났어요.',
     statePara: '답변을 보면 잘될지 아닐지 가늠되지 않는 선택 앞에서 시작을 미루게 돼요. 실패가 두렵다기보다 예측이 안 되는 상태가 더 불편한 쪽이에요.',
     mechanismPara: '불확실함은 기다린다고 줄지 않아요. 작게 한 번 해보는 순간부터 정보가 쌓이고, 그때 비로소 안개가 걷혀요.',
     question: '확실해지면 움직이려는 걸까요, 아니면 움직여야 확실해지는 걸까요?',
@@ -50,6 +57,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   maximizer: {
     academic: '극대화 함정',
     inverted: '방향이 없는 게 아니라, 어느 것도 놓치고 싶지 않은 거예요.',
+    confidence: '현재 답변에서는 더 나은 선택을 찾느라 후보를 좁히지 못하는 경향이 나타났어요.',
     statePara: '답변에는 더 나은 선택이 남아 있을까 싶어 후보를 좀처럼 좁히지 못하는 모습이 있어요. 관심이 부족해서가 아니라, 괜찮아 보이는 길을 너무 많이 살려두고 있어요.',
     mechanismPara: '모든 조건을 만족하는 최선은 대개 존재하지 않아요. 지금 필요한 건 더 찾기가 아니라, 실제로 시험해볼 두세 개만 남기고 나머지를 내려놓는 일이에요.',
     question: '지금 열어둔 선택지 중, 이번 달에 실제로 확인해볼 두세 개는 무엇일까요?',
@@ -57,6 +65,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   anticipatedRegret: {
     academic: '예기된 후회',
     inverted: '고르기 싫은 게 아니라, 나중에 후회할 자신이 먼저 떠오르는 거예요.',
+    confidence: '현재 답변에서는 나중의 후회를 미리 걱정하는 신호가 함께 나타났어요.',
     statePara: '답변에는 어떤 선택이든 훗날 후회하게 될까 미리 걱정하는 마음이 함께 나타나요.',
     mechanismPara: '다만 이 신호 하나만으로는 방향을 단정하기 일러요. 다른 답변과 함께 봐야 후회를 피하려는 마음이 어디서 오는지 또렷해져요.',
     question: '어떤 선택을 하든, 나중의 나에게 덜 미안하려면 지금 무엇이 필요할까요?',
@@ -64,6 +73,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   analysisParalysis: {
     academic: '분석 마비',
     inverted: '게으른 게 아니라, 확신이 설 때까지 계속 알아보는 중인 거예요.',
+    confidence: '현재 답변에서는 행동보다 정보 수집과 비교가 앞서는 경향이 나타났어요.',
     statePara: '답변에는 조금만 더 알아보면 답이 나올 것 같아 조사와 비교를 멈추기 어려운 모습이 있어요. 정작 실제로 움직이는 단계는 계속 뒤로 밀려요.',
     mechanismPara: '정보가 늘수록 확신이 커질 것 같지만, 대개 따져볼 선택지만 더 늘어나요. 답은 한 번 해본 경험에서 오는 경우가 많아요.',
     question: '지금 더 필요한 건 정보일까요, 아니면 행동을 시작할 기준일까요?',
@@ -71,6 +81,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   noSelectionCriteria: {
     academic: '선택 기준 부재',
     inverted: '길이 안 보이는 게 아니라, 무엇을 먼저 볼지 기준이 아직 없는 거예요.',
+    confidence: '현재 답변에서는 무엇을 먼저 볼지 기준이 아직 서지 않은 모습이 나타났어요.',
     statePara: '답변에는 갈 만한 길은 여럿 있는데 무엇을 우선할지 정해지지 않은 상태가 드러나요. 그래서 비교를 시작해도 결론이 잘 나지 않아요.',
     mechanismPara: '선택지가 많아 막힌 게 아니라, 무엇을 얻고 무엇을 포기할지 정하는 한 줄이 없어서예요. 기준이 서면 후보 절반은 저절로 정리돼요.',
     question: '무엇이 충족되면, 이 결정을 이제 됐다고 말할 수 있을까요?',
@@ -79,6 +90,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   productiveProcrastination: {
     academic: '생산적 지연',
     inverted: '의지가 약한 게 아니라, 바쁜 일들이 진짜 결정을 대신 미뤄주는 거예요.',
+    confidence: '현재 답변에서는 급한 일에 밀려 중요한 결정을 미루는 경향이 나타났어요.',
     statePara: '답변에는 눈앞의 급한 일을 처리하느라 정작 중요한 결정은 계속 다음으로 넘기는 모습이 있어요. 아무것도 안 한 건 아닌데 핵심은 그대로 남아 있어요.',
     mechanismPara: '바쁨은 결정을 미루고 있다는 불편함을 잠시 덮어줘요. 새 일을 더하기보다 지금 하나를 덜어내야 핵심에 손댈 자리가 생겨요.',
     question: '이번 달, 무엇을 덜어내면 미뤄둔 그 결정에 손댈 여유가 생길까요?',
@@ -86,6 +98,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   movingGoalposts: {
     academic: '목표점 이동',
     inverted: '만족을 못 하는 게 아니라, 시작할 조건이 계속 뒤로 밀리는 거예요.',
+    confidence: '현재 답변에서는 시작할 조건을 계속 뒤로 미루는 신호가 나타났어요.',
     statePara: '답변에는 한 조건이 채워지면 또 다른 조건을 붙이게 되는 실마리가 있어요. 이것만 되면 시작하자는 기준이 계속 갱신돼요.',
     mechanismPara: '이 패턴은 한 번의 답변보다 시간을 두고 다시 볼 때 또렷해져요. 지금은 시작 조건이 실제로 움직였는지부터 확인하면 좋아요.',
     question: '지난달에 정한 시작 조건과 지금의 조건은 얼마나 달라졌을까요?',
@@ -93,6 +106,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   experimentAvoidance: {
     academic: '실험 회피',
     inverted: '방향이 없는 게 아니라, 작게 시험해보는 걸 미루고 있는 거예요.',
+    confidence: '현재 답변에서는 작게 시도해 결과를 확인하는 것을 미루는 경향이 나타났어요.',
     statePara: '답변에는 방향은 어느 정도 있는데 작게라도 시도해 결과를 확인하는 걸 망설이는 모습이 있어요. 시도가 곧 나에 대한 평가처럼 느껴지는 쪽이에요.',
     mechanismPara: '작은 실험은 당신을 판정하는 시험이 아니라 정보를 얻는 장치예요. 되돌릴 수 있는 크기로 시작하면 결과가 나빠도 잃을 게 크지 않아요.',
     question: '실패해도 잃을 게 적은, 이번 달의 가장 작은 시도는 무엇일까요?',
@@ -101,20 +115,23 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   liminality: {
     academic: '리미널리티(전환기)',
     inverted: '길을 잃은 게 아니라, 하나의 정체성과 다음 정체성 사이에 있는 거예요.',
+    confidence: '현재 답변에서는 예전 방향은 놓았지만 새 방향은 아직 잡히지 않은 모습이 나타났어요.',
     statePara: '답변에는 예전의 방향은 이미 놓았는데 새 방향은 아직 잡히지 않은 상태가 드러나요. 어느 쪽에도 온전히 속하지 않은 시기예요.',
     mechanismPara: '이 사이의 시기는 빨리 벗어나야 할 공백이 아니라, 다음 정체성이 자리 잡기 전의 자연스러운 과정이에요. 서둘러 이름표를 붙이면 오히려 더 오래 걸려요.',
     question: '지금의 사이 시기는 당신에게 무엇을 준비시키고 있는 걸까요?',
   },
   tyrannyOfShoulds: {
     academic: '당위적 사고',
-    inverted: '당신이 원하는 게 아니라, 해야 한다가 결정을 대신 누르고 있어요.',
-    statePara: '답변에는 내가 무엇을 원하는지보다 이래야 한다는 바깥 기준이 결정을 앞서는 모습이 있어요. 주변의 시선과 기대가 판단에 먼저 들어와요.',
-    mechanismPara: '해야 한다를 따르면 당장은 안전하지만, 그 결정을 몇 년 뒤 감당하는 건 기준을 준 사람들이 아니라 당신이에요. 어디까지가 내 기준인지 나눠볼 필요가 있어요.',
-    question: '지금 따르는 기준 중, 정말 내 것이라 할 수 있는 건 어디까지일까요?',
+    inverted: '내가 원하는 것보다, ‘해야 한다’는 기준이 결정을 이끌고 있어요.',
+    confidence: '현재 답변에서는 내 기준보다 주변의 기대를 먼저 고려하는 경향이 나타났어요.',
+    statePara: '무엇을 원하는지보다, 어떤 선택을 해야 인정받고 안전할지를 먼저 생각하고 있어요. 그래서 주변의 시선이나 기대가 내 판단보다 앞설 수 있습니다.',
+    mechanismPara: '이런 기준을 따르면 당장의 갈등은 줄일 수 있지만, 그 선택을 오래 유지할 수 있는지는 별개의 문제예요. 지금 따르는 기준이 내 선택인지, 주변의 기대를 받아들인 것인지 더 살펴봐야 합니다.',
+    question: '지금 따르는 기준은 내가 선택한 것일까요, 주변의 기대를 받아들인 것일까요?',
   },
   identityForeclosure: {
     academic: '정체성 조기 결정',
     inverted: '확신이 선 게 아니라, 일찍 방향을 정하고 문을 닫아둔 것일 수 있어요.',
+    confidence: '현재 답변에서는 충분히 살펴보기 전에 방향을 일찍 정해둔 모습이 나타났어요.',
     statePara: '답변에는 여러 가능성을 살펴보기 전에 방향을 일찍 정해둔 모습이 있어요. 지금은 그 선택을 별다른 의심 없이 유지하는 쪽이에요.',
     mechanismPara: '일찍 정한 방향이 틀렸다는 뜻은 아니에요. 다만 충분히 살펴본 뒤의 선택인지, 그때 받아들인 기대인지는 한 번 확인해볼 만해요.',
     question: '지금의 방향은 충분히 살펴본 뒤의 선택이었을까요, 아니면 그때 주어진 기대였을까요?',
@@ -122,6 +139,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   impostor: {
     academic: '가면 증후군',
     inverted: '실력이 부족한 게 아니라, 성과를 온전히 내 것으로 인정하지 못하는 거예요.',
+    confidence: '현재 답변에서는 성과를 온전히 자기 것으로 인정하지 못하는 신호가 나타났어요.',
     statePara: '답변에는 좋은 결과를 내고도 운이 좋았을 뿐이라며 자신의 몫을 낮게 보는 마음이 있어요.',
     mechanismPara: '이건 능력의 문제가 아니라 성과를 받아들이는 방식의 문제일 수 있어요. 무엇을 이뤘는지보다 그걸 어떻게 해석하는지가 발목을 잡아요.',
     question: '지금까지의 성과 중, 온전히 내 실력으로 인정할 수 있는 건 무엇일까요?',
@@ -129,6 +147,7 @@ export const PATTERN_COPY: Record<PatternId, PatternCopy> = {
   lowSelfEfficacy: {
     academic: '자기효능감 저하',
     inverted: '방향이 없는 게 아니라, 해낼 수 있을지에 대한 자신이 흔들리는 거예요.',
+    confidence: '현재 답변에서는 해낼 수 있을지에 대한 자신이 흔들리는 모습이 나타났어요.',
     statePara: '답변에는 방향보다 내가 이걸 잘 해낼 수 있을까라는 물음이 결정을 망설이게 하는 모습이 있어요. 하고 싶은 게 없다기보다 해낼 자신이 서지 않는 쪽이에요.',
     mechanismPara: '자신감은 마음먹기가 아니라 작은 성공의 경험에서 쌓여요. 그래서 지금은 큰 결정을 내리기보다, 해낼 수 있다는 증거를 하나 만드는 게 먼저예요.',
     question: '이번 달에 해냈다고 말할 만한 가장 작은 성공을 만든다면, 무엇이 좋을까요?',
@@ -160,7 +179,7 @@ export const CATEGORY_COPY: Record<PatternCategory, CategoryCopy> = {
   },
   identityConfusion: {
     inverted: '길을 잃은 게 아니라, 지금의 방향과 나를 다시 맞춰보는 시기예요.',
-    statePara: '답변에서는 지금의 방향과 정체성을 다시 정리하려는 쪽으로 신호가 모여요. 다만 그게 전환의 중간이라서인지, 바깥 기준에 눌려서인지까지는 아직 좁혀지지 않아요.',
+    statePara: '답변에서는 지금의 방향과 정체성을 다시 정리하려는 쪽으로 신호가 모여요. 다만 그게 전환의 중간이라서인지, 주변의 기대를 앞세우고 있어서인지까지는 아직 좁혀지지 않아요.',
     mechanismPara: '서둘러 답을 정하기보다 이 정리의 시기를 버티는 힘이 먼저예요. 방향은 대개 그 시간을 지나며 잡혀요.',
     question: '지금 당신은 어떤 사람으로 일하고 싶은 걸까요?',
   },
@@ -195,7 +214,7 @@ export const SIGNAL_TAG_LABELS: Record<string, string> = {
   'csMain:cs_between': '무엇을 먼저 둘지 기준이 안 섬',
   'csMain:cs_stay': '지금 일을 계속할지 고민 중',
   'csMain:cs_many': '하고 싶은 게 많아 못 좁힘',
-  'blocker:blk_eyes': '주변의 시선·기대가 신경 쓰임',
+  'blocker:blk_eyes': '주변의 시선과 기대를 먼저 고려함',
   'blocker:blk_fail': '되돌리기 어려울까 두려움',
   'blocker:blk_time': '시간·에너지가 부족함',
   'blocker:blk_confidence': '새 일을 잘 해낼 자신이 부족함',
