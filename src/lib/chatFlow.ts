@@ -171,7 +171,7 @@ export const PROFILE_CHAT_STEPS: ChatStep[] = [
   },
   {
     id: 'pc_jobRoleRaw', phase: 'profile',
-    message: '지금 하고 있는 일이나 직무를 짧게 적어주세요. 예: 회사원, 마케터, 개발자, 수의사, 투자심사역',
+    message: '지금 하고 있는 일이나 직무를 짧게 적어주세요. 예: 회사원, 마케터, 개발자, 간호사, 크리에이터',
     answerType: 'text', targetField: 'jobRoleRaw',
     required: false,
     placeholder: '예: 회사원',
