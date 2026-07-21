@@ -49,6 +49,8 @@ import {
 } from '../../lib/chatFlow.ts';
 import type { ChatStep } from '../../lib/chatFlow.ts';
 import ProfileSummaryReview from './ProfileSummaryReview';
+import CareerIntroView from './CareerIntroView';
+import { shouldShowCareerIntro } from './careerIntroGate.ts';
 import { logStart, logProgress, logComplete } from '../../lib/analytics.ts';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
 
@@ -83,12 +85,19 @@ function loadHybridSession(): {
   done: boolean;
   phase: Phase;
   profileCursor: number;
+  showIntro: boolean;
 } {
   if (typeof window === 'undefined') {
-    return { profile: {}, responses: {}, stepIndex: 0, done: false, phase: 'profile', profileCursor: 0 };
+    return { profile: {}, responses: {}, stepIndex: 0, done: false, phase: 'profile', profileCursor: 0, showIntro: false };
   }
   const raw = window.localStorage.getItem(HYBRID_STORAGE_KEY);
   const parsed = parsePersistedSession(raw, CAREER_QUESTION_FLOW.length);
+  // 시작 안내 화면(신규 사용자 전용) — 파싱된 세션이 '내용상 비어 있을 때만' true.
+  // 진행 중/완료/답변 수정 복구 경로에서는 다시 거치지 않는다(표시 전용, schema 무변경).
+  const showIntro = shouldShowCareerIntro({
+    done: parsed.done, profileDone: parsed.profileDone,
+    responses: parsed.responses, profile: parsed.profile,
+  });
   // 조건부 후속(pt_hold) stale 처리 — 현재 노출 조건이 false인데 저장된 pt_hold 응답이
   // 남아 있으면(구버전/조건 변경 후 종료) 제거한다. 다시 조건이 true가 되면 재응답을 요구.
   const responses = parsed.responses;
@@ -129,6 +138,7 @@ function loadHybridSession(): {
     done: parsed.done,
     phase,
     profileCursor,
+    showIntro,
   };
 }
 
@@ -141,6 +151,9 @@ export default function HybridFlowView() {
   const [done, setDone] = useState(initial.done);
   const [phase, setPhase] = useState<Phase>(initial.phase);
   const [profileCursor, setProfileCursor] = useState(initial.profileCursor);
+  // 시작 안내 화면(신규 사용자 전용, 표시 전용 게이트). CTA 클릭 시 false로만 전환되며
+  // 기존 profile phase 렌더(질문 1/10)가 그대로 드러난다 — 흐름 복제·세션 변경 없음.
+  const [showIntro, setShowIntro] = useState(initial.showIntro);
   const [draft, setDraft] = useState<string[]>([]);
   // When the user taps "수정" from the review, we set this so commit/skip
   // returns to the review instead of advancing to the next chat question.
@@ -335,6 +348,16 @@ export default function HybridFlowView() {
   );
 
   // ─── Phase render ────────────────────────────────────────────────────────
+  // 시작 안내(신규 사용자 전용) — 프로필/질문을 아직 시작하지 않은 빈 세션에서만.
+  if (phase === 'profile' && showIntro) {
+    return (
+      <div className="min-h-dvh bg-white">
+        {Header}
+        <CareerIntroView onStart={() => setShowIntro(false)} />
+      </div>
+    );
+  }
+
   if (phase === 'result' && spine) {
     return (
       <div className="min-h-dvh bg-white">
