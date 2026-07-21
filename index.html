@@ -4,8 +4,30 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="지금 회사에 남을까, 이직할까, 퇴사 후 재정비할까? 커리어 의사결정 시뮬레이터" />
+
+    <!-- 브라우저 탭 title은 서비스명 유지. 외부 공유(카카오톡 등) 문구는 아래 og:* 사용. -->
     <title>Career Compass — 커리어 선택지 분석기</title>
+    <meta name="description" content="지금의 커리어 위치와 결정을 어렵게 만드는 핵심 고민 패턴을 무료로 확인해보세요." />
+    <link rel="canonical" href="https://career-compass-rose.vercel.app/" />
+
+    <!-- Open Graph — 카카오톡/페이스북 등 링크 미리보기. SPA라 크롤러가 최초 HTML에서 바로
+         읽을 수 있도록 React 런타임이 아닌 여기에 정적으로 둔다. 각 태그는 1개씩만 존재. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Career Compass" />
+    <meta property="og:url" content="https://career-compass-rose.vercel.app/" />
+    <meta property="og:title" content="계속 이 길로 가도 될까? | Career Compass" />
+    <meta property="og:description" content="지금의 커리어 위치와 결정을 어렵게 만드는 핵심 고민 패턴을 무료로 확인해보세요." />
+    <meta property="og:image" content="https://career-compass-rose.vercel.app/og-career-compass.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="계속 이 길로 가도 될까? 나의 현재 위치와 핵심 고민 패턴, Career Compass" />
+
+    <!-- Twitter/X — OG와 동일한 제목·설명·이미지 -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="계속 이 길로 가도 될까? | Career Compass" />
+    <meta name="twitter:description" content="지금의 커리어 위치와 결정을 어렵게 만드는 핵심 고민 패턴을 무료로 확인해보세요." />
+    <meta name="twitter:image" content="https://career-compass-rose.vercel.app/og-career-compass.png" />
+
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
   </head>
