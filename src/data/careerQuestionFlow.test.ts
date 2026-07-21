@@ -2,7 +2,9 @@
 // Self-contained (no test-runner deps): run with `node` (Node 24 strips types).
 // No UI is exercised. A failing assertion throws → non-zero exit.
 
-import { assembleGatesFromSelections, assembleConstructProfile, CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CARD, shouldAskPtHold, getActiveCareerQuestionFlow } from './careerQuestionFlow.ts';
+import { assembleGatesFromSelections, assembleConstructProfile, CAREER_QUESTION_FLOW, EXPERIMENT_OPTION_BY_CARD, EXPERIMENT_LABEL_BY_CARD, shouldAskPtHold, getActiveCareerQuestionFlow, ptDelayPromptFor, PT_DELAY_PROMPT_DEFAULT, PT_DELAY_PROMPT_NO_EXPERIMENT } from './careerQuestionFlow.ts';
+import type { QuestionStep } from '../types/careerCompass.ts';
+import type { FlowResponses } from '../components/careerCompassV2/session.ts';
 import { MOCK_RESPONSE_SETS } from './careerQuestionFlow.examples.ts';
 import {
   createEmptyCareerVector,
@@ -280,6 +282,40 @@ check('getActiveCareerQuestionFlow: 노출 23문항 + pt_hold cs_blocker 바로 
   return a.length === 23 && a[cb + 1]?.id === 'pt_hold';
 })());
 check('getActiveCareerQuestionFlow: 미노출 흐름에 pt_hold 없음', !getActiveCareerQuestionFlow({}).some((s) => s.id === 'pt_hold'));
+
+// ── pt_delay 문구 분기: ap_unsure면 '방금 고른 결과물' 전제를 쓰지 않는다(표시 전용) ──
+const ptDelayIn = (r: FlowResponses) => getActiveCareerQuestionFlow(r).find((s) => s.id === 'pt_delay')!;
+const UNSURE: FlowResponses = { ap_experiment: { selectedOptionIds: ['ap_unsure'] } };
+const CONCRETE: FlowResponses = { ap_experiment: { selectedOptionIds: ['ap_writing'] } };
+
+check('pt_delay: 결과물을 고르면 기본(앵커) 문구', ptDelayIn(CONCRETE).assistantPrompt === PT_DELAY_PROMPT_DEFAULT);
+check('pt_delay: ap_unsure면 전제 없는 문구', ptDelayIn(UNSURE).assistantPrompt === PT_DELAY_PROMPT_NO_EXPERIMENT);
+check('pt_delay: ap_experiment 미응답이면 기본 문구', ptDelayIn({}).assistantPrompt === PT_DELAY_PROMPT_DEFAULT);
+check('pt_delay: ap_unsure 문구에 "방금 고른 결과물" 전제 없음',
+  !ptDelayIn(UNSURE).assistantPrompt.includes('방금 고른') && !ptDelayIn(UNSURE).assistantPrompt.includes('결과물'));
+check('pt_delay: 나머지 결과물 선택지 7종 모두 기본 문구',
+  ['ap_writing', 'ap_content', 'ap_portfolio', 'ap_interview', 'ap_redesign', 'ap_profile', 'ap_rest']
+    .every((id) => ptDelayIn({ ap_experiment: { selectedOptionIds: [id] } }).assistantPrompt === PT_DELAY_PROMPT_DEFAULT));
+check('pt_delay: ptDelayPromptFor 순수 함수도 동일 결과',
+  ptDelayPromptFor(UNSURE) === PT_DELAY_PROMPT_NO_EXPERIMENT && ptDelayPromptFor(CONCRETE) === PT_DELAY_PROMPT_DEFAULT);
+
+// 문구만 바뀌고 나머지(ID·선택지·효과·문항 수·정적 정의)는 완전히 동일해야 한다.
+check('pt_delay: 선택지 ID 5종 불변(문구 분기와 무관)', (() => {
+  const ids = (s: QuestionStep) => (s.options ?? []).map((o) => o.id).join(',');
+  return ids(ptDelayIn(UNSURE)) === 'pt_delay_analysis,pt_delay_ambiguity,pt_delay_fear,pt_delay_busy,pt_delay_acting'
+    && ids(ptDelayIn(UNSURE)) === ids(ptDelayIn(CONCRETE));
+})());
+check('pt_delay: 두 경우 모두 effect-free 유지(패턴 evidence 계층 불변)',
+  [UNSURE, CONCRETE].every((r) => (ptDelayIn(r).options ?? []).every((o) =>
+    Object.keys(o.scoreEffects).length === 0 && Object.keys(o.constructEffects ?? {}).length === 0 && o.gateAssignment === undefined)));
+check('pt_delay: ap_unsure여도 문항 수 22 유지(스킵 아님)', getActiveCareerQuestionFlow(UNSURE).length === 22);
+check('pt_delay: ap_unsure + pt_hold 조건이면 23문항', getActiveCareerQuestionFlow({ ...UNSURE, cs_blocker: { selectedOptionIds: ['blk_fail'] } }).length === 23);
+check('pt_delay: 정적 정의(CAREER_QUESTION_FLOW)는 기본 문구 그대로 — 원본 불변',
+  CAREER_QUESTION_FLOW.find((s) => s.id === 'pt_delay')?.assistantPrompt === PT_DELAY_PROMPT_DEFAULT);
+check('pt_delay: 활성 흐름 생성이 정적 정의 객체를 mutate하지 않음', (() => {
+  getActiveCareerQuestionFlow(UNSURE); // ap_unsure 경로 실행 후에도
+  return CAREER_QUESTION_FLOW.find((s) => s.id === 'pt_delay')?.assistantPrompt === PT_DELAY_PROMPT_DEFAULT;
+})());
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} test(s) failed`);

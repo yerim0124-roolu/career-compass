@@ -426,15 +426,21 @@ const patternHold: QuestionStep = {
   ],
 };
 
+// pt_delay 질문 문구 2종(표시 전용).
+//   · DEFAULT — 직전 문항(ap_experiment)에서 고른 '결과물'을 앵커로 삼아 cs_blocker와의 반복감을
+//     없애고, 이 문항이 '그 행동을 아직 시작 못 한 이유'임을 명확히 한다. 이미 실행 중인 사용자는
+//     'pt_delay_acting(이미 작게 해보고 있다)'로 답할 수 있다.
+//   · NO_EXPERIMENT — ap_unsure('아직 모르겠음')를 고르면 가리킬 결과물이 없어 위 전제가 깨지므로
+//     전제 없는 문구를 쓴다. 선택지·효과값·evidence(q2:*)는 두 경우 모두 동일.
+export const PT_DELAY_PROMPT_DEFAULT = '방금 고른 결과물을 아직 시작하지 못했다면, 가장 큰 이유는 무엇인가요?';
+export const PT_DELAY_PROMPT_NO_EXPERIMENT = '실제로 무언가 해보는 단계로 넘어가지 못한다면, 가장 큰 이유는 무엇인가요?';
+
 const patternDelay: QuestionStep = {
   id: 'pt_delay',
   stage: 'action_preferences',
   inputType: 'single_select',
   title: '미루는 이유',
-  // 문구 수정만: 직전 문항(ap_experiment)에서 고른 '결과물'을 앵커로 삼아 cs_blocker와의 반복감을
-  // 없애고, 이 문항이 '그 행동을 아직 시작 못 한 이유'임을 명확히 한다. 이미 실행 중인 사용자는
-  // 'pt_delay_acting(이미 작게 해보고 있다)'로 답할 수 있다. 선택지·효과값 불변.
-  assistantPrompt: '방금 고른 결과물을 아직 시작하지 못했다면, 가장 큰 이유는 무엇인가요?',
+  assistantPrompt: PT_DELAY_PROMPT_DEFAULT,
   minSelect: 1,
   maxSelect: 1,
   options: [
@@ -521,11 +527,24 @@ export function shouldAskPtHold(responses: FlowResponses): boolean {
   return false;
 }
 
+// ap_unsure('아직 모르겠음')를 고르면 pt_delay의 "방금 고른 결과물을…" 전제가 깨지므로 이때만
+// 전제 없는 문구를 쓴다(표시 전용). 질문 ID·선택지 ID·효과값·문항 수·패턴 evidence(q2:*)는
+// 전부 그대로라, biasPatternEngine의 판별자(모호성 회피/분석 마비/생산적 지연/실험 회피)가
+// 두 경우 모두 동일하게 동작한다.
+export function ptDelayPromptFor(responses: FlowResponses): string {
+  const picked = responses.ap_experiment?.selectedOptionIds ?? [];
+  return picked.includes('ap_unsure') ? PT_DELAY_PROMPT_NO_EXPERIMENT : PT_DELAY_PROMPT_DEFAULT;
+}
+
 // 정적 정의(CAREER_QUESTION_FLOW)와 실제 노출 흐름을 분리한다. pt_hold는 정적 배열에서 항상
-// 제거하고, shouldAskPtHold=true일 때만 cs_blocker 바로 뒤에 삽입한다. 모든 UI(현재/다음/
-// 이전/진행률/결과/수정/첫 미응답 복구)는 이 활성 흐름을 기준으로 동작해야 한다.
+// 제거하고, shouldAskPtHold=true일 때만 cs_blocker 바로 뒤에 삽입한다. pt_delay는 위 규칙에 따라
+// 문구만 교체한다. 모든 UI(현재/다음/이전/진행률/결과/수정/첫 미응답 복구)는 이 활성 흐름을
+// 기준으로 동작해야 한다.
 export function getActiveCareerQuestionFlow(responses: FlowResponses): QuestionStep[] {
-  const base = CAREER_QUESTION_FLOW.filter((s) => s.id !== 'pt_hold');
+  const prompt = ptDelayPromptFor(responses);
+  const base = CAREER_QUESTION_FLOW
+    .filter((s) => s.id !== 'pt_hold')
+    .map((s) => (s.id === 'pt_delay' && s.assistantPrompt !== prompt ? { ...s, assistantPrompt: prompt } : s));
   if (!shouldAskPtHold(responses)) return base;
   const ptHold = CAREER_QUESTION_FLOW.find((s) => s.id === 'pt_hold');
   if (!ptHold) return base;
